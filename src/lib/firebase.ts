@@ -31,6 +31,7 @@ export interface MeetingData {
   meetingDate?: string;
   meetingTime?: string;
   bookedAt?: string;
+  meetingUrl?: string;
 }
 
 export interface StaffNote {

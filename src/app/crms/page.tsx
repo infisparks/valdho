@@ -2586,6 +2586,22 @@ export default function CRMPage() {
                                   )}
                                 </div>
 
+                                {/* Google Meet Video Call Button */}
+                                {lead.meeting?.meetingUrl && (
+                                  <div className="pt-0.5">
+                                    <a
+                                      href={lead.meeting.meetingUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-extrabold py-1.5 px-2.5 rounded-lg flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                                    >
+                                      <i className="fa-solid fa-video text-xs"></i>
+                                      <span>Join Google Meet Call 🎥</span>
+                                    </a>
+                                  </div>
+                                )}
+
                                 {(lead.followUpDate || (lead.notes && lead.notes.length > 0) || lead.dealValue || lead.onboarded) && (
                                   <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 pt-0.5">
                                     {lead.onboarded ? (
@@ -2782,6 +2798,7 @@ export default function CRMPage() {
                             {dayMeetings.slice(0, 2).map((m, mIdx) => {
                               const isPast = isMeetingInPast(m.meetingDate, m.meetingTime);
                               const shortTime = formatShortTime(m.meetingTime);
+                              const meetUrl = m.meetingUrl || m.meeting?.meetingUrl;
 
                               return (
                                 <div
@@ -2790,19 +2807,34 @@ export default function CRMPage() {
                                     e.stopPropagation();
                                     handleOpenDrawer(m);
                                   }}
-                                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md truncate cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-between shadow-2xs border ${
+                                  className={`text-[10px] font-bold p-1 rounded-md cursor-pointer hover:opacity-90 transition-opacity flex flex-col space-y-0.5 shadow-2xs border ${
                                     isPast
-                                      ? "bg-rose-100 text-rose-800 border-rose-300"
-                                      : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                      ? "bg-rose-50 text-rose-800 border-rose-300"
+                                      : "bg-emerald-50 text-emerald-900 border-emerald-300"
                                   }`}
                                   title={`${m.fullName} - ${m.meetingTime} (${isPast ? "Time Passed" : "Upcoming"})`}
                                 >
-                                  <span className="truncate max-w-[70px] sm:max-w-[120px]">
-                                    {m.fullName}
-                                  </span>
-                                  <span className="font-mono text-[9px] opacity-80 pl-1 flex-shrink-0">
-                                    {shortTime}
-                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <span className="truncate max-w-[70px] sm:max-w-[100px] font-extrabold">
+                                      {m.fullName}
+                                    </span>
+                                    <span className="font-mono text-[9px] opacity-80 flex-shrink-0">
+                                      {shortTime}
+                                    </span>
+                                  </div>
+
+                                  {meetUrl && (
+                                    <a
+                                      href={meetUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded flex items-center justify-center space-x-1 shadow-2xs transition-colors mt-0.5"
+                                    >
+                                      <i className="fa-solid fa-video text-[8px]"></i>
+                                      <span>Join 🎥</span>
+                                    </a>
+                                  )}
                                 </div>
                               );
                             })}
@@ -2887,12 +2919,25 @@ export default function CRMPage() {
                                 </span>
                               </td>
                               <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={() => handleOpenDrawer(m)}
-                                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 text-[10px] font-bold px-3 py-1 rounded-lg transition-colors"
-                                >
-                                  View Details & Notes
-                                </button>
+                                <div className="flex items-center justify-end space-x-2">
+                                  {(m.meetingUrl || m.meeting?.meetingUrl) && (
+                                    <a
+                                      href={m.meetingUrl || m.meeting?.meetingUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-lg shadow-2xs transition-colors flex items-center space-x-1.5"
+                                    >
+                                      <i className="fa-solid fa-video text-xs"></i>
+                                      <span>Join Google Meet 🎥</span>
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => handleOpenDrawer(m)}
+                                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors"
+                                  >
+                                    View Details & Notes
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))

@@ -88,10 +88,10 @@ export async function getLeadById(
 }
 
 /**
- * Clean Stage-Based Lead Database Writer:
- * - Partial (Step 1): ONLY contact info is saved (NO dummy survey, NO links).
- * - Survey Completed (Step 2): Adds survey answers + re-engagement links.
- * - Completed (Step 3): Adds meeting date & time to master lead + meeting index.
+ * Stage-Gated Lead Database Writer:
+ * - Partial (Step 1): ONLY contact info saved (NO survey, NO links).
+ * - Survey Completed (Step 2): Adds survey answers + ONLY surveyUrl link (NO meetingUrl).
+ * - Completed (Step 3): Adds meeting date & time + meetingUrl link to master lead & meeting index.
  */
 export async function saveOrUpdateLead(
   lead: LeadData,
@@ -123,26 +123,34 @@ export async function saveOrUpdateLead(
       status: lead.status,
     };
 
-    // ONLY attach survey answers & links if user actually completed Step 2 (or beyond)
-    if (lead.status !== "partial") {
-      const origin = typeof window !== "undefined" ? window.location.origin : "https://firstoptionagency.in";
-      leadPayload.links = {
-        surveyUrl: `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`,
-        meetingUrl: `${origin}/?step=meeting&leadId=${leadId}&createdDate=${createdDate}`,
-      };
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://firstoptionagency.in";
 
+    // Stage 2: Survey Completed -> Attach survey answers and ONLY surveyUrl
+    if (lead.status === "survey_completed" || lead.status === "completed") {
       if (lead.survey) {
         leadPayload.survey = lead.survey;
       }
+
+      leadPayload.links = {
+        surveyUrl: `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`,
+      };
     }
 
-    // ONLY attach meeting details if user actually picked a time slot in Step 3
-    if (lead.meeting) {
-      leadPayload.meeting = {
-        meetingDate: lead.meeting.meetingDate || "",
-        meetingTime: lead.meeting.meetingTime || "",
-        bookedAt: lead.meeting.bookedAt || timestamp,
-      };
+    // Stage 3: Meeting Completed -> Attach meeting details and meetingUrl
+    if (lead.status === "completed" || lead.meeting) {
+      if (!leadPayload.links) {
+        leadPayload.links = {};
+      }
+      leadPayload.links.surveyUrl = `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`;
+      leadPayload.links.meetingUrl = `${origin}/?step=meeting&leadId=${leadId}&createdDate=${createdDate}`;
+
+      if (lead.meeting) {
+        leadPayload.meeting = {
+          meetingDate: lead.meeting.meetingDate || "",
+          meetingTime: lead.meeting.meetingTime || "",
+          bookedAt: lead.meeting.bookedAt || timestamp,
+        };
+      }
     }
 
     // Set Master Lead Path

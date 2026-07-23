@@ -9,7 +9,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
   return (
-    <section className="hero-border-card rounded-3xl p-5 sm:p-7 my-2 text-center relative overflow-hidden">
+    <section className="hero-border-card rounded-3xl p-4 sm:p-7 my-2 text-center relative overflow-hidden">
       {/* Trust Pill */}
       <div className="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-3.5 py-1 rounded-full text-amber-400 text-xs font-bold mb-4">
         <i className="fa-solid fa-bolt text-xs"></i>
@@ -95,13 +95,13 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
       {/* CTA Gold Button Block */}
       <button
         onClick={onBookClick}
-        className="w-full cta-gold-btn shimmer rounded-2xl p-4 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all"
+        className="w-full cta-gold-btn shimmer rounded-2xl p-3.5 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all overflow-hidden"
       >
-        <div className="text-xl sm:text-2xl font-black uppercase tracking-wide flex items-center justify-center space-x-2">
+        <div className="text-[13px] min-[360px]:text-sm sm:text-xl md:text-2xl font-black uppercase tracking-tight sm:tracking-wide flex items-center justify-center space-x-1.5 whitespace-nowrap overflow-hidden text-ellipsis">
           <span>BOOK YOUR GROWTH SESSION</span>
-          <i className="fa-solid fa-arrow-right text-lg"></i>
+          <i className="fa-solid fa-arrow-right text-xs sm:text-lg flex-shrink-0"></i>
         </div>
-        <div className="text-xs sm:text-sm font-extrabold text-slate-900 mt-1">
+        <div className="text-[11px] sm:text-sm font-extrabold text-slate-900 mt-1">
           No sales pitch. Just a real roadmap for your business.
         </div>
       </button>

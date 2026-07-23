@@ -74,12 +74,12 @@ export function SolutionSection({ onBookClick }: { onBookClick: () => void }) {
       {/* CTA Button inside white section */}
       <button
         onClick={onBookClick}
-        className="w-full cta-gold-btn shimmer rounded-2xl p-4 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all"
+        className="w-full cta-gold-btn shimmer rounded-2xl p-3.5 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all overflow-hidden"
       >
-        <div className="text-xl sm:text-2xl font-black uppercase tracking-wide">
+        <div className="text-[13px] min-[360px]:text-sm sm:text-xl md:text-2xl font-black uppercase tracking-tight sm:tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
           BOOK YOUR GROWTH SESSION
         </div>
-        <div className="text-xs sm:text-sm font-semibold text-slate-900 mt-1">
+        <div className="text-[11px] sm:text-sm font-semibold text-slate-900 mt-1">
           No sales pitch. Just a real roadmap for your business.
         </div>
       </button>

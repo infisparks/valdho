@@ -62,7 +62,7 @@ export default function Home() {
       <HeaderBadge onBookClick={handleOpenBooking} />
 
       {/* Main Container */}
-      <main className="w-full max-w-md md:max-w-xl lg:max-w-2xl px-3 space-y-9">
+      <main className="w-full max-w-md md:max-w-2xl lg:max-w-3xl xl:max-w-4xl px-3 sm:px-4 space-y-9 sm:space-y-12">
         {/* 1. Hero Card */}
         <HeroSection
           onBookClick={handleOpenBooking}
@@ -97,17 +97,17 @@ export default function Home() {
         <FAQSection />
 
         {/* Final Bottom High-Conversion CTA Banner */}
-        <section className="hero-border-card rounded-3xl p-6 text-center space-y-4 my-8">
-          <div className="inline-flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-amber-400 text-xs font-bold">
+        <section className="hero-border-card rounded-3xl p-6 sm:p-10 text-center space-y-4 my-8">
+          <div className="inline-flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3.5 py-1 rounded-full text-amber-400 text-xs sm:text-sm font-bold">
             <i className="fa-solid fa-lock text-xs"></i>
             <span>100% Risk-Free Growth Consultation</span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white leading-tight">
             Ready to Stop Chasing Leads & Start Booking Real Buyers?
           </h2>
 
-          <p className="text-slate-300 text-sm font-medium">
+          <p className="text-slate-300 text-sm sm:text-base md:text-lg font-medium max-w-2xl mx-auto">
             Book your 1-on-1 Growth Session now. We will map out your exact customer acquisition pipeline step-by-step.
           </p>
 
@@ -115,23 +115,23 @@ export default function Home() {
             onClick={handleOpenBooking}
             className="w-full cta-gold-btn shimmer rounded-2xl p-4 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all shadow-2xl"
           >
-            <div className="text-xl sm:text-2xl font-black uppercase tracking-wide flex items-center justify-center space-x-2">
+            <div className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wide flex items-center justify-center space-x-2">
               <span>CLAIM YOUR GROWTH SESSION</span>
               <i className="fa-solid fa-arrow-right"></i>
             </div>
-            <div className="text-xs sm:text-sm font-extrabold text-slate-900 mt-1">
+            <div className="text-xs sm:text-sm md:text-base font-extrabold text-slate-900 mt-1">
               Only 3 spots left for this month. 100% Free Strategy Blueprint.
             </div>
           </button>
         </section>
 
         {/* Footer */}
-        <footer className="text-center text-slate-500 text-xs py-6 space-y-2 border-t border-zinc-900">
+        <footer className="text-center text-slate-500 text-xs sm:text-sm py-6 space-y-2 border-t border-zinc-900">
           <p className="font-bold text-slate-400">
             First Option Agency • Performance Marketing & Revenue Systems
           </p>
           <p>© {new Date().getFullYear()} First Option Agency. All Rights Reserved.</p>
-          <p className="text-[11px] text-slate-600">
+          <p className="text-[11px] sm:text-xs text-slate-600">
             Results may vary based on business category, market offer, and fulfillment capabilities.
           </p>
         </footer>

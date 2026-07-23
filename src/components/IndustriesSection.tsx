@@ -74,36 +74,38 @@ export function IndustriesSection() {
 
   return (
     <section className="space-y-6 pt-4">
-      <h2 className="text-2xl sm:text-3xl font-extrabold text-center text-white tracking-tight">
+      <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-center text-white tracking-tight">
         Industries we have worked with
       </h2>
 
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {industries.map((ind, idx) => (
           <div
             key={idx}
-            className="gold-border-card bg-white text-slate-900 rounded-3xl p-4 sm:p-6 text-center space-y-4 shadow-xl"
+            className="gold-border-card bg-white text-slate-900 rounded-3xl p-5 sm:p-6 text-center space-y-4 shadow-xl flex flex-col justify-between"
           >
-            <div className="rounded-2xl overflow-hidden aspect-[4/3] w-full bg-slate-100 shadow-inner">
-              <img
-                src={ind.img}
-                alt={ind.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <h3 className="text-2xl font-black text-slate-950">{ind.title}</h3>
+            <div className="space-y-4">
+              <div className="rounded-2xl overflow-hidden aspect-[4/3] md:h-52 lg:h-60 w-full bg-slate-100 shadow-inner">
+                <img
+                  src={ind.img}
+                  alt={ind.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-950">{ind.title}</h3>
 
-            <div className="space-y-2 text-base text-slate-800 font-bold">
-              <p className="text-slate-600 font-medium">{ind.intro}</p>
-              {ind.points.map((pt, pIdx) => (
-                <p key={pIdx} className="text-base sm:text-lg font-black text-slate-950">
-                  {pt}
-                </p>
-              ))}
+              <div className="space-y-2 text-sm sm:text-base text-slate-800 font-bold">
+                <p className="text-slate-600 font-medium">{ind.intro}</p>
+                {ind.points.map((pt, pIdx) => (
+                  <p key={pIdx} className="text-base sm:text-lg md:text-xl font-black text-slate-950">
+                    {pt}
+                  </p>
+                ))}
+              </div>
             </div>
 
             {/* Yellow Highlight Badge */}
-            <div className="yellow-callout-badge p-3 rounded-xl text-center text-xs sm:text-sm tracking-wide leading-snug">
+            <div className="yellow-callout-badge p-3.5 rounded-xl text-center text-xs sm:text-sm md:text-base tracking-wide leading-snug mt-2">
               {ind.badge}
             </div>
           </div>

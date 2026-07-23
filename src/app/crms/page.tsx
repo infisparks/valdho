@@ -96,11 +96,15 @@ export default function CRMPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // Calculate Metrics
+  // Calculate Metrics - Include all leads who reached or passed each stage
   const totalLeadsCount = leadsList.length;
   const partialLeadsCount = leadsList.filter((l) => l.status === "partial").length;
-  const surveyCompletedCount = leadsList.filter((l) => l.status === "survey_completed").length;
-  const bookedMeetingsCount = leadsList.filter((l) => l.status === "completed").length;
+  const surveyCompletedCount = leadsList.filter(
+    (l) => l.status === "survey_completed" || l.status === "completed" || (l.survey && Object.keys(l.survey).length > 0)
+  ).length;
+  const bookedMeetingsCount = leadsList.filter(
+    (l) => l.status === "completed" || !!l.meeting?.meetingDate
+  ).length;
   const todayMeetingsScheduled = meetingsList.length;
 
   // Funnel Percentages
@@ -326,7 +330,7 @@ export default function CRMPage() {
                 </div>
               </div>
               <p className="text-2xl font-extrabold text-blue-600">{surveyCompletedCount}</p>
-              <p className="text-[10px] text-slate-400">Qualified leads waiting to book</p>
+              <p className="text-[10px] text-slate-400">Qualified leads who filled survey</p>
             </div>
 
             {/* Today's Meetings */}
@@ -490,7 +494,7 @@ export default function CRMPage() {
                         )}`;
 
                         const isSurveyDone =
-                          lead.status === "survey_completed" || lead.status === "completed";
+                          lead.status === "survey_completed" || lead.status === "completed" || (lead.survey && Object.keys(lead.survey).length > 0);
                         const isMeetingDone = lead.status === "completed" || !!lead.meeting?.meetingDate;
 
                         return (

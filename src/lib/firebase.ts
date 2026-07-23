@@ -1,5 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getDatabase, ref, update, get } from "firebase/database";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
+import { CAMPAIGNS } from "@/config/campaigns";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,12 +17,14 @@ const firebaseConfig = {
 // Initialize Firebase App singleton
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getDatabase(app);
+export const auth = getAuth(app);
 
 export interface SurveyData {
   industry?: string;
   role?: string;
   revenue?: string;
   investmentReady?: string;
+  [key: string]: any;
 }
 
 export interface MeetingData {
@@ -89,7 +93,6 @@ export async function getBookedSlotsForDate(
       const bookedMap: Record<string, boolean> = {};
       Object.keys(data).forEach((key) => {
         if (data[key] && data[key].booked) {
-          // Store original formatted time or key
           bookedMap[key] = true;
         }
       });
@@ -120,6 +123,64 @@ export async function getLeadById(
   } catch (error) {
     console.error("Firebase getLeadById Error:", error);
     return null;
+  }
+}
+
+/**
+ * CRM Query: Fetch all leads for a specific date across selected or all campaigns
+ */
+export async function getLeadsForDate(
+  targetDate: string,
+  campaignId: string = "all"
+): Promise<LeadData[]> {
+  try {
+    const campaignKeys = campaignId === "all" ? Object.keys(CAMPAIGNS) : [campaignId];
+    const results: LeadData[] = [];
+
+    for (const cName of campaignKeys) {
+      const leadsRef = ref(db, `campaigns/${cName}/leads/${targetDate}`);
+      const snapshot = await get(leadsRef);
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        Object.values(data).forEach((item: any) => {
+          results.push(item as LeadData);
+        });
+      }
+    }
+
+    return results.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  } catch (error) {
+    console.error("Firebase getLeadsForDate Error:", error);
+    return [];
+  }
+}
+
+/**
+ * CRM Query: Fetch all meetings scheduled for a specific date across selected or all campaigns
+ */
+export async function getMeetingsForDate(
+  targetDate: string,
+  campaignId: string = "all"
+): Promise<any[]> {
+  try {
+    const campaignKeys = campaignId === "all" ? Object.keys(CAMPAIGNS) : [campaignId];
+    const results: any[] = [];
+
+    for (const cName of campaignKeys) {
+      const meetingsRef = ref(db, `campaigns/${cName}/meetings/${targetDate}`);
+      const snapshot = await get(meetingsRef);
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        Object.values(data).forEach((item: any) => {
+          results.push({ ...item, campaign: cName });
+        });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Firebase getMeetingsForDate Error:", error);
+    return [];
   }
 }
 
@@ -169,7 +230,7 @@ export async function saveOrUpdateLead(
       }
 
       leadPayload.links = {
-        surveyUrl: `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`,
+        surveyUrl: `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}&campaign=${campaignName}`,
       };
     }
 
@@ -178,8 +239,8 @@ export async function saveOrUpdateLead(
       if (!leadPayload.links) {
         leadPayload.links = {};
       }
-      leadPayload.links.surveyUrl = `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`;
-      leadPayload.links.meetingUrl = `${origin}/?step=meeting&leadId=${leadId}&createdDate=${createdDate}`;
+      leadPayload.links.surveyUrl = `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}&campaign=${campaignName}`;
+      leadPayload.links.meetingUrl = `${origin}/?step=meeting&leadId=${leadId}&createdDate=${createdDate}&campaign=${campaignName}`;
 
       if (lead.meeting) {
         leadPayload.meeting = {

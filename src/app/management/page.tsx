@@ -528,6 +528,14 @@ export default function ManagementPage() {
               </div>
 
               <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => router.push(`/crms/view-flow?id=${activeFlow.id}`)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-1.5"
+                >
+                  <i className="fa-solid fa-[#up-right-and-arrow-up-right-from-square] fa-up-right-from-square"></i>
+                  <span>Open Full Canvas Page 🚀</span>
+                </button>
+
                 {/* Admin Mark Complete Action Button */}
                 {isAdmin && activeFlow.status !== "completed" && (
                   <button

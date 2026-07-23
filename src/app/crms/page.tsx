@@ -1838,10 +1838,10 @@ export default function CRMPage() {
                                       <div className="text-slate-500 flex items-center justify-between font-mono">
                                         <span>Progress: {doneCount}/{cf.tasks.length} tasks</span>
                                         <button
-                                          onClick={() => setViewFlowAuditModal(cf)}
-                                          className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200 transition-colors"
+                                          onClick={() => router.push(`/crms/view-flow?id=${cf.id}`)}
+                                          className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200 transition-colors shadow-2xs"
                                         >
-                                          👁️ View Audit
+                                          🚀 Open Flow Canvas Page
                                         </button>
                                       </div>
                                     </div>

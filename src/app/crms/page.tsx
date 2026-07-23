@@ -4406,6 +4406,51 @@ export default function CRMPage() {
                 </div>
               </div>
 
+              {/* GOOGLE MEET VIDEO CALL SECTION INSIDE DRAWER */}
+              {(selectedLead.meeting?.meetingUrl || selectedLead.links?.meetingUrl) && (
+                <div className="bg-indigo-900 border border-indigo-700 rounded-2xl p-4 space-y-2.5 shadow-md text-white font-sans">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-800 border border-indigo-600 flex items-center justify-center text-indigo-300 font-extrabold text-sm">
+                        🎥
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Google Meet Video Call</h4>
+                        <p className="text-[10px] text-indigo-200">Unique meeting link for this client</p>
+                      </div>
+                    </div>
+
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Active Call
+                    </span>
+                  </div>
+
+                  <div className="bg-indigo-950 border border-indigo-800 rounded-xl p-2.5 flex items-center justify-between gap-2 font-mono text-xs">
+                    <span className="truncate text-indigo-200 text-[11px] font-bold">
+                      {selectedLead.meeting?.meetingUrl || selectedLead.links?.meetingUrl}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink((selectedLead.meeting?.meetingUrl || selectedLead.links?.meetingUrl)!, "meet")}
+                      className="bg-indigo-800 hover:bg-indigo-700 text-indigo-100 font-extrabold text-[10px] px-2.5 py-1 rounded-lg border border-indigo-600 transition-colors flex-shrink-0 cursor-pointer"
+                    >
+                      {copiedLink === "meet" ? "Copied! ✓" : "Copy 📋"}
+                    </button>
+                  </div>
+
+                  <a
+                    href={selectedLead.meeting?.meetingUrl || selectedLead.links?.meetingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg transition-all cursor-pointer"
+                  >
+                    <i className="fa-solid fa-video text-xs"></i>
+                    <span>Join Google Meet Video Call Now 🚀</span>
+                  </a>
+                </div>
+              )}
+
               {/* DETAILED SURVEY RESPONSES */}
               {selectedLead.survey && Object.keys(selectedLead.survey).length > 0 && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-2 shadow-sm">

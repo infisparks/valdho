@@ -1,57 +1,86 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import socialUsersData from "@/data/socialProofUsers.json";
 
-const toastMessages = [
-  { name: "Dr. Malhotra (Delhi)", action: "Booked a Growth Session", time: "2 mins ago" },
-  { name: "Wao Mobile (Mumbai)", action: "Generated 45 store inquiries today", time: "6 mins ago" },
-  { name: "Apex Manufacturing (Gujarat)", action: "Received B2B Contract RFQ", time: "12 mins ago" },
-  { name: "Dr. Sajid Firdousi", action: "Scaled to 10k patient appointments", time: "15 mins ago" },
-  { name: "TechnoSoft Solutions (Bangalore)", action: "Scheduled 1-on-1 Strategy Call", time: "18 mins ago" },
-];
+interface ToastUser {
+  name: string;
+  location: string;
+  action: string;
+  time: string;
+}
 
 export function SocialProofToast() {
-  const [currentIdx, setCurrentIdx] = useState<number | null>(null);
+  const [currentUser, setCurrentUser] = useState<ToastUser | null>(null);
+  const [isVisible, setIsVisible] = useState<boolean>(false);
 
   useEffect(() => {
-    // Initial delay before first toast
-    const timer1 = setTimeout(() => {
-      setCurrentIdx(0);
-    }, 4000);
+    const showRandomToast = () => {
+      // Pick a random user from 100 users list
+      const randomIndex = Math.floor(Math.random() * socialUsersData.length);
+      const user = socialUsersData[randomIndex];
+      
+      setCurrentUser(user);
+      setIsVisible(true);
 
-    const interval = setInterval(() => {
-      setCurrentIdx((prev) => {
-        if (prev === null) return 0;
-        const next = (prev + 1) % toastMessages.length;
-        return next;
-      });
-
-      // Auto hide after 5 seconds
+      // Hide strictly after 1.5 seconds (1500ms)
       setTimeout(() => {
-        setCurrentIdx(null);
-      }, 5000);
-    }, 14000);
+        setIsVisible(false);
+      }, 1500);
+    };
+
+    // Initial first toast after 3 seconds
+    const initialTimer = setTimeout(() => {
+      showRandomToast();
+    }, 3000);
+
+    // Schedule subsequent random toasts every 7 - 12 seconds
+    const scheduleNext = () => {
+      const randomInterval = Math.floor(Math.random() * 5000) + 7000; // 7s to 12s
+      return setTimeout(() => {
+        showRandomToast();
+        timerId = scheduleNext();
+      }, randomInterval);
+    };
+
+    let timerId = scheduleNext();
 
     return () => {
-      clearTimeout(timer1);
-      clearInterval(interval);
+      clearTimeout(initialTimer);
+      clearTimeout(timerId);
     };
   }, []);
 
-  if (currentIdx === null) return null;
-
-  const currentToast = toastMessages[currentIdx];
+  if (!currentUser || !isVisible) return null;
 
   return (
-    <div className="fixed bottom-14 sm:bottom-6 left-4 z-40 max-w-xs animate-toast-in">
-      <div className="bg-zinc-900/95 border border-amber-500/40 text-white rounded-2xl p-3 shadow-2xl backdrop-blur-md flex items-center space-x-3">
-        <div className="w-9 h-9 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 text-sm font-black border border-amber-500/40">
+    <div className="fixed bottom-16 sm:bottom-6 left-3 sm:left-6 z-40 max-w-[290px] sm:max-w-xs transition-all duration-300 animate-toast-in pointer-events-none">
+      <div className="bg-[#0f0f12]/95 border border-amber-500/40 text-white rounded-2xl p-3 sm:p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(245,166,35,0.15)] backdrop-blur-xl flex items-center space-x-3">
+        {/* Verified Gold Avatar Circle */}
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 flex items-center justify-center flex-shrink-0 text-sm sm:text-base font-black shadow-md border border-amber-300/40">
           <i className="fa-solid fa-check"></i>
         </div>
-        <div className="text-xs">
-          <p className="font-extrabold text-white leading-tight">{currentToast.name}</p>
-          <p className="text-amber-400 font-semibold">{currentToast.action}</p>
-          <p className="text-slate-400 text-[10px] mt-0.5">{currentToast.time}</p>
+
+        {/* Content */}
+        <div className="text-xs overflow-hidden leading-tight space-y-0.5">
+          <div className="flex items-center justify-between space-x-1">
+            <span className="font-extrabold text-white text-xs sm:text-sm truncate">
+              {currentUser.name}
+            </span>
+            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-500/30 flex-shrink-0">
+              Verified
+            </span>
+          </div>
+          
+          <p className="text-amber-400 font-bold text-xs truncate">
+            {currentUser.action}
+          </p>
+
+          <div className="flex items-center space-x-2 text-[10px] text-slate-400 pt-0.5 font-mono">
+            <span>📍 {currentUser.location}</span>
+            <span>•</span>
+            <span>{currentUser.time}</span>
+          </div>
         </div>
       </div>
     </div>

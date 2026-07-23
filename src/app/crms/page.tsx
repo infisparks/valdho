@@ -198,6 +198,9 @@ export default function CRMPage() {
   const [deleteClientFlowModal, setDeleteClientFlowModal] = useState<ClientFlowInstance | null>(null);
   const [isDeletingClientFlow, setIsDeletingClientFlow] = useState(false);
 
+  // VIEW LIVE FLOW AUDIT MODAL STATE FOR ADMIN
+  const [viewFlowAuditModal, setViewFlowAuditModal] = useState<ClientFlowInstance | null>(null);
+
   // Pipeline Advanced Date Filter Controls
   const [pipelineTargetField, setPipelineTargetField] = useState<"meeting" | "created" | "followup">("created");
   const [pipelineDatePreset, setPipelineDatePreset] = useState<
@@ -1834,6 +1837,12 @@ export default function CRMPage() {
 
                                       <div className="text-slate-500 flex items-center justify-between font-mono">
                                         <span>Progress: {doneCount}/{cf.tasks.length} tasks</span>
+                                        <button
+                                          onClick={() => setViewFlowAuditModal(cf)}
+                                          className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200 transition-colors"
+                                        >
+                                          👁️ View Audit
+                                        </button>
                                       </div>
                                     </div>
                                   );
@@ -3985,6 +3994,177 @@ export default function CRMPage() {
                   <i className="fa-solid fa-trash-can text-xs"></i>
                 )}
                 <span>Confirm & Remove Flow 🗑️</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN LIVE FLOW AUDIT MODAL (Canvas Table Matrix Format) */}
+      {viewFlowAuditModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 font-sans">
+          <div className="fixed inset-0" onClick={() => setViewFlowAuditModal(null)} />
+          <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 z-10 flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-150">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between sticky top-0 z-20">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-md">
+                  👁️
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
+                    Live Flow Progress & Staff Audit Matrix
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Client: <strong className="text-slate-900">{viewFlowAuditModal.clientName}</strong> ({viewFlowAuditModal.clientEmail}) | Flow: <strong className="text-indigo-600">{viewFlowAuditModal.flowName}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <span className="text-xs font-mono font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl border border-indigo-200">
+                  {viewFlowAuditModal.campaign}
+                </span>
+
+                <button
+                  onClick={() => setViewFlowAuditModal(null)}
+                  className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-200 flex items-center justify-center transition-colors"
+                >
+                  <i className="fa-solid fa-xmark text-sm"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center space-x-2">
+                  <i className="fa-solid fa-table-cells text-indigo-600"></i>
+                  <span>Staff Work Audit Matrix Table</span>
+                </h3>
+                <span className="text-xs text-slate-500 font-mono">
+                  {viewFlowAuditModal.tasks.filter((t) => t.isCompleted).length} / {viewFlowAuditModal.tasks.length} Steps Completed
+                </span>
+              </div>
+
+              {/* ROLE COLUMNS CANVAS FOR ADMIN (ZERO BLANK/EMPTY SPACE) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+                {rolesList.map((role) => {
+                  const roleTasks = viewFlowAuditModal.tasks.filter(
+                    (t) =>
+                      t.roleId === role.id ||
+                      t.roleName.toLowerCase() === role.name.toLowerCase()
+                  );
+
+                  const staffForRole = usersList.filter(
+                    (u) =>
+                      u.roleId === role.id ||
+                      u.roleName?.toLowerCase() === role.name.toLowerCase()
+                  );
+
+                  const completedRoleTasksCount = roleTasks.filter((t) => t.isCompleted).length;
+
+                  return (
+                    <div
+                      key={role.id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3.5 flex flex-col justify-between"
+                    >
+                      <div className="border-b border-slate-200/80 pb-3 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-extrabold text-slate-900">
+                            {role.name}
+                          </h3>
+
+                          <span className="text-[10px] font-mono font-bold bg-white text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
+                            {completedRoleTasksCount}/{roleTasks.length} Tasks
+                          </span>
+                        </div>
+
+                        {staffForRole.length > 0 ? (
+                          <div className="text-[10px] font-mono font-extrabold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-lg truncate">
+                            ✉️ {staffForRole.map((s) => s.email).join(", ")}
+                          </div>
+                        ) : (
+                          <div className="text-[9px] font-mono text-slate-400 italic">
+                            👤 Unassigned Email
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        {roleTasks.length === 0 ? (
+                          <div className="p-4 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs italic">
+                            No tasks assigned to {role.name}.
+                          </div>
+                        ) : (
+                          roleTasks.map((task) => {
+                            const isTaskDone = task.isCompleted || viewFlowAuditModal.status === "completed";
+                            const originalStepIdx = viewFlowAuditModal.tasks.findIndex((t) => t.id === task.id) + 1;
+
+                            return (
+                              <div
+                                key={task.id}
+                                className={`bg-white border rounded-xl p-3 space-y-2.5 shadow-2xs ${
+                                  isTaskDone ? "border-emerald-200 bg-emerald-50/10" : "border-slate-200"
+                                }`}
+                              >
+                                <div className="flex items-start space-x-2">
+                                  <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
+                                    #{originalStepIdx}
+                                  </span>
+                                  <h4 className="text-xs font-extrabold text-slate-900 leading-snug">
+                                    {task.title}
+                                  </h4>
+                                </div>
+
+                                <div className="flex items-center space-x-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={isTaskDone}
+                                    onChange={() =>
+                                      handleMarkClientFlowCompleted(viewFlowAuditModal.id)
+                                    }
+                                    className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                                  />
+                                  <span className={`text-xs font-bold ${isTaskDone ? "text-emerald-800 line-through" : "text-slate-800"}`}>
+                                    {isTaskDone ? "Completed Step" : "Pending Check"}
+                                  </span>
+                                </div>
+
+                                {task.textValue && (
+                                  <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono font-bold break-all">
+                                    {task.textValue}
+                                  </div>
+                                )}
+
+                                {task.completedAt ? (
+                                  <div className="text-[10px] font-mono text-emerald-800 bg-emerald-100/90 border border-emerald-300 p-1.5 rounded-lg font-extrabold flex items-center justify-between">
+                                    <span>✓ {new Date(task.completedAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
+                                    <span className="truncate max-w-[90px]">{task.completedBy?.split("@")[0]}</span>
+                                  </div>
+                                ) : (
+                                  <div className="text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-200 p-1 rounded-lg font-bold text-center">
+                                    ⏳ Pending
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between sticky bottom-0">
+              <span className="text-xs text-slate-500 font-mono">
+                Assigned by: {viewFlowAuditModal.assignedBy} on {new Date(viewFlowAuditModal.assignedAt).toLocaleDateString()}
+              </span>
+              <button
+                onClick={() => setViewFlowAuditModal(null)}
+                className="px-5 py-2 rounded-xl text-xs font-extrabold bg-slate-200 hover:bg-slate-300 text-slate-800 transition-colors"
+              >
+                Close Audit View
               </button>
             </div>
           </div>

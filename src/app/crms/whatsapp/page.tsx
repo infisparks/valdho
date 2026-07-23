@@ -114,6 +114,9 @@ export default function WhatsappManagerPage() {
   const [newMeetName, setNewMeetName] = useState("");
   const [newMeetEmail, setNewMeetEmail] = useState("");
   const [newMeetUrl, setNewMeetUrl] = useState("");
+  const [newMeetRefreshToken, setNewMeetRefreshToken] = useState("");
+  const [newMeetClientId, setNewMeetClientId] = useState("");
+  const [newMeetClientSecret, setNewMeetClientSecret] = useState("");
   const [isConnectingMeet, setIsConnectingMeet] = useState(false);
 
   // Sync Google Meet Connected Accounts from Firebase RTDB `/google_meet_integrations/firstoptionagency`
@@ -391,11 +394,14 @@ export default function WhatsappManagerPage() {
       const accId = `meet_${Date.now()}`;
       const url = newMeetUrl.trim() || "https://meet.google.com/firstoption-strategy-call";
 
-      const payload: GoogleMeetAccount = {
+      const payload: any = {
         id: accId,
         name: newMeetName.trim(),
         email: newMeetEmail.trim(),
         meetingUrl: url,
+        refreshToken: newMeetRefreshToken.trim() || "",
+        clientId: newMeetClientId.trim() || "",
+        clientSecret: newMeetClientSecret.trim() || "",
         status: "active",
         createdAt: new Date().toISOString(),
       };
@@ -421,6 +427,9 @@ export default function WhatsappManagerPage() {
       setNewMeetName("");
       setNewMeetEmail("");
       setNewMeetUrl("");
+      setNewMeetRefreshToken("");
+      setNewMeetClientId("");
+      setNewMeetClientSecret("");
     } catch (err: any) {
       alert(`Failed to connect Google Meet account: ${err.message}`);
     } finally {
@@ -1259,7 +1268,7 @@ export default function WhatsappManagerPage() {
               {/* Google Meet Room URL */}
               <div className="space-y-1">
                 <label className="text-xs font-extrabold text-slate-800 flex items-center space-x-1">
-                  <span>Google Meet Link / Video Room URL</span>
+                  <span>Default Google Meet Link / Video Room URL</span>
                   <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1270,6 +1279,47 @@ export default function WhatsappManagerPage() {
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-indigo-700 font-mono focus:outline-none focus:border-indigo-600"
                   required
                 />
+              </div>
+
+              {/* Google OAuth Refresh Token for Auto Unique Links */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-indigo-900 flex items-center space-x-1">
+                    <span>⚡ Google Calendar OAuth (Auto Unique Links)</span>
+                  </span>
+                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
+                    Optional
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Enter your Google Refresh Token below if you want Google Calendar API to automatically generate a brand-new, unique <code>meet.google.com</code> link for every booking!
+                </p>
+
+                <div className="space-y-2">
+                  <input
+                    type="password"
+                    placeholder="Google OAuth Refresh Token (Optional)"
+                    value={newMeetRefreshToken}
+                    onChange={(e) => setNewMeetRefreshToken(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Google Client ID"
+                      value={newMeetClientId}
+                      onChange={(e) => setNewMeetClientId(e.target.value)}
+                      className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-[11px] font-mono text-slate-900 focus:outline-none"
+                    />
+                    <input
+                      type="password"
+                      placeholder="Google Client Secret"
+                      value={newMeetClientSecret}
+                      onChange={(e) => setNewMeetClientSecret(e.target.value)}
+                      className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-[11px] font-mono text-slate-900 focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 flex items-center justify-end">

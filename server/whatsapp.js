@@ -723,7 +723,9 @@ router.post("/auto-send-meeting", async (req, res) => {
     const instanceName = await resolveActiveInstance(config.selectedInstanceName);
     if (!instanceName) return res.status(400).json({ success: false, error: "No active WhatsApp instance available." });
 
-    const resolvedMeetingUrl = meetingUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
+    const { createUniqueGoogleMeetEvent } = require("./google_calendar");
+    const autoUniqueUrl = await createUniqueGoogleMeetEvent({ fullName, email, dateStr: date, timeStr: time });
+    const resolvedMeetingUrl = meetingUrl || autoUniqueUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
 
     let rawTemplate = stepConfig.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}";
     const formattedMessage = rawTemplate

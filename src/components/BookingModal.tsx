@@ -69,6 +69,30 @@ export function BookingModal({
     }
   }, [isOpen, initialStep, initialLeadId, initialCreatedDate]);
 
+  // Dynamically sync browser URL address bar params when step changes
+  useEffect(() => {
+    if (!isOpen) {
+      if (typeof window !== "undefined" && window.location.search) {
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+      return;
+    }
+
+    if (typeof window !== "undefined" && firebaseLeadId) {
+      const todayDate = createdDate || new Date().toISOString().split("T")[0];
+      let stepName = "";
+
+      if (step === 2) stepName = "survey";
+      else if (step === 3) stepName = "meeting";
+      else if (step === 4) stepName = "success";
+
+      if (stepName) {
+        const newUrl = `${window.location.pathname}?step=${stepName}&leadId=${firebaseLeadId}&createdDate=${todayDate}`;
+        window.history.replaceState({}, "", newUrl);
+      }
+    }
+  }, [isOpen, step, firebaseLeadId, createdDate]);
+
   // Pre-fill contact details from Firebase (if URL params exist) or LocalStorage
   useEffect(() => {
     async function restoreLead() {
@@ -192,6 +216,11 @@ export function BookingModal({
     setActiveQIndex(0);
     setSelectedTimeSlot(null);
     setPhoneError(null);
+
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
     onClose();
   };
 

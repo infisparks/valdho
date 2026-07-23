@@ -1,65 +1,158 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState } from "react";
+import { UrgencyBar } from "@/components/UrgencyBar";
+import { HeaderBadge } from "@/components/HeaderBadge";
+import { HeroSection } from "@/components/HeroSection";
+import { CycleSection } from "@/components/CycleSection";
+import { ProblemSection } from "@/components/ProblemSection";
+import { SolutionSection } from "@/components/SolutionSection";
+import { WhyDifferentSection } from "@/components/WhyDifferentSection";
+import { ClientResultsSection } from "@/components/ClientResultsSection";
+import { GrowthCalculator } from "@/components/GrowthCalculator";
+import { HowItWorksSection } from "@/components/HowItWorksSection";
+import { IndustriesSection } from "@/components/IndustriesSection";
+import { FAQSection } from "@/components/FAQSection";
+import { VideoModal } from "@/components/VideoModal";
+import { BookingModal } from "@/components/BookingModal";
+import { StickyMobileCTA } from "@/components/StickyMobileCTA";
+import { SocialProofToast } from "@/components/SocialProofToast";
 
 export default function Home() {
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [videoModal, setVideoModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    author: string;
+  }>({
+    isOpen: false,
+    title: "",
+    author: "",
+  });
+
+  const handleOpenBooking = () => setIsBookingOpen(true);
+  const handleCloseBooking = () => setIsBookingOpen(false);
+
+  const handleOpenVideo = (title: string, author: string) => {
+    setVideoModal({
+      isOpen: true,
+      title,
+      author,
+    });
+  };
+
+  const handleCloseVideo = () => {
+    setVideoModal({
+      isOpen: false,
+      title: "",
+      author: "",
+    });
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="w-full pb-32 text-slate-100 flex flex-col items-center justify-start min-h-screen antialiased">
+      {/* Top Urgency Ticker Bar */}
+      <UrgencyBar />
+
+      {/* Top Announcement Badge Header */}
+      <HeaderBadge onBookClick={handleOpenBooking} />
+
+      {/* Main Container */}
+      <main className="w-full max-w-md md:max-w-xl lg:max-w-2xl px-3 space-y-9">
+        {/* 1. Hero Card */}
+        <HeroSection
+          onBookClick={handleOpenBooking}
+          onVideoClick={handleOpenVideo}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+        {/* 2. Cycle Section */}
+        <CycleSection />
+
+        {/* 3. Problem Diagnosis Section */}
+        <ProblemSection />
+
+        {/* 4. Solution Section */}
+        <SolutionSection onBookClick={handleOpenBooking} />
+
+        {/* 5. Why We Are Different Section */}
+        <WhyDifferentSection />
+
+        {/* 6. Client Results & Proof */}
+        <ClientResultsSection onVideoClick={handleOpenVideo} />
+
+        {/* 7. Interactive Revenue Calculator Widget */}
+        <GrowthCalculator onBookClick={handleOpenBooking} />
+
+        {/* 8. How It Works Step-by-Step */}
+        <HowItWorksSection onBookClick={handleOpenBooking} />
+
+        {/* 9. Industries We Have Worked With Grid */}
+        <IndustriesSection />
+
+        {/* 10. Frequently Asked Questions */}
+        <FAQSection />
+
+        {/* Final Bottom High-Conversion CTA Banner */}
+        <section className="hero-border-card rounded-3xl p-6 text-center space-y-4 my-8">
+          <div className="inline-flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-amber-400 text-xs font-bold">
+            <i className="fa-solid fa-lock text-xs"></i>
+            <span>100% Risk-Free Growth Consultation</span>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+            Ready to Stop Chasing Leads & Start Booking Real Buyers?
+          </h2>
+
+          <p className="text-slate-300 text-sm font-medium">
+            Book your 1-on-1 Growth Session now. We will map out your exact customer acquisition pipeline step-by-step.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+          <button
+            onClick={handleOpenBooking}
+            className="w-full cta-gold-btn shimmer rounded-2xl p-4 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all shadow-2xl"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+            <div className="text-xl sm:text-2xl font-black uppercase tracking-wide flex items-center justify-center space-x-2">
+              <span>CLAIM YOUR GROWTH SESSION</span>
+              <i className="fa-solid fa-arrow-right"></i>
+            </div>
+            <div className="text-xs sm:text-sm font-extrabold text-slate-900 mt-1">
+              Only 3 spots left for this month. 100% Free Strategy Blueprint.
+            </div>
+          </button>
+        </section>
+
+        {/* Footer */}
+        <footer className="text-center text-slate-500 text-xs py-6 space-y-2 border-t border-zinc-900">
+          <p className="font-bold text-slate-400">
+            First Option Agency • Performance Marketing & Revenue Systems
+          </p>
+          <p>© {new Date().getFullYear()} First Option Agency. All Rights Reserved.</p>
+          <p className="text-[11px] text-slate-600">
+            Results may vary based on business category, market offer, and fulfillment capabilities.
+          </p>
+        </footer>
       </main>
+
+      {/* Video Modal */}
+      <VideoModal
+        isOpen={videoModal.isOpen}
+        onClose={handleCloseVideo}
+        title={videoModal.title}
+        author={videoModal.author}
+        onBookClick={handleOpenBooking}
+      />
+
+      {/* Booking Modal */}
+      <BookingModal
+        isOpen={isBookingOpen}
+        onClose={handleCloseBooking}
+      />
+
+      {/* Sticky Mobile CTA */}
+      <StickyMobileCTA onBookClick={handleOpenBooking} />
+
+      {/* Live Social Proof Toast */}
+      <SocialProofToast />
     </div>
   );
 }

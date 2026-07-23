@@ -42,7 +42,7 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
         generate <span className="font-extrabold text-amber-400">real buyers</span>, not just leads.
       </p>
 
-      {/* Embedded Video Mockup with YouTube Thumbnail */}
+      {/* Embedded Video Mockup with Clean Single Thumbnail */}
       <div
         className="relative rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 shadow-2xl mb-6 cursor-pointer group"
         onClick={() => onVideoClick("Why We Are Different", "First Option Agency", youtubeVideoId)}
@@ -51,7 +51,7 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
           <img
             src={thumbnailUrl}
             alt="Why We Are Different - YouTube Video"
-            className="w-full h-full object-cover opacity-80 group-hover:opacity-95 transition-opacity scale-[1.01] group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity scale-[1.01] group-hover:scale-105 transition-transform duration-300"
           />
 
           {/* Top YouTube Overlay Header */}
@@ -67,11 +67,6 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
                 First Option Agency • Official YouTube Strategy
               </p>
             </div>
-          </div>
-
-          {/* YouTube Red Play Button */}
-          <div className="relative z-10 w-16 h-11 bg-red-600 rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-            <div className="w-0 h-0 border-y-[8px] border-y-transparent border-l-[14px] border-l-white ml-1"></div>
           </div>
 
           {/* Bottom Bar Overlay */}

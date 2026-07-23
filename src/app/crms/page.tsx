@@ -86,6 +86,38 @@ const DEFAULT_PIPELINE_STAGES: PipelineStageConfig[] = [
   { id: "not_qualified", name: "Not Qualified", color: "#f43f5e", bgTag: "bg-rose-50 text-rose-700 border-rose-200", isCompulsory: false, isDeleted: false },
 ];
 
+function parseMeetingDateTime(dateStr?: string, timeStr?: string): Date | null {
+  if (!dateStr) return null;
+  try {
+    const cleanDate = dateStr.trim();
+    let hour = 12;
+    let minute = 0;
+
+    if (timeStr) {
+      const cleanTime = timeStr.trim();
+      if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
+        const isPm = cleanTime.includes("PM");
+        const timePart = cleanTime.replace("AM", "").replace("PM", "").trim();
+        const parts = timePart.split(":");
+        hour = parseInt(parts[0], 10);
+        if (isPm && hour < 12) hour += 12;
+        if (!isPm && hour === 12) hour = 0;
+        if (parts[1]) minute = parseInt(parts[1], 10);
+      } else if (cleanTime.includes(":")) {
+        const parts = cleanTime.split(":");
+        hour = parseInt(parts[0], 10);
+        minute = parseInt(parts[1], 10);
+      }
+    }
+
+    const isoStr = `${cleanDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`;
+    const dt = new Date(isoStr);
+    return isNaN(dt.getTime()) ? null : dt;
+  } catch (err) {
+    return null;
+  }
+}
+
 function formatShortTime(timeStr: string): string {
   if (!timeStr) return "";
   const clean = timeStr.trim();
@@ -359,6 +391,13 @@ export default function CRMPage() {
   const [ruleOffsetUnit, setRuleOffsetUnit] = useState<"minutes" | "hours" | "days">("minutes");
   const [ruleTemplate, setRuleTemplate] = useState("Hello {{name}}, reminder for your strategy session at {{time}} on {{date}}!");
   const [isSavingRule, setIsSavingRule] = useState(false);
+
+  // Live 1-second Tick State for Realtime Countdown Timer
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Realtime Sync Stage Automations from Firebase RTDB `whatsapp_stage_automations/firstoptionagency`
   useEffect(() => {
@@ -2331,6 +2370,65 @@ export default function CRMPage() {
                             const hasMeetingRequirement = stageAutomations.some((a) => a.isEnabled && a.triggerBase === "meeting");
                             const isMissingMeetingInfo = hasMeetingRequirement && (!lead.meeting?.meetingDate || !lead.meeting?.meetingTime);
 
+                            // Calculate Next Scheduled WhatsApp Countdown
+                            let nextCountdownStr: string | null = null;
+                            const activeRules = stageAutomations.filter((r) => r.isEnabled);
+                            if (activeRules.length > 0) {
+                              let earliestMs: number | null = null;
+                              for (const rule of activeRules) {
+                                let refDate: Date | null = null;
+                                if (rule.triggerBase === "meeting") {
+                                  if (lead.meeting?.meetingDate) {
+                                    refDate = parseMeetingDateTime(lead.meeting.meetingDate, lead.meeting.meetingTime);
+                                  }
+                                } else {
+                                  const rawCreated = lead.createdAt || lead.createdDate || (lead as any).timestamp || lead.meeting?.bookedAt;
+                                  refDate = rawCreated ? new Date(rawCreated) : null;
+                                }
+
+                                if (refDate && !isNaN(refDate.getTime())) {
+                                  let offsetMs = Number(rule.offsetValue) * 60 * 1000;
+                                  if (rule.offsetUnit === "hours") offsetMs = Number(rule.offsetValue) * 3600 * 1000;
+                                  if (rule.offsetUnit === "days") offsetMs = Number(rule.offsetValue) * 86400 * 1000;
+                                  if (offsetMs <= 0) offsetMs = 60000;
+
+                                  let targetMs = 0;
+                                  if (rule.offsetType === "recurring") {
+                                    const elapsedMs = nowTick - refDate.getTime();
+                                    let intervalIndex = Math.floor(elapsedMs / offsetMs) + 1;
+                                    if (intervalIndex < 1) intervalIndex = 1;
+                                    targetMs = refDate.getTime() + (intervalIndex * offsetMs);
+                                  } else if (rule.offsetType === "before") {
+                                    targetMs = refDate.getTime() - offsetMs;
+                                  } else {
+                                    targetMs = refDate.getTime() + offsetMs;
+                                  }
+
+                                  if (earliestMs === null || targetMs < earliestMs) {
+                                    earliestMs = targetMs;
+                                  }
+                                }
+                              }
+
+                              if (earliestMs !== null) {
+                                const diffMs = earliestMs - nowTick;
+                                if (diffMs <= 0) {
+                                  nextCountdownStr = "⚡ Sending Due...";
+                                } else {
+                                  const diffSec = Math.floor(diffMs / 1000);
+                                  const days = Math.floor(diffSec / 86400);
+                                  const hours = Math.floor((diffSec % 86400) / 3600);
+                                  const mins = Math.floor((diffSec % 3600) / 60);
+                                  const secs = diffSec % 60;
+
+                                  if (days > 0) nextCountdownStr = `${days}d ${hours}h ${mins}m`;
+                                  else if (hours > 0) nextCountdownStr = `${hours}h ${mins}m ${secs}s`;
+                                  else if (mins > 0) nextCountdownStr = `${mins}m ${secs.toString().padStart(2, "0")}s`;
+                                  else nextCountdownStr = `${secs}s`;
+                                }
+                              }
+                            }
+
                             return (
                               <div
                                 key={leadIdKey}
@@ -2341,11 +2439,21 @@ export default function CRMPage() {
                                 onClick={() => handleOpenDrawer(lead)}
                                 className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group hover:border-indigo-300"
                               >
-                                {isMissingMeetingInfo && (
+                                {isMissingMeetingInfo ? (
                                   <div className="bg-rose-50 border border-rose-200 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
                                     <span>⚠️ Meeting Date missing - WhatsApp reminder skipped</span>
                                   </div>
-                                )}
+                                ) : nextCountdownStr ? (
+                                  <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 text-[10px] font-extrabold px-2.5 py-1 rounded-lg flex items-center justify-between shadow-2xs">
+                                    <span className="flex items-center space-x-1">
+                                      <i className="fa-solid fa-clock-rotate-left text-indigo-600 fa-spin"></i>
+                                      <span>Next WhatsApp:</span>
+                                    </span>
+                                    <span className="font-mono text-indigo-700 bg-white px-1.5 py-0.5 rounded border border-indigo-200 shadow-2xs">
+                                      ⏱️ {nextCountdownStr}
+                                    </span>
+                                  </div>
+                                ) : null}
                                 <div className="flex items-start justify-between gap-1">
                                   <div className="truncate">
                                     <h5 className="text-xs font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">

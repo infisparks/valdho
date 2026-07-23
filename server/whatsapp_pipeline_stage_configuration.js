@@ -11,7 +11,7 @@ const FIREBASE_DB_URL = (
 ).replace(/\/$/, "");
 
 /**
- * Firebase Realtime Database Helper
+ * Firebase Realtime Database REST API Helper
  */
 async function firebaseDb(path, method = "GET", body = null) {
   try {
@@ -113,7 +113,6 @@ function parseMeetingDateTime(dateStr, timeStr) {
 
 /**
  * GET /api/whatsapp/stage-automations
- * Returns all stage automation configurations
  */
 router.get("/stage-automations", async (req, res) => {
   try {
@@ -127,7 +126,6 @@ router.get("/stage-automations", async (req, res) => {
 
 /**
  * POST /api/whatsapp/stage-automations
- * Body: { stageId: "meeting_booked", rule: { id, title, triggerBase, offsetType, offsetValue, offsetUnit, template, isEnabled } }
  */
 router.post("/stage-automations", async (req, res) => {
   try {
@@ -143,7 +141,7 @@ router.post("/stage-automations", async (req, res) => {
       title: rule.title.trim(),
       triggerBase: rule.triggerBase || "meeting", // "meeting" | "created"
       offsetType: rule.offsetType || "before", // "before" | "after" | "recurring"
-      offsetValue: Number(rule.offsetValue) || 10,
+      offsetValue: Number(rule.offsetValue) || 1,
       offsetUnit: rule.offsetUnit || "minutes", // "minutes" | "hours" | "days"
       template: rule.template || "Hello {{name}}, reminder for your session at {{time}} on {{date}}!",
       isEnabled: rule.isEnabled !== false,
@@ -195,7 +193,7 @@ async function evaluateStageAutomations() {
       }
     }
 
-    if (activeRules.length === 0) return; // No active stage rules to process
+    if (activeRules.length === 0) return; // No active rules to process
 
     // 2. Resolve Active WhatsApp Sender Instance
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
@@ -206,7 +204,7 @@ async function evaluateStageAutomations() {
       const openInst = instancesList.find((i) => i.status === "open") || instancesList[0];
       if (openInst) instanceName = openInst.instanceName;
     }
-    if (!instanceName) return; // No instance available
+    if (!instanceName) return; // No active instance available
 
     // 3. Fetch All Campaign Leads from Firebase RTDB
     const allCampaignsData = (await firebaseDb("leads")) || {};
@@ -235,12 +233,13 @@ async function evaluateStageAutomations() {
 
         if (rule.triggerBase === "meeting") {
           if (!lead.meeting || !lead.meeting.meetingDate) {
-            // Target missing: skip rule execution
-            continue;
+            continue; // Skip if missing meeting details
           }
           referenceDate = parseMeetingDateTime(lead.meeting.meetingDate, lead.meeting.meetingTime);
-        } else if (rule.triggerBase === "created") {
-          referenceDate = lead.createdAt ? new Date(lead.createdAt) : null;
+        } else {
+          // Fallbacks for creation timestamp
+          const rawCreated = lead.createdAt || lead.createdDate || lead.timestamp || lead.meeting?.bookedAt;
+          referenceDate = rawCreated ? new Date(rawCreated) : new Date();
         }
 
         if (!referenceDate || isNaN(referenceDate.getTime())) continue;
@@ -249,27 +248,35 @@ async function evaluateStageAutomations() {
         let offsetMs = Number(rule.offsetValue) * 60 * 1000; // default minutes
         if (rule.offsetUnit === "hours") offsetMs = Number(rule.offsetValue) * 3600 * 1000;
         if (rule.offsetUnit === "days") offsetMs = Number(rule.offsetValue) * 86400 * 1000;
+        if (offsetMs <= 0) offsetMs = 60000; // minimum 1 minute
 
         let scheduledTriggerTimeMs = 0;
-        if (rule.offsetType === "before") {
+        let triggerKey = "";
+
+        if (rule.offsetType === "recurring") {
+          const elapsedMs = nowMs - referenceDate.getTime();
+          let intervalIndex = Math.floor(elapsedMs / offsetMs);
+          if (intervalIndex < 1) intervalIndex = 1;
+
+          scheduledTriggerTimeMs = referenceDate.getTime() + (intervalIndex * offsetMs);
+          triggerKey = `${lead.leadId}_${rule.id}_seq_${intervalIndex}`;
+        } else if (rule.offsetType === "before") {
           scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
-        } else if (rule.offsetType === "after") {
+          triggerKey = `${lead.leadId}_${rule.id}_before`;
+        } else {
+          // after
           scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
-        } else if (rule.offsetType === "recurring") {
-          // Recurring interval logic
-          scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
+          triggerKey = `${lead.leadId}_${rule.id}_after`;
         }
 
-        // Execution Window Check: trigger if current time is within [scheduledTriggerTimeMs - 2min, scheduledTriggerTimeMs + 5min]
+        // Window check: execute if current time has reached or passed scheduledTriggerTimeMs
         const diffMs = nowMs - scheduledTriggerTimeMs;
-        const inWindow = diffMs >= -120000 && diffMs <= 300000; // -2 mins to +5 mins window
+        const isTimeReached = diffMs >= -30000; // within 30s before or after target
 
-        if (!inWindow && rule.offsetType !== "recurring") continue;
+        if (!isTimeReached) continue;
 
-        // Guard Check: Verify if this specific automation trigger has already been dispatched
-        const triggerKey = `${lead.leadId}_${rule.id}_${Math.floor(scheduledTriggerTimeMs / 60000)}`;
+        // Guard Check: Verify if this specific trigger key has already been executed
         const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
-
         if (alreadySent) continue; // Already executed
 
         // Format Dynamic Message Template
@@ -285,7 +292,7 @@ async function evaluateStageAutomations() {
 
         const cleanNumber = sanitizePhoneNumber(lead.phone);
 
-        console.log(`[Pipeline Worker ⚡] Triggering Rule "${rule.title}" for ${lead.fullName} (${cleanNumber})`);
+        console.log(`[Pipeline Worker ⚡] Sending WhatsApp Rule "${rule.title}" to ${lead.fullName} (${cleanNumber})`);
 
         // Send Text Message via Evolution API
         const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
@@ -323,14 +330,14 @@ async function evaluateStageAutomations() {
   }
 }
 
-// Start Background Daemon Cron Worker Interval (runs every 60 seconds)
+// Start Background Daemon Cron Worker Interval (runs every 30 seconds for maximum precision)
 setInterval(() => {
   evaluateStageAutomations();
-}, 60000);
+}, 30000);
 
 // Run initial evaluation on server startup
 setTimeout(() => {
   evaluateStageAutomations();
-}, 5000);
+}, 3000);
 
 module.exports = router;

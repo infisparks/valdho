@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getDatabase, ref, set, update, push } from "firebase/database";
+import { getDatabase, ref, update, push } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -50,10 +50,11 @@ export interface SaveLeadResult {
 }
 
 /**
- * Save or Update lead entry in Realtime Database under:
- * campaigns/[campaignName]/[createdDate]/[leadId]
+ * High-Performance Dual-Index Architecture:
+ * 1. Master Lead Record -> campaigns/[campaign]/leads/[createdDate]/[leadId]
+ * 2. Instant Meeting Index -> campaigns/[campaign]/meetings/[meetingDate]/[leadId]
  *
- * Ensures ONLY ONE single node per lead under its initial creation date.
+ * Uses Atomic Multi-Location Updates so CRM queries for "Today's Meetings" run in O(1) time!
  */
 export async function saveOrUpdateLead(
   lead: LeadData,
@@ -68,18 +69,19 @@ export async function saveOrUpdateLead(
 
     let leadId = existingLeadId;
 
-    // If no existing ID, generate a new push key under initial creation date ref
+    // Generate push ID under leads createdDate node if first time
     if (!leadId) {
-      const dateRef = ref(db, `campaigns/${campaignName}/${createdDate}`);
+      const dateRef = ref(db, `campaigns/${campaignName}/leads/${createdDate}`);
       const newRef = push(dateRef);
       leadId = newRef.key;
     }
 
     if (!leadId) return null;
 
-    const leadRef = ref(db, `campaigns/${campaignName}/${createdDate}/${leadId}`);
+    const updates: Record<string, any> = {};
 
-    const payload: Record<string, any> = {
+    // 1. Master Lead Record Payload
+    const leadPayload: Record<string, any> = {
       id: leadId,
       campaign: campaignName,
       createdDate: createdDate,
@@ -93,19 +95,41 @@ export async function saveOrUpdateLead(
     };
 
     if (lead.survey) {
-      payload.survey = lead.survey;
+      leadPayload.survey = lead.survey;
     }
 
     if (lead.meeting) {
-      payload.meeting = {
+      leadPayload.meeting = {
         meetingDate: lead.meeting.meetingDate || "",
         meetingTime: lead.meeting.meetingTime || "",
         bookedAt: lead.meeting.bookedAt || timestamp,
       };
     }
 
-    // Update node directly in Firebase
-    await update(leadRef, payload);
+    // Set Master Lead Path
+    updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}`] = leadPayload;
+
+    // 2. High-Performance Meeting Index Path (For CRM "Today's Meetings" View)
+    if (lead.meeting && lead.meeting.meetingDate) {
+      const mDate = lead.meeting.meetingDate;
+      const meetingIndexPayload = {
+        leadId: leadId,
+        fullName: lead.fullName,
+        email: lead.email,
+        phone: lead.phone,
+        countryCode: lead.countryCode || "+91",
+        meetingDate: mDate,
+        meetingTime: lead.meeting.meetingTime || "",
+        status: "booked",
+        createdDate: createdDate,
+        bookedAt: lead.meeting.bookedAt || timestamp,
+      };
+
+      updates[`campaigns/${campaignName}/meetings/${mDate}/${leadId}`] = meetingIndexPayload;
+    }
+
+    // Perform Atomic Multi-Path Write in 1 Request
+    await update(ref(db), updates);
 
     return {
       leadId,

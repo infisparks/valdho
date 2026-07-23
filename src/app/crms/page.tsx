@@ -350,6 +350,7 @@ export default function CRMPage() {
   const [stageAutomationsMap, setStageAutomationsMap] = useState<Record<string, StageAutomationRule[]>>({});
   const [activeAutomationStage, setActiveAutomationStage] = useState<PipelineStageConfig | null>(null);
   const [isStageAutomationModalOpen, setIsStageAutomationModalOpen] = useState(false);
+  const [isAutomationGuideOpen, setIsAutomationGuideOpen] = useState(false);
 
   const [ruleTitle, setRuleTitle] = useState("");
   const [ruleTriggerBase, setRuleTriggerBase] = useState<"meeting" | "created">("meeting");
@@ -4698,10 +4699,108 @@ export default function CRMPage() {
 
             {/* Create New Stage Automation Form */}
             <form onSubmit={handleSaveStageRule} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-              <h4 className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider flex items-center space-x-1.5">
-                <i className="fa-solid fa-bolt text-xs"></i>
-                <span>Add Automation Rule for "{activeAutomationStage.name}"</span>
-              </h4>
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                <h4 className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider flex items-center space-x-1.5">
+                  <i className="fa-solid fa-bolt text-xs"></i>
+                  <span>Add Automation Rule for "{activeAutomationStage.name}"</span>
+                </h4>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAutomationGuideOpen(!isAutomationGuideOpen)}
+                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 text-xs font-extrabold px-2.5 py-1 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                  title="Click to view detailed guide & 3 real-world examples"
+                >
+                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">i</span>
+                  <span>{isAutomationGuideOpen ? "Hide Guide ✕" : "How Automations Work (3 Examples) ℹ️"}</span>
+                </button>
+              </div>
+
+              {isAutomationGuideOpen && (
+                <div className="bg-indigo-900 text-white rounded-2xl p-5 space-y-4 shadow-xl border border-indigo-700 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between border-b border-indigo-700/80 pb-2.5">
+                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-indigo-200 flex items-center space-x-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[11px]">i</span>
+                      <span>How WhatsApp Stage Automations Work & 3 Examples</span>
+                    </h5>
+                    <span className="text-[10px] font-mono bg-indigo-800 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-600 font-bold">
+                      24/7 Realtime Cron Engine
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-indigo-100 leading-relaxed font-medium">
+                    Our background cron daemon runs every minute, inspecting leads in your Firebase Realtime Database. When a lead enters a stage, the system calculates the exact trigger time based on your configuration:
+                  </p>
+
+                  {/* 3 Interactive Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-sans text-xs">
+                    {/* Example 1 */}
+                    <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wide">
+                          Example 1: Meeting Reminder
+                        </span>
+                        <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                          ⏳ Before Event
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-indigo-100 space-y-1">
+                        <p><strong>Base:</strong> Meeting Booked Date</p>
+                        <p><strong>Offset:</strong> 15 Minutes Before</p>
+                      </div>
+                      <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-emerald-300 border border-indigo-700/50">
+                        💬 "Hi {"{{name}}"}, your session starts in 15 mins at {"{{time}}"}!"
+                      </div>
+                    </div>
+
+                    {/* Example 2 */}
+                    <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-cyan-300 text-[11px] uppercase tracking-wide">
+                          Example 2: Post-Survey Follow-up
+                        </span>
+                        <span className="text-[9px] bg-cyan-400/20 text-cyan-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                          ⏩ After Entry
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-indigo-100 space-y-1">
+                        <p><strong>Base:</strong> Lead Creation / Entry</p>
+                        <p><strong>Offset:</strong> 1 Day After</p>
+                      </div>
+                      <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-cyan-300 border border-indigo-700/50">
+                        💬 "Hello {"{{name}}"}, you filled out our survey yesterday! Book a call slot today."
+                      </div>
+                    </div>
+
+                    {/* Example 3 */}
+                    <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-emerald-300 text-[11px] uppercase tracking-wide">
+                          Example 3: Re-engagement
+                        </span>
+                        <span className="text-[9px] bg-emerald-400/20 text-emerald-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                          🔄 Recurring
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-indigo-100 space-y-1">
+                        <p><strong>Base:</strong> Lead Creation / Entry</p>
+                        <p><strong>Offset:</strong> Every 2 Days</p>
+                      </div>
+                      <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-amber-300 border border-indigo-700/50">
+                        💬 "Hi {"{{name}}"}, checking in to see if you have any questions!"
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-rose-950/60 border border-rose-800/80 rounded-xl p-2.5 text-[11px] text-rose-200 flex items-start space-x-2">
+                    <span className="text-sm">⚠️</span>
+                    <div>
+                      <strong className="font-bold text-rose-300 block">Missing Meeting Date Warning:</strong>
+                      If a rule uses <code className="font-bold text-white">Meeting Booked Date</code> as reference, but a lead in that stage doesn't have a booked meeting date yet, a red warning badge <code className="font-bold text-rose-300">⚠️ Meeting Date missing</code> is displayed on their card and sending is safely skipped!
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Rule Title */}

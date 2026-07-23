@@ -54,14 +54,14 @@ function LoginContent() {
         router.replace("/management");
       }
     } catch (err: any) {
-      console.error("Firebase Login Error:", err);
       if (
         err.code === "auth/invalid-credential" ||
         err.code === "auth/wrong-password" ||
         err.code === "auth/user-not-found"
       ) {
-        setErrorMessage("Invalid email address or password. Please try again.");
+        setErrorMessage("Invalid email address or password. Please check your credentials and try again.");
       } else {
+        console.error("Firebase Login Exception:", err);
         setErrorMessage(err.message || "Failed to authenticate into Executive Portal.");
       }
     } finally {

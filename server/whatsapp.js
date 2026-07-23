@@ -73,7 +73,7 @@ function sanitizePhoneNumber(number) {
    ========================================================================== */
 
 /**
- * 1. Create Instance
+ * 1. Create Instance (With Already Configured / 403 Graceful Handling)
  * POST /api/whatsapp/instance/create
  * Body: { instanceName: "customer1" }
  */
@@ -86,17 +86,59 @@ router.post("/instance/create", async (req, res) => {
 
     const cleanInstanceName = instanceName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
 
-    // Call Evolution API
+    // Check if instance record already exists in Firebase RTDB
+    const existingFb = await firebaseDb(`whatsapp_unofficial_instances/${cleanInstanceName}`);
+    if (existingFb && (existingFb.instanceId || existingFb.status)) {
+      return res.status(200).json({
+        success: true,
+        isAlreadyConfigured: true,
+        message: `Instance '${cleanInstanceName}' is already created & configured.`,
+        data: existingFb,
+      });
+    }
+
+    // Call Evolution API /instance/create
     const evoRes = await evoApiCall("/instance/create", "POST", {
       instanceName: cleanInstanceName,
       qrcode: true,
       integration: "WHATSAPP-BAILEYS"
     });
 
+    // Handle Evolution API 403 / 400 / Already Exists responses gracefully
     if (!evoRes.ok) {
+      const errMsg = (evoRes.data?.error || evoRes.data?.message || evoRes.data?.response?.message || "").toLowerCase();
+
+      if (
+        evoRes.status === 403 ||
+        evoRes.status === 400 ||
+        errMsg.includes("already") ||
+        errMsg.includes("exist") ||
+        errMsg.includes("forbidden")
+      ) {
+        const instanceId = evoRes.data?.instanceId || evoRes.data?.id || cleanInstanceName;
+        const instanceRecord = {
+          instanceId,
+          instanceName: cleanInstanceName,
+          token: "",
+          status: "created",
+          qrCode: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await firebaseDb(`whatsapp_unofficial_instances/${cleanInstanceName}`, "PUT", instanceRecord);
+
+        return res.status(200).json({
+          success: true,
+          isAlreadyConfigured: true,
+          message: `Instance '${cleanInstanceName}' is already created & configured on Evolution API.`,
+          data: instanceRecord,
+        });
+      }
+
       return res.status(evoRes.status).json({
         success: false,
-        error: evoRes.data.error || evoRes.data.message || "Failed to create instance on Evolution API",
+        error: evoRes.data?.error || evoRes.data?.message || "Failed to create instance on Evolution API",
       });
     }
 
@@ -118,6 +160,7 @@ router.post("/instance/create", async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      isAlreadyConfigured: false,
       message: "Instance created successfully",
       data: instanceRecord,
       raw: evoRes.data,
@@ -143,7 +186,6 @@ router.post("/instance/connect", async (req, res) => {
     let targetInstanceName = instanceName;
     let targetInstanceId = instanceId;
 
-    // Fetch existing record from Firebase if needed
     if (targetInstanceName && !targetInstanceId) {
       const fbRecord = await firebaseDb(`whatsapp_unofficial_instances/${targetInstanceName}`);
       if (fbRecord && fbRecord.instanceId) {
@@ -201,16 +243,13 @@ router.post("/instance/connect", async (req, res) => {
  */
 router.get("/instance/list", async (req, res) => {
   try {
-    // Call Evolution API list
     const evoRes = await evoApiCall("/instance/list", "GET");
     const evoInstances = Array.isArray(evoRes.data) ? evoRes.data : [];
 
-    // Fetch Firebase Instances
     const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
 
     const mergedList = [];
 
-    // Iterate through Firebase records
     for (const [key, record] of Object.entries(fbInstances)) {
       if (!record) continue;
       const match = evoInstances.find(
@@ -226,7 +265,6 @@ router.get("/instance/list", async (req, res) => {
       });
     }
 
-    // Include any Evolution API instances not yet in Firebase
     for (const evoInst of evoInstances) {
       const exists = mergedList.some((m) => m.instanceName === evoInst.instanceName);
       if (!exists) {
@@ -269,7 +307,6 @@ router.post("/message/send-text", async (req, res) => {
 
     const cleanNumber = sanitizePhoneNumber(number);
 
-    // Call Evolution API sendText endpoint
     const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
       number: cleanNumber,
       text,
@@ -282,7 +319,6 @@ router.post("/message/send-text", async (req, res) => {
       });
     }
 
-    // Log to Firebase /whatsapp_logs
     const logId = `log_${Date.now()}`;
     await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
       id: logId,
@@ -321,7 +357,6 @@ router.post("/message/send-media", async (req, res) => {
 
     const cleanNumber = sanitizePhoneNumber(number);
 
-    // Call Evolution API sendMedia endpoint
     const evoRes = await evoApiCall(`/message/sendMedia/${instanceName}`, "POST", {
       number: cleanNumber,
       media,
@@ -335,7 +370,6 @@ router.post("/message/send-media", async (req, res) => {
       });
     }
 
-    // Log to Firebase /whatsapp_logs
     const logId = `log_${Date.now()}`;
     await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
       id: logId,
@@ -369,7 +403,6 @@ router.delete("/instance/logout/:instanceId", async (req, res) => {
 
     const evoRes = await evoApiCall(`/instance/logout/${instanceId}`, "DELETE");
 
-    // Update Firebase status
     const targetName = instanceName || instanceId;
     await firebaseDb(`whatsapp_unofficial_instances/${targetName}`, "PATCH", {
       status: "close",
@@ -399,7 +432,6 @@ router.delete("/instance/delete/:instanceId", async (req, res) => {
 
     const evoRes = await evoApiCall(`/instance/delete/${instanceId}`, "DELETE");
 
-    // Remove from Firebase RTDB
     const targetName = instanceName || instanceId;
     await firebaseDb(`whatsapp_unofficial_instances/${targetName}`, "DELETE");
 

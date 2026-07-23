@@ -33,7 +33,7 @@ interface MessageLog {
   timestamp: string;
 }
 
-const SERVER_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "http://localhost:5001";
+const SERVER_URL = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
 
 export default function WhatsappManagerPage() {
   const router = useRouter();
@@ -143,11 +143,17 @@ export default function WhatsappManagerPage() {
 
       if (data.success) {
         setNewInstanceName("");
-        setSelectedInstanceName(data.data.instanceName);
-        // Automatically connect to get QR code
-        await handleConnectInstance(data.data.instanceName, data.data.instanceId);
+        const targetName = data.data?.instanceName || newInstanceName.trim();
+        const targetId = data.data?.instanceId || targetName;
+        setSelectedInstanceName(targetName);
+
+        if (data.isAlreadyConfigured) {
+          alert(`Instance "${targetName}" is already created & configured! Connecting to fetch status/QR...`);
+        }
+        // Automatically connect to get QR code / status
+        await handleConnectInstance(targetName, targetId);
       } else {
-        alert(`Error creating instance: ${data.error}`);
+        alert(`Instance Status Notice: ${data.error || "Unable to create instance"}`);
       }
     } catch (err: any) {
       console.error("Create Instance Frontend Error:", err);

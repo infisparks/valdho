@@ -384,6 +384,8 @@ export default function CRMPage() {
   const [activeAutomationStage, setActiveAutomationStage] = useState<PipelineStageConfig | null>(null);
   const [isStageAutomationModalOpen, setIsStageAutomationModalOpen] = useState(false);
   const [isAutomationGuideOpen, setIsAutomationGuideOpen] = useState(false);
+  const [showTimingDirectionInfo, setShowTimingDirectionInfo] = useState(false);
+  const [showReferenceBaseInfo, setShowReferenceBaseInfo] = useState(false);
 
   const [ruleTitle, setRuleTitle] = useState("");
   const [ruleInstanceName, setRuleInstanceName] = useState("");
@@ -4990,7 +4992,17 @@ export default function CRMPage() {
 
                   {/* Reference Target Base */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Reference Target Base:</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-extrabold text-slate-700">Reference Target Base:</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowReferenceBaseInfo(!showReferenceBaseInfo)}
+                        className="w-4 h-4 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black text-[10px] flex items-center justify-center cursor-pointer transition-colors"
+                        title="Click for explanation of Reference Target Base"
+                      >
+                        ℹ️
+                      </button>
+                    </div>
                     <select
                       value={ruleTriggerBase}
                       onChange={(e) => setRuleTriggerBase(e.target.value as any)}
@@ -4999,11 +5011,40 @@ export default function CRMPage() {
                       <option value="meeting">📅 Meeting Booked Date & Time</option>
                       <option value="created">📝 Lead Creation Date & Time</option>
                     </select>
+
+                    {showReferenceBaseInfo && (
+                      <div className="bg-slate-900 text-white rounded-xl p-3 text-[11px] space-y-2 border border-slate-700 shadow-xl animate-in fade-in zoom-in duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-700 pb-1">
+                          <span className="font-extrabold text-indigo-300">ℹ️ Reference Base Explanation</span>
+                          <button type="button" onClick={() => setShowReferenceBaseInfo(false)} className="text-slate-400 hover:text-white text-xs">✕</button>
+                        </div>
+                        <div className="space-y-1 font-sans">
+                          <p className="text-emerald-300 font-bold">
+                            📅 Meeting Booked Date & Time:
+                            <span className="text-slate-200 font-normal block">Uses lead's scheduled meeting date & time. Skips leads missing a booked call.</span>
+                          </p>
+                          <p className="text-indigo-300 font-bold">
+                            📝 Lead Creation Date & Time:
+                            <span className="text-slate-200 font-normal block">Uses the timestamp when the lead filled out the popup form or entered stage.</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Timing Offset Direction */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Timing Direction:</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-extrabold text-slate-700">Timing Direction:</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowTimingDirectionInfo(!showTimingDirectionInfo)}
+                        className="w-4 h-4 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black text-[10px] flex items-center justify-center cursor-pointer transition-colors"
+                        title="Click for explanation of Timing Direction options"
+                      >
+                        ℹ️
+                      </button>
+                    </div>
                     <select
                       value={ruleOffsetType}
                       onChange={(e) => setRuleOffsetType(e.target.value as any)}
@@ -5013,6 +5054,29 @@ export default function CRMPage() {
                       <option value="after">⏩ After Event Entry</option>
                       <option value="recurring">🔄 Recurring Interval</option>
                     </select>
+
+                    {showTimingDirectionInfo && (
+                      <div className="bg-slate-900 text-white rounded-xl p-3 text-[11px] space-y-2 border border-slate-700 shadow-xl animate-in fade-in zoom-in duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-700 pb-1">
+                          <span className="font-extrabold text-indigo-300">ℹ️ Understanding Timing Direction</span>
+                          <button type="button" onClick={() => setShowTimingDirectionInfo(false)} className="text-slate-400 hover:text-white text-xs">✕</button>
+                        </div>
+                        <div className="space-y-1.5 font-sans">
+                          <p className="text-amber-300 font-bold">
+                            ⏳ Before Event Target:
+                            <span className="text-slate-200 font-normal block">Triggers X time BEFORE a scheduled meeting (e.g. 15 mins BEFORE Meeting Date). Use for future meeting reminders!</span>
+                          </p>
+                          <p className="text-cyan-300 font-bold">
+                            ⏩ After Event Entry:
+                            <span className="text-slate-200 font-normal block">Triggers ONCE X time AFTER a lead enters (e.g. 1 Day After Creation).</span>
+                          </p>
+                          <p className="text-emerald-300 font-bold">
+                            🔄 Recurring Interval:
+                            <span className="text-slate-200 font-normal block">Repeats continuously EVERY X interval (e.g. Every 1 Minute, Every 2 Days) while lead stays in stage!</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Offset Value */}

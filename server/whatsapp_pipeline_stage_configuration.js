@@ -107,6 +107,29 @@ function parseMeetingDateTime(dateStr, timeStr) {
   }
 }
 
+/**
+ * Recursive Lead Extractor - Traverses campaigns & leads nodes in Firebase RTDB
+ */
+function extractLeadsFromFirebaseData(obj, foundLeads = [], path = "") {
+  if (!obj || typeof obj !== "object") return foundLeads;
+
+  // If object has phone and name or email, it's a valid lead
+  if (obj.phone && (obj.fullName || obj.email || obj.pipelineStage)) {
+    // Generate deterministic ID if missing
+    const leadId = obj.id || obj.email || `lead_${foundLeads.length + 1}`;
+    foundLeads.push({ ...obj, leadId, _path: path });
+    return foundLeads;
+  }
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value && typeof value === "object") {
+      extractLeadsFromFirebaseData(value, foundLeads, `${path}/${key}`);
+    }
+  }
+
+  return foundLeads;
+}
+
 /* ==========================================================================
    REST API ENDPOINTS FOR MANAGING STAGE AUTOMATION RULES
    ========================================================================== */
@@ -139,8 +162,9 @@ router.post("/stage-automations", async (req, res) => {
       id: ruleId,
       stageId,
       title: rule.title.trim(),
-      triggerBase: rule.triggerBase || "meeting", // "meeting" | "created"
-      offsetType: rule.offsetType || "before", // "before" | "after" | "recurring"
+      instanceName: rule.instanceName || "", // Specific WhatsApp Instance selector
+      triggerBase: rule.triggerBase || "created", // "meeting" | "created"
+      offsetType: rule.offsetType || "recurring", // "before" | "after" | "recurring"
       offsetValue: Number(rule.offsetValue) || 1,
       offsetUnit: rule.offsetUnit || "minutes", // "minutes" | "hours" | "days"
       template: rule.template || "Hello {{name}}, reminder for your session at {{time}} on {{date}}!",
@@ -195,30 +219,36 @@ async function evaluateStageAutomations() {
 
     if (activeRules.length === 0) return; // No active rules to process
 
-    // 2. Resolve Active WhatsApp Sender Instance
+    // 2. Resolve Global Default WhatsApp Sender Instance
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
-    let instanceName = config.selectedInstanceName;
-    if (!instanceName) {
+    let defaultInstanceName = config.selectedInstanceName;
+
+    if (!defaultInstanceName) {
       const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
       const instancesList = Object.values(fbInstances).filter(Boolean);
       const openInst = instancesList.find((i) => i.status === "open") || instancesList[0];
-      if (openInst) instanceName = openInst.instanceName;
+      if (openInst) defaultInstanceName = openInst.instanceName;
     }
-    if (!instanceName) return; // No active instance available
 
-    // 3. Fetch All Campaign Leads from Firebase RTDB
-    const allCampaignsData = (await firebaseDb("leads")) || {};
-    const allLeads = [];
+    // 3. Fetch All Campaign & Master Leads from Firebase RTDB
+    const campaignsData = (await firebaseDb("campaigns")) || {};
+    const leadsData = (await firebaseDb("leads")) || {};
 
-    for (const [campaignId, leadsObj] of Object.entries(allCampaignsData)) {
-      if (!leadsObj) continue;
-      for (const [leadId, lead] of Object.entries(leadsObj)) {
-        if (lead && lead.phone) {
-          allLeads.push({ ...lead, leadId, campaignId });
-        }
+    const rawLeadsList = [
+      ...extractLeadsFromFirebaseData(campaignsData, [], "campaigns"),
+      ...extractLeadsFromFirebaseData(leadsData, [], "leads"),
+    ];
+
+    // Deduplicate leads by phone number / email
+    const uniqueLeadsMap = new Map();
+    for (const l of rawLeadsList) {
+      const key = (l.phone || l.email || l.leadId).toString();
+      if (!uniqueLeadsMap.has(key)) {
+        uniqueLeadsMap.set(key, l);
       }
     }
 
+    const allLeads = Array.from(uniqueLeadsMap.values());
     const nowMs = Date.now();
 
     // 4. Evaluate each lead against matching stage rules
@@ -229,6 +259,13 @@ async function evaluateStageAutomations() {
       if (matchingRules.length === 0) continue;
 
       for (const rule of matchingRules) {
+        // Resolve Target Instance Name for this rule
+        const targetInstance = rule.instanceName || defaultInstanceName;
+        if (!targetInstance) {
+          console.warn(`[Pipeline Worker ⚠️] No active WhatsApp instance available for rule "${rule.title}"`);
+          continue;
+        }
+
         let referenceDate = null;
 
         if (rule.triggerBase === "meeting") {
@@ -254,24 +291,23 @@ async function evaluateStageAutomations() {
         let triggerKey = "";
 
         if (rule.offsetType === "recurring") {
-          const elapsedMs = nowMs - referenceDate.getTime();
-          let intervalIndex = Math.floor(elapsedMs / offsetMs);
-          if (intervalIndex < 1) intervalIndex = 1;
+          const elapsedMs = Math.max(0, nowMs - referenceDate.getTime());
+          const intervalIndex = Math.floor(elapsedMs / offsetMs);
 
           scheduledTriggerTimeMs = referenceDate.getTime() + (intervalIndex * offsetMs);
-          triggerKey = `${lead.leadId}_${rule.id}_seq_${intervalIndex}`;
+          triggerKey = `auto_${lead.leadId || lead.phone}_${rule.id}_seq_${intervalIndex}`;
         } else if (rule.offsetType === "before") {
           scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
-          triggerKey = `${lead.leadId}_${rule.id}_before`;
+          triggerKey = `auto_${lead.leadId || lead.phone}_${rule.id}_before`;
         } else {
           // after
           scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
-          triggerKey = `${lead.leadId}_${rule.id}_after`;
+          triggerKey = `auto_${lead.leadId || lead.phone}_${rule.id}_after`;
         }
 
         // Window check: execute if current time has reached or passed scheduledTriggerTimeMs
         const diffMs = nowMs - scheduledTriggerTimeMs;
-        const isTimeReached = diffMs >= -30000; // within 30s before or after target
+        const isTimeReached = diffMs >= -30000; // within 30s before or anytime after target
 
         if (!isTimeReached) continue;
 
@@ -292,10 +328,10 @@ async function evaluateStageAutomations() {
 
         const cleanNumber = sanitizePhoneNumber(lead.phone);
 
-        console.log(`[Pipeline Worker ⚡] Sending WhatsApp Rule "${rule.title}" to ${lead.fullName} (${cleanNumber})`);
+        console.log(`[Pipeline Worker ⚡] Triggering WhatsApp Rule "${rule.title}" via instance '${targetInstance}' to ${lead.fullName} (${cleanNumber})`);
 
         // Send Text Message via Evolution API
-        const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
+        const evoRes = await evoApiCall(`/message/sendText/${targetInstance}`, "POST", {
           number: cleanNumber,
           text: textMessage,
         });
@@ -304,25 +340,25 @@ async function evaluateStageAutomations() {
         await firebaseDb(`whatsapp_sent_automations/${triggerKey}`, "PUT", {
           sentAt: new Date().toISOString(),
           status: evoRes.ok ? "sent" : "failed",
-          leadId: lead.leadId,
+          leadId: lead.leadId || lead.phone,
           ruleId: rule.id,
           phone: cleanNumber,
+          instanceName: targetInstance,
         });
 
         // Log into Activity Logs
-        if (evoRes.ok) {
-          const logId = `auto_stage_${Date.now()}`;
-          await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
-            id: logId,
-            type: "auto_stage_automation",
-            ruleTitle: rule.title,
-            stageId: leadStage,
-            number: cleanNumber,
-            text: textMessage,
-            status: "sent",
-            timestamp: new Date().toISOString(),
-          });
-        }
+        const logId = `auto_stage_${Date.now()}`;
+        await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", {
+          id: logId,
+          type: "auto_stage_automation",
+          ruleTitle: rule.title,
+          stageId: leadStage,
+          number: cleanNumber,
+          text: textMessage,
+          status: evoRes.ok ? "sent" : "failed",
+          error: evoRes.ok ? null : (evoRes.data?.error || "Send failed"),
+          timestamp: new Date().toISOString(),
+        });
       }
     }
   } catch (err) {
@@ -330,14 +366,14 @@ async function evaluateStageAutomations() {
   }
 }
 
-// Start Background Daemon Cron Worker Interval (runs every 30 seconds for maximum precision)
+// Start Background Daemon Cron Worker Interval (runs every 15 seconds for instant 1m execution)
 setInterval(() => {
   evaluateStageAutomations();
-}, 30000);
+}, 15000);
 
 // Run initial evaluation on server startup
 setTimeout(() => {
   evaluateStageAutomations();
-}, 3000);
+}, 2000);
 
 module.exports = router;

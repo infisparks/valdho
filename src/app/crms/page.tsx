@@ -65,6 +65,7 @@ export interface StageAutomationRule {
   id: string;
   stageId: string;
   title: string;
+  instanceName?: string;
   triggerBase: "meeting" | "created";
   offsetType: "before" | "after" | "recurring";
   offsetValue: number;
@@ -385,12 +386,29 @@ export default function CRMPage() {
   const [isAutomationGuideOpen, setIsAutomationGuideOpen] = useState(false);
 
   const [ruleTitle, setRuleTitle] = useState("");
-  const [ruleTriggerBase, setRuleTriggerBase] = useState<"meeting" | "created">("meeting");
-  const [ruleOffsetType, setRuleOffsetType] = useState<"before" | "after" | "recurring">("before");
-  const [ruleOffsetValue, setRuleOffsetValue] = useState<number>(10);
+  const [ruleInstanceName, setRuleInstanceName] = useState("");
+  const [whatsappInstancesList, setWhatsappInstancesList] = useState<any[]>([]);
+  const [ruleTriggerBase, setRuleTriggerBase] = useState<"meeting" | "created">("created");
+  const [ruleOffsetType, setRuleOffsetType] = useState<"before" | "after" | "recurring">("recurring");
+  const [ruleOffsetValue, setRuleOffsetValue] = useState<number>(1);
   const [ruleOffsetUnit, setRuleOffsetUnit] = useState<"minutes" | "hours" | "days">("minutes");
   const [ruleTemplate, setRuleTemplate] = useState("Hello {{name}}, reminder for your strategy session at {{time}} on {{date}}!");
   const [isSavingRule, setIsSavingRule] = useState(false);
+
+  // Sync WhatsApp Instances for Stage Automation Rule Selector
+  useEffect(() => {
+    const instRef = ref(db, "whatsapp_unofficial_instances");
+    const unsubscribe = onValue(instRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const list = Object.values(snapshot.val());
+        setWhatsappInstancesList(list);
+      } else {
+        setWhatsappInstancesList([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Live 1-second Tick State for Realtime Countdown Timer
   const [nowTick, setNowTick] = useState(Date.now());
@@ -443,6 +461,7 @@ export default function CRMPage() {
         rule: {
           id: ruleId,
           title: ruleTitle.trim(),
+          instanceName: ruleInstanceName,
           triggerBase: ruleTriggerBase,
           offsetType: ruleOffsetType,
           offsetValue: ruleOffsetValue,
@@ -4930,6 +4949,23 @@ export default function CRMPage() {
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
                       required
                     />
+                  </div>
+
+                  {/* Select WhatsApp Instance */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] font-extrabold text-slate-700">Select WhatsApp Sender Instance for Rule:</label>
+                    <select
+                      value={ruleInstanceName}
+                      onChange={(e) => setRuleInstanceName(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                    >
+                      <option value="">-- Use Default Active Instance --</option>
+                      {whatsappInstancesList.map((inst: any) => (
+                        <option key={inst.instanceId} value={inst.instanceName}>
+                          🚀 {inst.instanceName} ({inst.status})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Reference Target Base */}

@@ -1583,6 +1583,17 @@ export default function CRMPage() {
 
             <button
               onClick={() => {
+                router.push("/crms/whatsapp#integrations");
+                setIsMobileSidebarOpen(false);
+              }}
+              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs"
+            >
+              <i className="fa-solid fa-plug text-sm text-indigo-600"></i>
+              <span>Integrations & Google Meet 🎥</span>
+            </button>
+
+            <button
+              onClick={() => {
                 changeTab("leads");
                 setIsMobileSidebarOpen(false);
               }}

@@ -826,7 +826,7 @@ export default function WhatsappManagerPage() {
         </div>
 
         {/* GOOGLE MEET INTEGRATION CARD & ACCOUNTS LIST */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 font-sans">
+        <div id="integrations" className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 font-sans scroll-mt-20">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start space-x-3.5">
               <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 p-2 flex items-center justify-center flex-shrink-0">

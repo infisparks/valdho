@@ -8,25 +8,47 @@ interface BookingModalProps {
 }
 
 export function BookingModal({ isOpen, onClose }: BookingModalProps) {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [formData, setFormData] = useState({
+  // Step 1: Initial Form
+  // Step 2: Qualification Typeform (Q2: Industry, Q3: Role, Q4: Revenue, Q5: Investment)
+  // Step 3: Calendar Booking (Date & Slot Selection)
+  // Step 4: Final Success Confirmation & WhatsApp redirect
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Form State
+  const [contactInfo, setContactInfo] = useState({
     fullName: "",
     email: "",
     phone: "",
     countryCode: "+91",
   });
 
+  const [qAnswers, setQAnswers] = useState({
+    industry: "Doctor / Clinic",
+    role: "Founder / Owner",
+    revenue: "₹5L – ₹10L",
+    investmentReady: "Yes",
+  });
+
+  // Current question inside Step 2 qualification questionnaire (0 to 3)
+  const [activeQIndex, setActiveQIndex] = useState<number>(0);
+
+  // Calendar State
+  const [selectedDate, setSelectedDate] = useState<number>(23);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleStep1Submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.fullName || !formData.phone) return;
+    if (!contactInfo.fullName || !contactInfo.phone) return;
     setStep(2);
   };
 
   const handleReset = () => {
     setStep(1);
-    setFormData({
+    setActiveQIndex(0);
+    setSelectedTimeSlot(null);
+    setContactInfo({
       fullName: "",
       email: "",
       phone: "",
@@ -35,35 +57,85 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
     onClose();
   };
 
+  const handleSelectSlot = (time: string) => {
+    setSelectedTimeSlot(time);
+    setStep(4);
+  };
+
   const whatsappUrl = `https://api.whatsapp.com/send?phone=919876543210&text=${encodeURIComponent(
-    `Hi First Option Agency, I have completed the consultation form.\nName: ${formData.fullName}\nEmail: ${formData.email}\nPhone: ${formData.countryCode} ${formData.phone}`
+    `Hi First Option Agency, I just booked a Growth Consultation Call.\nName: ${contactInfo.fullName}\nEmail: ${contactInfo.email}\nPhone: ${contactInfo.countryCode} ${contactInfo.phone}\nIndustry: ${qAnswers.industry}\nRole: ${qAnswers.role}\nMonthly Revenue: ${qAnswers.revenue}\nBooked Slot: ${selectedDate} July 2026 at ${selectedTimeSlot || "02:00 PM"}`
   )}`;
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-toast-in">
-      <div className="bg-white text-slate-900 border border-slate-200 w-full max-w-lg rounded-2xl p-5 sm:p-7 shadow-2xl relative max-h-[95vh] overflow-y-auto font-sans">
-        
-        {/* Top Header Bar */}
-        <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
-          <span className="text-[11px] sm:text-xs font-bold text-slate-600 uppercase tracking-wide">
-            FILL OUT THE FORM BELOW TO BOOK YOUR CONSULTATION
-          </span>
-          <button
-            onClick={handleReset}
-            className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center text-sm transition-colors"
-          >
-            <i className="fa-solid fa-xmark"></i>
-          </button>
-        </div>
+  const qualificationQuestions = [
+    {
+      num: 2,
+      question: "What industry are you in? *",
+      field: "industry",
+      options: [
+        { label: "Doctor / Clinic", key: "A" },
+        { label: "Manufacturer / Distributor", key: "B" },
+        { label: "IT / Tech / SaaS", key: "C" },
+        { label: "Service Business", key: "D" },
+        { label: "Other", key: "E" },
+      ],
+    },
+    {
+      num: 3,
+      question: "What is your role in the business? *",
+      field: "role",
+      options: [
+        { label: "Founder / Owner", key: "A" },
+        { label: "Partner", key: "B" },
+        { label: "Marketing Head", key: "C" },
+        { label: "Team Member", key: "D" },
+      ],
+    },
+    {
+      num: 4,
+      question: "What is your current monthly revenue? *",
+      field: "revenue",
+      options: [
+        { label: "Below ₹5L", key: "A" },
+        { label: "₹5L – ₹10L", key: "B" },
+        { label: "₹10L – ₹25L", key: "C" },
+        { label: "₹25L – ₹50L", key: "D" },
+        { label: "₹50L+", key: "E" },
+      ],
+    },
+    {
+      num: 5,
+      question: "Are you ready to invest in a proper marketing system if it makes financial sense? *",
+      field: "investmentReady",
+      options: [
+        { label: "Yes", key: "A" },
+        { label: "Maybe", key: "B" },
+        { label: "Just exploring", key: "C" },
+      ],
+    },
+  ];
 
-        {step === 1 ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Title Description */}
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-toast-in">
+      {/* Step 1: Initial White Form Modal */}
+      {step === 1 && (
+        <div className="bg-white text-slate-900 border border-slate-200 w-full max-w-lg rounded-2xl p-5 sm:p-7 shadow-2xl relative max-h-[95vh] overflow-y-auto font-sans">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+            <span className="text-[11px] sm:text-xs font-bold text-slate-600 uppercase tracking-wide">
+              FILL OUT THE FORM BELOW TO BOOK YOUR CONSULTATION
+            </span>
+            <button
+              onClick={handleReset}
+              className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center text-sm transition-colors"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <form onSubmit={handleStep1Submit} className="space-y-4">
             <h3 className="text-base sm:text-lg font-bold text-slate-900 text-center leading-snug px-2">
               Complete the form below and move to the next step to provide some basic information about your business
             </h3>
 
-            {/* Full Name */}
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
                 Full Name
@@ -72,13 +144,12 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
                 type="text"
                 required
                 placeholder="Enter your full name"
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                value={contactInfo.fullName}
+                onChange={(e) => setContactInfo({ ...contactInfo, fullName: e.target.value })}
                 className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-sm"
               />
             </div>
 
-            {/* Email */}
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
                 Email
@@ -87,13 +158,12 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
                 type="email"
                 required
                 placeholder="name@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                value={contactInfo.email}
+                onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
                 className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-sm"
               />
             </div>
 
-            {/* Phone Number with Country Code */}
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
                 Phone Number
@@ -107,14 +177,13 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
                   type="tel"
                   required
                   placeholder="90962-94110"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  value={contactInfo.phone}
+                  onChange={(e) => setContactInfo({ ...contactInfo, phone: e.target.value })}
                   className="w-full px-3 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none"
                 />
               </div>
             </div>
 
-            {/* Submit Gold Button */}
             <button
               type="submit"
               className="w-full bg-gradient-to-b from-[#ffd369] via-[#f7b731] to-[#eb9d14] border border-amber-600/80 rounded-xl p-4 text-center cursor-pointer shadow-md hover:brightness-105 active:scale-[0.99] transition-all mt-3"
@@ -128,46 +197,272 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               </div>
             </button>
           </form>
-        ) : (
-          /* Success / WhatsApp Redirect Step */
-          <div className="text-center space-y-4 py-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 border-2 border-emerald-500 text-emerald-600 flex items-center justify-center text-3xl mx-auto shadow-sm">
-              ✓
+        </div>
+      )}
+
+      {/* Step 2: Qualification Questionnaire (Typeform Dark Aesthetic) */}
+      {step === 2 && (
+        <div className="bg-[#0f0f13] text-white border border-zinc-800 w-full max-w-xl rounded-3xl p-5 sm:p-7 shadow-2xl relative max-h-[95vh] overflow-y-auto font-sans flex flex-col justify-between min-h-[480px]">
+          
+          {/* Header */}
+          <div>
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
+              <h3 className="text-sm sm:text-base font-bold text-white tracking-wide">
+                Let&apos;s Understand Your Business Before We Grow It
+              </h3>
+              <button
+                onClick={handleReset}
+                className="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
             </div>
 
-            <h4 className="text-xl font-bold text-slate-900">
-              Information Saved!
-            </h4>
+            {/* Current Question */}
+            {(() => {
+              const currentQ = qualificationQuestions[activeQIndex];
+              return (
+                <div className="space-y-5 pt-2">
+                  <div className="text-base sm:text-lg md:text-xl font-medium text-slate-100 flex items-start space-x-2">
+                    <span className="text-amber-400 font-bold">{currentQ.num} ➔</span>
+                    <span>{currentQ.question}</span>
+                  </div>
 
-            <p className="text-slate-600 text-xs sm:text-sm leading-relaxed px-2">
-              Thank you, <span className="text-slate-900 font-bold">{formData.fullName}</span>. Your details have been submitted. Click below to connect on WhatsApp directly:
-            </p>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-left text-xs text-slate-700 space-y-1 font-mono">
-              <div><span className="text-slate-400">Name:</span> {formData.fullName}</div>
-              <div><span className="text-slate-400">Email:</span> {formData.email}</div>
-              <div><span className="text-slate-400">Phone:</span> {formData.countryCode} {formData.phone}</div>
-            </div>
-
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl text-sm uppercase tracking-wide shadow-md transition-colors"
-            >
-              <i className="fa-brands fa-whatsapp mr-2 text-base"></i>
-              Proceed To WhatsApp Consultation
-            </a>
-
-            <button
-              onClick={handleReset}
-              className="text-xs text-slate-500 underline hover:text-slate-800 pt-1 block mx-auto"
-            >
-              Close Window
-            </button>
+                  <div className="space-y-2.5 pt-1 max-w-md">
+                    {currentQ.options.map((opt) => {
+                      const isSelected =
+                        qAnswers[currentQ.field as keyof typeof qAnswers] === opt.label;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => {
+                            setQAnswers({ ...qAnswers, [currentQ.field]: opt.label });
+                            if (activeQIndex < qualificationQuestions.length - 1) {
+                              setActiveQIndex(activeQIndex + 1);
+                            }
+                          }}
+                          className={`w-full text-left p-3 sm:p-3.5 rounded-xl border flex items-center justify-between transition-all duration-200 ${
+                            isSelected
+                              ? "bg-amber-500/20 border-amber-400 text-white shadow-[0_0_15px_rgba(245,166,35,0.2)]"
+                              : "bg-[#18181f] border-zinc-800 text-slate-200 hover:border-zinc-700 hover:bg-[#20202a]"
+                          }`}
+                        >
+                          <span className="text-xs sm:text-sm font-semibold">{opt.label}</span>
+                          <span className="w-6 h-6 rounded-full border border-zinc-700 text-zinc-400 text-xs font-mono flex items-center justify-center bg-zinc-900">
+                            {opt.key}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-        )}
-      </div>
+
+          {/* Bottom Action Footer & Navigation Controls */}
+          <div className="pt-6 border-t border-zinc-800/80 flex items-center justify-between mt-6">
+            <div className="flex items-center space-x-3">
+              {activeQIndex === qualificationQuestions.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-full text-xs sm:text-sm uppercase tracking-wide flex items-center space-x-2 shadow-lg transition-transform active:scale-95"
+                >
+                  <span>Submit</span>
+                  <i className="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setActiveQIndex(activeQIndex + 1)}
+                  className="bg-amber-500/90 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-full text-xs flex items-center space-x-1.5 shadow"
+                >
+                  <span>OK</span>
+                  <i className="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+              )}
+              <span className="text-[11px] text-zinc-400 font-mono hidden sm:inline">
+                press <span className="text-white font-bold">Enter ↵</span>
+              </span>
+            </div>
+
+            {/* Up / Down Navigation Arrows */}
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                disabled={activeQIndex === 0}
+                onClick={() => setActiveQIndex(Math.max(0, activeQIndex - 1))}
+                className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              >
+                <i className="fa-solid fa-chevron-up text-xs"></i>
+              </button>
+              <button
+                type="button"
+                disabled={activeQIndex === qualificationQuestions.length - 1}
+                onClick={() => setActiveQIndex(Math.min(qualificationQuestions.length - 1, activeQIndex + 1))}
+                className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              >
+                <i className="fa-solid fa-chevron-down text-xs"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Calendar Appointment Booking */}
+      {step === 3 && (
+        <div className="bg-[#0b0b0e] text-white border border-zinc-800 w-full max-w-lg rounded-3xl p-4 sm:p-6 shadow-2xl relative max-h-[95vh] overflow-y-auto font-sans space-y-4">
+          <div className="text-center space-y-1">
+            <p className="text-[11px] text-slate-400">
+              Please choose a date and time that works best for you from the calendar below.
+            </p>
+          </div>
+
+          <div className="bg-[#121217] border border-zinc-800 rounded-3xl p-4 sm:p-5 space-y-4 shadow-xl">
+            {/* Call Info Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-amber-400 shadow">
+                  <img src="/founder.png" alt="Faiz Ansari" className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <h4 className="text-sm sm:text-base font-bold text-white leading-tight">
+                    Your Business Growth Call
+                  </h4>
+                  <p className="text-xs text-slate-400">Faiz Ansari</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-1 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-full text-xs text-slate-300 font-mono">
+                <i className="fa-regular fa-clock text-amber-400"></i>
+                <span>60 min</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+              <div className="flex items-center space-x-1.5">
+                <i className="fa-solid fa-globe text-amber-400"></i>
+                <span>Asia/Calcutta (India)</span>
+              </div>
+            </div>
+
+            {/* Interactive Calendar Month Header */}
+            <div className="border border-zinc-800 rounded-2xl p-3 bg-zinc-950 space-y-3">
+              <div className="flex items-center justify-between text-xs font-extrabold text-white px-2">
+                <div className="flex space-x-2 text-slate-400">
+                  <button className="hover:text-white">«</button>
+                  <button className="hover:text-white">‹</button>
+                </div>
+                <span className="text-sm font-bold text-amber-400">July 2026</span>
+                <div className="flex space-x-2 text-slate-400">
+                  <button className="hover:text-white">›</button>
+                  <button className="hover:text-white">»</button>
+                </div>
+              </div>
+
+              {/* Days Header */}
+              <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-500 border-b border-zinc-800/60 pb-1">
+                <span>SUN</span>
+                <span>MON</span>
+                <span>TUE</span>
+                <span>WED</span>
+                <span>THU</span>
+                <span>FRI</span>
+                <span>SAT</span>
+              </div>
+
+              {/* Calendar Grid (Days 1 to 31) */}
+              <div className="grid grid-cols-7 gap-1 text-center text-xs font-mono font-bold">
+                {[...Array(31)].map((_, i) => {
+                  const dayNum = i + 1;
+                  const isPast = dayNum < 23;
+                  const isSelected = selectedDate === dayNum;
+                  return (
+                    <button
+                      key={dayNum}
+                      disabled={isPast}
+                      onClick={() => setSelectedDate(dayNum)}
+                      className={`p-1.5 rounded-lg transition-all ${
+                        isSelected
+                          ? "bg-amber-500 text-slate-950 font-black shadow-md scale-105"
+                          : isPast
+                          ? "text-zinc-600 opacity-40 cursor-not-allowed"
+                          : "text-slate-200 hover:bg-zinc-800 hover:text-white"
+                      }`}
+                    >
+                      {dayNum}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Selected Date Time Slots */}
+            <div className="space-y-2 pt-1">
+              <p className="text-xs font-bold text-slate-300">
+                {selectedDate} July 2026 — Available Slots:
+              </p>
+
+              <div className="space-y-2">
+                {["02:00 PM", "07:00 PM", "09:00 PM"].map((time) => (
+                  <button
+                    key={time}
+                    onClick={() => handleSelectSlot(time)}
+                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-slate-950 font-black p-3 rounded-xl text-xs sm:text-sm hover:brightness-105 shadow-md transition-all active:scale-[0.99] flex items-center justify-center space-x-2"
+                  >
+                    <i className="fa-regular fa-calendar-check text-slate-950"></i>
+                    <span>{time}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Final Success Confirmation & WhatsApp Action */}
+      {step === 4 && (
+        <div className="bg-[#0c0c0f] text-white border border-emerald-500/40 w-full max-w-md rounded-3xl p-6 shadow-2xl relative text-center space-y-4 font-sans">
+          <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center text-3xl mx-auto shadow-lg">
+            ✓
+          </div>
+
+          <div>
+            <h4 className="text-xl font-black text-white">
+              Appointment Locked! 🎉
+            </h4>
+            <p className="text-xs text-amber-400 font-bold mt-1">
+              {selectedDate} July 2026 at {selectedTimeSlot}
+            </p>
+          </div>
+
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-left text-xs text-slate-300 space-y-1 font-mono">
+            <div><span className="text-slate-500">Name:</span> {contactInfo.fullName}</div>
+            <div><span className="text-slate-500">Phone:</span> {contactInfo.countryCode} {contactInfo.phone}</div>
+            <div><span className="text-slate-500">Industry:</span> {qAnswers.industry}</div>
+            <div><span className="text-slate-500">Revenue:</span> {qAnswers.revenue}</div>
+          </div>
+
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-4 rounded-xl text-xs sm:text-sm uppercase tracking-wide shadow-xl transition-transform active:scale-98"
+          >
+            <i className="fa-brands fa-whatsapp mr-2 text-base"></i>
+            Confirm Slot On WhatsApp Instantly
+          </a>
+
+          <button
+            onClick={handleReset}
+            className="text-xs text-slate-500 underline hover:text-slate-300 pt-1 block mx-auto"
+          >
+            Close Window
+          </button>
+        </div>
+      )}
     </div>
   );
 }

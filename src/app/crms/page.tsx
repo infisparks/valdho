@@ -5154,7 +5154,7 @@ export default function CRMPage() {
                   <div className="space-y-1 sm:col-span-2">
                     <div className="flex items-center justify-between text-[11px]">
                       <label className="font-extrabold text-slate-700">WhatsApp Message Template:</label>
-                      <span className="font-mono text-slate-500">Tags: {"{{name}}"}, {"{{date}}"}, {"{{time}}"}</span>
+                      <span className="font-mono text-slate-500">Tags: {"{{name}}"}, {"{{date}}"}, {"{{time}}"}, {"{{meeting_url}}"}</span>
                     </div>
                     <textarea
                       rows={2}

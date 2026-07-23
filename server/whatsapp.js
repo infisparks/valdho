@@ -552,6 +552,7 @@ router.get("/config", async (req, res) => {
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
     const defaultConfig = {
       selectedInstanceName: config.selectedInstanceName || "",
+      defaultMeetingUrl: config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call",
       step1Welcome: {
         isEnabled: config.step1Welcome?.isEnabled !== undefined ? config.step1Welcome.isEnabled : (config.isEnabled !== undefined ? config.isEnabled : true),
         template: config.step1Welcome?.template || config.welcomeMessageTemplate || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.",
@@ -562,7 +563,7 @@ router.get("/config", async (req, res) => {
       },
       step3Meeting: {
         isEnabled: config.step3Meeting?.isEnabled !== undefined ? config.step3Meeting.isEnabled : true,
-        template: config.step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+        template: config.step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}",
       },
     };
     return res.status(200).json({ success: true, data: defaultConfig });
@@ -578,9 +579,10 @@ router.get("/config", async (req, res) => {
  */
 router.post("/config", async (req, res) => {
   try {
-    const { selectedInstanceName, step1Welcome, step2Survey, step3Meeting } = req.body;
+    const { selectedInstanceName, defaultMeetingUrl, step1Welcome, step2Survey, step3Meeting } = req.body;
     const configPayload = {
       selectedInstanceName: selectedInstanceName || "",
+      defaultMeetingUrl: defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call",
       step1Welcome: {
         isEnabled: step1Welcome?.isEnabled !== false,
         template: step1Welcome?.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.",
@@ -591,7 +593,7 @@ router.post("/config", async (req, res) => {
       },
       step3Meeting: {
         isEnabled: step3Meeting?.isEnabled !== false,
-        template: step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+        template: step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}",
       },
       updatedAt: new Date().toISOString(),
     };
@@ -708,7 +710,7 @@ router.post("/auto-send-survey", async (req, res) => {
  */
 router.post("/auto-send-meeting", async (req, res) => {
   try {
-    const { fullName, email, phone, date, time } = req.body;
+    const { fullName, email, phone, date, time, meetingUrl } = req.body;
     if (!phone) return res.status(400).json({ success: false, error: "Phone number is required" });
 
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
@@ -721,13 +723,18 @@ router.post("/auto-send-meeting", async (req, res) => {
     const instanceName = await resolveActiveInstance(config.selectedInstanceName);
     if (!instanceName) return res.status(400).json({ success: false, error: "No active WhatsApp instance available." });
 
-    let rawTemplate = stepConfig.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!";
+    const resolvedMeetingUrl = meetingUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
+
+    let rawTemplate = stepConfig.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}";
     const formattedMessage = rawTemplate
       .replace(/\{\{\s*name\s*\}\}/gi, fullName || "Valued Client")
       .replace(/\{\{\s*email\s*\}\}/gi, email || "N/A")
       .replace(/\{\{\s*phone\s*\}\}/gi, phone || "N/A")
       .replace(/\{\{\s*date\s*\}\}/gi, date || "Upcoming Date")
-      .replace(/\{\{\s*time\s*\}\}/gi, time || "Scheduled Time");
+      .replace(/\{\{\s*time\s*\}\}/gi, time || "Scheduled Time")
+      .replace(/\{\{\s*meeting_url\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl);
 
     const cleanNumber = sanitizePhoneNumber(phone);
     const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });

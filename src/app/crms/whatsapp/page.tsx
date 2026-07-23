@@ -40,6 +40,7 @@ interface StepConfig {
 
 interface WhatsappWorkflowConfig {
   selectedInstanceName: string;
+  defaultMeetingUrl: string;
   step1Welcome: StepConfig;
   step2Survey: StepConfig;
   step3Meeting: StepConfig;
@@ -62,6 +63,7 @@ export default function WhatsappManagerPage() {
   // Auto-Workflow Config State for 3 Steps
   const [config, setConfig] = useState<WhatsappWorkflowConfig>({
     selectedInstanceName: "",
+    defaultMeetingUrl: "https://meet.google.com/firstoption-strategy-call",
     step1Welcome: {
       isEnabled: true,
       template:
@@ -75,7 +77,7 @@ export default function WhatsappManagerPage() {
     step3Meeting: {
       isEnabled: true,
       template:
-        "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+        "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}",
     },
   });
   const [isSavingConfig, setIsSavingConfig] = useState(false);
@@ -150,6 +152,7 @@ export default function WhatsappManagerPage() {
         const data = snapshot.val();
         setConfig({
           selectedInstanceName: data.selectedInstanceName || "",
+          defaultMeetingUrl: data.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call",
           step1Welcome: {
             isEnabled: data.step1Welcome?.isEnabled !== false,
             template:
@@ -166,7 +169,7 @@ export default function WhatsappManagerPage() {
             isEnabled: data.step3Meeting?.isEnabled !== false,
             template:
               data.step3Meeting?.template ||
-              "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+              "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}",
           },
         });
       }
@@ -502,6 +505,38 @@ export default function WhatsappManagerPage() {
           </div>
 
           <form onSubmit={handleSaveConfig} className="space-y-6 font-sans">
+            {/* DEFAULT MEETING LINK / VIDEO CALL URL CARD */}
+            <div className="border border-indigo-200 rounded-2xl p-5 space-y-3 bg-indigo-50/40">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-indigo-800 flex items-center space-x-1.5">
+                  <i className="fa-solid fa-video text-indigo-600"></i>
+                  <span>Default Meeting Link / Video Call URL (Google Meet / Zoom)</span>
+                </h3>
+                <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">
+                  Tag: {"{{meeting_url}}"}
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700">Enter Google Meet / Zoom / Custom Strategy Call Link:</label>
+                <input
+                  type="url"
+                  placeholder="https://meet.google.com/firstoption-strategy-call"
+                  value={config.defaultMeetingUrl}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      defaultMeetingUrl: e.target.value,
+                    }))
+                  }
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 font-mono"
+                  required
+                />
+                <p className="text-[11px] text-slate-500">
+                  💡 This URL will automatically replace <code className="font-bold text-indigo-700">{"{{meeting_url}}"}</code> tag in all WhatsApp booking confirmations & automated stage reminders!
+                </p>
+              </div>
+            </div>
             {/* STEP 1 CONFIGURATION CARD */}
             <div className="border border-slate-200 rounded-2xl p-5 space-y-3 bg-slate-50/50">
               <div className="flex items-center justify-between">
@@ -621,7 +656,7 @@ export default function WhatsappManagerPage() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
                   <span>Message Template:</span>
-                  <span>Tags: {"{{name}}"}, {"{{email}}"}, {"{{date}}"}, {"{{time}}"}</span>
+                  <span>Tags: {"{{name}}"}, {"{{email}}"}, {"{{date}}"}, {"{{time}}"}, {"{{meeting_url}}"}</span>
                 </div>
                 <textarea
                   rows={2}

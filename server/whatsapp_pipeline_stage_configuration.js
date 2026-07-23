@@ -326,13 +326,17 @@ async function evaluateStageAutomations() {
         // Format Dynamic Message Template
         const formattedDate = lead.meeting?.meetingDate || "Upcoming Date";
         const formattedTime = lead.meeting?.meetingTime || "Scheduled Time";
+        const resolvedMeetingUrl = lead.meeting?.meetingUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
 
         const textMessage = rule.template
           .replace(/\{\{\s*name\s*\}\}/gi, lead.fullName || "Valued Client")
           .replace(/\{\{\s*email\s*\}\}/gi, lead.email || "N/A")
           .replace(/\{\{\s*phone\s*\}\}/gi, lead.phone || "N/A")
           .replace(/\{\{\s*date\s*\}\}/gi, formattedDate)
-          .replace(/\{\{\s*time\s*\}\}/gi, formattedTime);
+          .replace(/\{\{\s*time\s*\}\}/gi, formattedTime)
+          .replace(/\{\{\s*meeting_url\s*\}\}/gi, resolvedMeetingUrl)
+          .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
+          .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl);
 
         const cleanNumber = sanitizePhoneNumber(lead.phone);
 

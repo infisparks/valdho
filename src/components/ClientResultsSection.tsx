@@ -229,7 +229,7 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
         </div>
       </div>
 
-      {/* Appointment Proof & Dashboard Calendar Screenshots Grid (Exactly 5 cards) */}
+      {/* Appointment Proof & Dashboard Calendar Screenshots Grid (5 cards: 5th card spans 2 cols on mobile for balanced layout) */}
       <div className="pt-3 space-y-2.5">
         <div className="text-center">
           <h3 className="text-lg sm:text-xl font-black text-white">
@@ -242,7 +242,9 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
           {appointmentProofCards.map((proof, pIdx) => (
             <div
               key={pIdx}
-              className="dark-gold-card rounded-2xl p-2 sm:p-3 text-center space-y-1.5 border border-amber-500/30 hover:border-amber-400 transition-colors shadow-md"
+              className={`dark-gold-card rounded-2xl p-2 sm:p-3 text-center space-y-1.5 border border-amber-500/30 hover:border-amber-400 transition-colors shadow-md ${
+                pIdx === 4 ? "col-span-2 md:col-span-1 max-w-xs sm:max-w-none justify-self-center w-full" : ""
+              }`}
             >
               <h4 className="text-xs sm:text-sm font-black text-white truncate">
                 {proof.title}

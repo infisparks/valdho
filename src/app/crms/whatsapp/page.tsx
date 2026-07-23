@@ -119,15 +119,23 @@ export default function WhatsappManagerPage() {
   const [newMeetClientSecret, setNewMeetClientSecret] = useState("");
   const [isConnectingMeet, setIsConnectingMeet] = useState(false);
 
-  // Sync Google Meet Connected Accounts from Firebase RTDB `/google_meet_integrations/firstoptionagency`
+  // Sync Google Meet Connected Accounts from Firebase RTDB `/google_meet_integrations/global`
   useEffect(() => {
-    const meetRef = ref(db, "google_meet_integrations/firstoptionagency");
-    const unsubscribe = onValue(meetRef, (snapshot) => {
+    const globalRef = ref(db, "google_meet_integrations/global");
+    const unsubscribe = onValue(globalRef, (snapshot) => {
       if (snapshot.exists()) {
         const list = Object.values(snapshot.val()) as GoogleMeetAccount[];
         setMeetAccounts(list);
       } else {
-        setMeetAccounts([]);
+        // Fallback to agency path
+        const agencyRef = ref(db, "google_meet_integrations/firstoptionagency");
+        onValue(agencyRef, (agencySnap) => {
+          if (agencySnap.exists()) {
+            setMeetAccounts(Object.values(agencySnap.val()) as GoogleMeetAccount[]);
+          } else {
+            setMeetAccounts([]);
+          }
+        });
       }
     });
 
@@ -447,6 +455,21 @@ export default function WhatsappManagerPage() {
       });
     } catch (err) {
       console.error("Delete Meet error:", err);
+    }
+  };
+
+  // Handle Google OAuth 1-Click Redirect
+  const handleGoogleOAuthRedirect = async () => {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/google/auth-url`);
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("Unable to generate Google Sign-In URL.");
+      }
+    } catch (err: any) {
+      alert(`Google OAuth error: ${err.message}`);
     }
   };
 
@@ -866,9 +889,18 @@ export default function WhatsappManagerPage() {
               </span>
               <button
                 type="button"
+                onClick={handleGoogleOAuthRedirect}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+                title="1-Click Connect Google OAuth"
+              >
+                <i className="fa-brands fa-google text-xs"></i>
+                <span>Sign in with Google ⚡</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsConnectMeetModalOpen(true)}
                 className="bg-slate-200 hover:bg-slate-300 text-slate-800 w-9 h-9 rounded-xl font-bold flex items-center justify-center text-lg shadow-2xs transition-all cursor-pointer"
-                title="Connect New Google Meet Account"
+                title="Manual Credentials Connect"
               >
                 +
               </button>

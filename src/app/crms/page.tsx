@@ -109,7 +109,7 @@ export default function CRMPage() {
 
   if (authLoading || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#F5F6F8] flex items-center justify-center font-sans">
+      <div className="w-full min-h-screen bg-[#F5F6F8] flex items-center justify-center font-sans">
         <div className="flex items-center space-x-3 text-indigo-600 font-bold text-sm">
           <i className="fa-solid fa-circle-notch fa-spin text-2xl"></i>
           <span>Redirecting to Admin Login...</span>
@@ -122,7 +122,7 @@ export default function CRMPage() {
   // MAIN CRM DASHBOARD (When authenticated)
   // -------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#F5F6F8] text-slate-900 font-sans flex flex-col md:flex-row antialiased">
+    <div className="w-full min-h-screen bg-[#F5F6F8] text-slate-900 font-sans flex flex-col md:flex-row antialiased">
       {/* Mobile Drawer Overlay */}
       {isMobileSidebarOpen && (
         <div
@@ -232,9 +232,9 @@ export default function CRMPage() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-[#F5F6F8]">
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-200 px-4 py-3 sm:px-6 flex items-center justify-between sticky top-0 z-30">
+        <header className="bg-white border-b border-slate-200 px-4 py-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-sm">
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
@@ -290,7 +290,7 @@ export default function CRMPage() {
         </header>
 
         {/* Dashboard Body */}
-        <main className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto w-full">
+        <main className="p-4 sm:p-6 space-y-6 w-full max-w-full">
           {/* 1. KEY METRICS CARDS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Total Leads */}

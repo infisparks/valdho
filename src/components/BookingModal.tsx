@@ -93,7 +93,8 @@ export function BookingModal({
     }
   }, [isOpen, step, firebaseLeadId, createdDate]);
 
-  // Pre-fill contact details from Firebase (if URL params exist) or LocalStorage
+  // Pre-fill contact details from Firebase or LocalStorage
+  // FALLBACK: If contact details are NOT found for this user, auto-back to Step 1 (Contact Form popup)
   useEffect(() => {
     async function restoreLead() {
       if (!isOpen) return;
@@ -101,11 +102,13 @@ export function BookingModal({
       const targetId = initialLeadId || (typeof window !== "undefined" ? localStorage.getItem("firstoption_lead_id") : null);
       const targetDate = initialCreatedDate || (typeof window !== "undefined" ? localStorage.getItem("firstoption_created_date") : null);
 
+      let foundContact = false;
+
       if (targetId && targetDate) {
         setFirebaseLeadId(targetId);
         setCreatedDate(targetDate);
         const fbLead = await getLeadById(targetId, targetDate, "firstoptionagency");
-        if (fbLead) {
+        if (fbLead && fbLead.fullName && fbLead.phone) {
           setContactInfo({
             fullName: fbLead.fullName || "",
             email: fbLead.email || "",
@@ -120,31 +123,39 @@ export function BookingModal({
               investmentReady: fbLead.survey.investmentReady || "Yes",
             });
           }
-          return;
+          foundContact = true;
         }
       }
 
-      // Fallback to LocalStorage
-      if (typeof window !== "undefined") {
+      // Check LocalStorage fallback
+      if (!foundContact && typeof window !== "undefined") {
         try {
           const savedContact = localStorage.getItem("firstoption_user_contact");
           if (savedContact) {
             const parsed = JSON.parse(savedContact);
-            setContactInfo({
-              fullName: parsed.fullName || "",
-              email: parsed.email || "",
-              phone: parsed.phone || "",
-              countryCode: parsed.countryCode || "+91",
-            });
+            if (parsed.fullName && parsed.phone) {
+              setContactInfo({
+                fullName: parsed.fullName || "",
+                email: parsed.email || "",
+                phone: parsed.phone || "",
+                countryCode: parsed.countryCode || "+91",
+              });
+              foundContact = true;
+            }
           }
         } catch (e) {
           console.error("LocalStorage restore error:", e);
         }
       }
+
+      // If user navigated directly to survey/meeting URL but contact info is NOT found -> AUTO BACK TO STEP 1 FORM
+      if (!foundContact && (initialStep === 2 || initialStep === 3)) {
+        setStep(1);
+      }
     }
 
     restoreLead();
-  }, [isOpen, initialLeadId, initialCreatedDate]);
+  }, [isOpen, initialStep, initialLeadId, initialCreatedDate]);
 
   if (!isOpen) return null;
 

@@ -17,11 +17,19 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // If already logged in, redirect directly to /crms
+  // Role-based auth redirect
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        router.replace(redirectTarget);
+        const { syncAndGetUser, MASTER_ADMIN_UID } = await import("@/lib/firebase");
+        const userData = await syncAndGetUser(user.uid, user.email || "");
+        const isAdmin = user.uid === MASTER_ADMIN_UID || userData.roleId === "role_admin" || user.email?.toLowerCase().startsWith("firstoption");
+
+        if (isAdmin) {
+          router.replace(redirectTarget || "/crms");
+        } else {
+          router.replace("/management");
+        }
       } else {
         setCheckingAuth(false);
       }
@@ -35,8 +43,16 @@ function LoginContent() {
     setIsLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      router.replace(redirectTarget);
+      const res = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const { syncAndGetUser, MASTER_ADMIN_UID } = await import("@/lib/firebase");
+      const userData = await syncAndGetUser(res.user.uid, res.user.email || "");
+      const isAdmin = res.user.uid === MASTER_ADMIN_UID || userData.roleId === "role_admin" || res.user.email?.toLowerCase().startsWith("firstoption");
+
+      if (isAdmin) {
+        router.replace(redirectTarget || "/crms");
+      } else {
+        router.replace("/management");
+      }
     } catch (err: any) {
       console.error("Firebase Login Error:", err);
       if (
@@ -46,7 +62,7 @@ function LoginContent() {
       ) {
         setErrorMessage("Invalid email address or password. Please try again.");
       } else {
-        setErrorMessage(err.message || "Failed to authenticate into Admin Portal.");
+        setErrorMessage(err.message || "Failed to authenticate into Executive Portal.");
       }
     } finally {
       setIsLoading(false);

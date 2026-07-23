@@ -348,17 +348,22 @@ async function evaluateStageAutomations() {
 
         // Log into Activity Logs
         const logId = `auto_stage_${Date.now()}`;
-        await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", {
+        const logData = {
           id: logId,
           type: "auto_stage_automation",
           ruleTitle: rule.title,
           stageId: leadStage,
           number: cleanNumber,
+          leadName: lead.fullName || "Client",
           text: textMessage,
+          instanceName: targetInstance,
           status: evoRes.ok ? "sent" : "failed",
-          error: evoRes.ok ? null : (evoRes.data?.error || "Send failed"),
+          error: evoRes.ok ? null : (evoRes.data?.error || JSON.stringify(evoRes.data) || "Send failed"),
           timestamp: new Date().toISOString(),
-        });
+        };
+
+        await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", logData);
+        await firebaseDb(`whatsapp_lead_logs/${cleanNumber}/${logId}`, "PUT", logData);
       }
     }
   } catch (err) {

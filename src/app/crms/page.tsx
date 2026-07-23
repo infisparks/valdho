@@ -397,6 +397,34 @@ export default function CRMPage() {
   const [ruleTemplate, setRuleTemplate] = useState("Hello {{name}}, reminder for your strategy session at {{time}} on {{date}}!");
   const [isSavingRule, setIsSavingRule] = useState(false);
 
+  // PER-LEAD WHATSAPP LOGS MODAL STATE
+  const [selectedLeadForLogs, setSelectedLeadForLogs] = useState<LeadData | null>(null);
+  const [isLeadLogsModalOpen, setIsLeadLogsModalOpen] = useState(false);
+  const [leadLogsList, setLeadLogsList] = useState<any[]>([]);
+  const [isLoadingLeadLogs, setIsLoadingLeadLogs] = useState(false);
+
+  const handleOpenLeadLogsModal = (lead: LeadData) => {
+    setSelectedLeadForLogs(lead);
+    setIsLeadLogsModalOpen(true);
+    setIsLoadingLeadLogs(true);
+
+    const cleanNum = lead.phone ? lead.phone.replace(/\D/g, "") : "";
+    const fullCleanNum = cleanNum.length === 10 ? "91" + cleanNum : cleanNum;
+
+    // Sync WhatsApp Logs for this specific lead from Firebase RTDB `whatsapp_lead_logs/${fullCleanNum}`
+    const logsRef = ref(db, `whatsapp_lead_logs/${fullCleanNum}`);
+    onValue(logsRef, (snapshot) => {
+      setIsLoadingLeadLogs(false);
+      if (snapshot.exists()) {
+        const list = Object.values(snapshot.val());
+        list.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setLeadLogsList(list);
+      } else {
+        setLeadLogsList([]);
+      }
+    });
+  };
+
   // Sync WhatsApp Instances for Stage Automation Rule Selector
   useEffect(() => {
     const instRef = ref(db, "whatsapp_unofficial_instances");
@@ -2513,15 +2541,29 @@ export default function CRMPage() {
                                     📞 {lead.countryCode} {lead.phone}
                                   </span>
 
-                                  <a
-                                    href={`https://api.whatsapp.com/send?phone=${lead.countryCode ? lead.countryCode.replace("+", "") : "91"}${lead.phone}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="text-emerald-600 hover:text-emerald-700 font-bold text-xs"
-                                  >
-                                    <i className="fa-brands fa-whatsapp text-sm"></i>
-                                  </a>
+                                  <div className="flex items-center space-x-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenLeadLogsModal(lead);
+                                      }}
+                                      className="text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1"
+                                      title="View WhatsApp Dispatch Logs for this Lead"
+                                    >
+                                      <span>📜 Logs</span>
+                                    </button>
+
+                                    <a
+                                      href={`https://api.whatsapp.com/send?phone=${lead.countryCode ? lead.countryCode.replace("+", "") : "91"}${lead.phone}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-emerald-600 hover:text-emerald-700 font-bold text-xs"
+                                    >
+                                      <i className="fa-brands fa-whatsapp text-sm"></i>
+                                    </a>
+                                  </div>
                                 </div>
 
                                 <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100">
@@ -5187,6 +5229,94 @@ export default function CRMPage() {
                 className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold px-6 py-2 rounded-xl transition-colors cursor-pointer"
               >
                 Close Automation Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LEAD WHATSAPP DISPATCH LOGS MODAL */}
+      {isLeadLogsModalOpen && selectedLeadForLogs && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
+          <div className="fixed inset-0" onClick={() => setIsLeadLogsModalOpen(false)} />
+          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl p-6 space-y-5 border border-slate-200 z-10 animate-in fade-in zoom-in duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-lg">
+                  📜
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    WhatsApp Logs: {selectedLeadForLogs.fullName || "Lead"}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    📞 +{selectedLeadForLogs.countryCode || "91"} {selectedLeadForLogs.phone} • Realtime Activity Logs
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsLeadLogsModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 font-bold flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {isLoadingLeadLogs ? (
+                <div className="p-8 text-center text-slate-500 text-xs font-bold flex items-center justify-center space-x-2">
+                  <i className="fa-solid fa-circle-notch fa-spin text-indigo-600"></i>
+                  <span>Fetching WhatsApp Dispatch Logs...</span>
+                </div>
+              ) : leadLogsList.length === 0 ? (
+                <div className="p-8 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                  <span className="text-xs font-bold text-slate-600 block">No WhatsApp messages dispatched to this lead yet.</span>
+                  <p className="text-[11px] text-slate-400">
+                    Automations inspect leads every 15 seconds. Once triggered, dispatches will appear here instantly!
+                  </p>
+                </div>
+              ) : (
+                leadLogsList.map((log: any) => (
+                  <div key={log.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-900 flex items-center space-x-1.5">
+                        <span>⚡ {log.ruleTitle || "Automation Rule"}</span>
+                      </span>
+
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                          log.status === "sent"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}
+                      >
+                        {log.status === "sent" ? "🟢 Sent" : "🔴 Failed"}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-700 font-mono bg-white p-2 rounded-xl border border-slate-200">
+                      "{log.text}"
+                    </p>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <span>🚀 Instance: {log.instanceName || "Default"}</span>
+                      <span>🕒 {new Date(log.timestamp).toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+              <button
+                onClick={() => setIsLeadLogsModalOpen(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-5 py-2 rounded-xl transition-colors cursor-pointer"
+              >
+                Close Logs
               </button>
             </div>
           </div>

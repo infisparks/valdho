@@ -37,12 +37,14 @@ import {
   FlowTemplate,
   FlowTaskTemplate,
   ClientFlowInstance,
+  db,
 } from "@/lib/firebase";
 import {
   signOut,
   onAuthStateChanged,
   User,
 } from "firebase/auth";
+import { ref, onValue, set } from "firebase/database";
 import { CAMPAIGNS } from "@/config/campaigns";
 
 const MONTH_NAMES = [
@@ -50,15 +52,24 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+export interface PipelineStageConfig {
+  id: string;
+  name: string;
+  color: string;
+  bgTag: string;
+  isCompulsory?: boolean;
+  isDeleted?: boolean;
+}
+
 // Pipeline Stages Config
-const PIPELINE_STAGES = [
-  { id: "raw", name: "Raw Leads", color: "#6366f1", bgTag: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  { id: "in_progress", name: "1st Connection", color: "#3b82f6", bgTag: "bg-blue-50 text-blue-700 border-blue-200" },
-  { id: "survey_completed", name: "Survey Completed", color: "#06b6d4", bgTag: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-  { id: "meeting_booked", name: "Meeting Booked", color: "#10b981", bgTag: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { id: "proposal_sent", name: "Proposal Sent", color: "#f59e0b", bgTag: "bg-amber-50 text-amber-700 border-amber-200" },
-  { id: "won", name: "Won", color: "#16a34a", bgTag: "bg-green-50 text-green-800 border-green-200" },
-  { id: "not_qualified", name: "Not Qualified", color: "#f43f5e", bgTag: "bg-rose-50 text-rose-700 border-rose-200" },
+const DEFAULT_PIPELINE_STAGES: PipelineStageConfig[] = [
+  { id: "raw", name: "Leads", color: "#6366f1", bgTag: "bg-indigo-50 text-indigo-700 border-indigo-200", isCompulsory: true, isDeleted: false },
+  { id: "in_progress", name: "1st Connection", color: "#3b82f6", bgTag: "bg-blue-50 text-blue-700 border-blue-200", isCompulsory: false, isDeleted: false },
+  { id: "survey_completed", name: "Survey Completed", color: "#06b6d4", bgTag: "bg-cyan-50 text-cyan-700 border-cyan-200", isCompulsory: false, isDeleted: false },
+  { id: "meeting_booked", name: "Meeting Booked", color: "#10b981", bgTag: "bg-emerald-50 text-emerald-700 border-emerald-200", isCompulsory: false, isDeleted: false },
+  { id: "proposal_sent", name: "Proposal Sent", color: "#f59e0b", bgTag: "bg-amber-50 text-amber-700 border-amber-200", isCompulsory: false, isDeleted: false },
+  { id: "won", name: "Won", color: "#16a34a", bgTag: "bg-green-50 text-green-800 border-green-200", isCompulsory: true, isDeleted: false },
+  { id: "not_qualified", name: "Not Qualified", color: "#f43f5e", bgTag: "bg-rose-50 text-rose-700 border-rose-200", isCompulsory: false, isDeleted: false },
 ];
 
 function formatShortTime(timeStr: string): string {
@@ -218,6 +229,108 @@ export default function CRMPage() {
   const [leadsSingleDate, setLeadsSingleDate] = useState<string>(todayStr);
   const [leadsStartDate, setLeadsStartDate] = useState<string>(sevenDaysAgoStr);
   const [leadsEndDate, setLeadsEndDate] = useState<string>(todayStr);
+
+  // DYNAMIC PIPELINE STAGES MANAGED STATE
+  const [pipelineStages, setPipelineStages] = useState<PipelineStageConfig[]>(DEFAULT_PIPELINE_STAGES);
+  const [isManagePipelineModalOpen, setIsManagePipelineModalOpen] = useState(false);
+  const [managePipelineTab, setManagePipelineTab] = useState<"active" | "bin">("active");
+
+  const [newStageName, setNewStageName] = useState("");
+  const [newStageColor, setNewStageColor] = useState("#6366f1");
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editingStageName, setEditingStageName] = useState("");
+
+  // Realtime Sync Pipeline Stages from Firebase RTDB `pipeline_stages/firstoptionagency`
+  useEffect(() => {
+    const stagesRef = ref(db, "pipeline_stages/firstoptionagency");
+    const unsubscribe = onValue(stagesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        if (Array.isArray(data)) {
+          setPipelineStages(data);
+        }
+      } else {
+        setPipelineStages(DEFAULT_PIPELINE_STAGES);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Filter Active vs Deleted Pipeline Stages
+  const activePipelineStages = pipelineStages.filter((s) => !s.isDeleted);
+  const deletedPipelineStages = pipelineStages.filter((s) => s.isDeleted);
+
+  // Save Pipeline Stages Array to Firebase RTDB
+  const savePipelineStagesToFirebase = async (updatedStages: PipelineStageConfig[]) => {
+    try {
+      const stagesRef = ref(db, "pipeline_stages/firstoptionagency");
+      await set(stagesRef, updatedStages);
+      setPipelineStages(updatedStages);
+    } catch (err) {
+      console.error("Save Pipeline Stages Error:", err);
+    }
+  };
+
+  // Add New Custom Stage
+  const handleAddCustomStage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStageName.trim()) return;
+
+    const stageId = `stage_${Date.now()}`;
+    const newStage: PipelineStageConfig = {
+      id: stageId,
+      name: newStageName.trim(),
+      color: newStageColor,
+      bgTag: "bg-indigo-50 text-indigo-700 border-indigo-200",
+      isCompulsory: false,
+      isDeleted: false,
+    };
+
+    const updated = [...pipelineStages];
+    const wonIdx = updated.findIndex((s) => s.id === "won");
+    if (wonIdx !== -1) {
+      updated.splice(wonIdx, 0, newStage);
+    } else {
+      updated.push(newStage);
+    }
+
+    await savePipelineStagesToFirebase(updated);
+    setNewStageName("");
+  };
+
+  // Soft Delete Stage (Move to Recycle Bin)
+  const handleSoftDeleteStage = async (stageId: string) => {
+    const target = pipelineStages.find((s) => s.id === stageId);
+    if (target?.isCompulsory || stageId === "raw" || stageId === "won") {
+      alert("Compulsory Core Stages ('Leads' & 'Won') cannot be deleted or removed!");
+      return;
+    }
+
+    const updated = pipelineStages.map((s) => (s.id === stageId ? { ...s, isDeleted: true } : s));
+    await savePipelineStagesToFirebase(updated);
+  };
+
+  // Restore Soft Deleted Stage from Recycle Bin
+  const handleRestoreSoftDeletedStage = async (stageId: string) => {
+    const updated = pipelineStages.map((s) => (s.id === stageId ? { ...s, isDeleted: false } : s));
+    await savePipelineStagesToFirebase(updated);
+  };
+
+  // Save Renamed Stage
+  const handleSaveRenameStage = async (stageId: string) => {
+    if (!editingStageName.trim()) return;
+    const target = pipelineStages.find((s) => s.id === stageId);
+    if (target?.isCompulsory || stageId === "raw" || stageId === "won") {
+      alert("Compulsory Core Stages ('Leads' & 'Won') cannot be renamed!");
+      return;
+    }
+
+    const updated = pipelineStages.map((s) => (s.id === stageId ? { ...s, name: editingStageName.trim() } : s));
+    await savePipelineStagesToFirebase(updated);
+    setEditingStageId(null);
+    setEditingStageName("");
+  };
 
   // Scheduled Meetings Tab Date Filter State
   const [meetingsDatePreset, setMeetingsDatePreset] = useState<
@@ -1990,6 +2103,14 @@ export default function CRMPage() {
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none w-36 sm:w-44"
                     />
+
+                    <button
+                      onClick={() => setIsManagePipelineModalOpen(true)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-gear"></i>
+                      <span>Manage Stages ⚙️</span>
+                    </button>
                   </div>
                 </div>
 
@@ -2035,7 +2156,7 @@ export default function CRMPage() {
 
               {/* DRAG-AND-DROP KANBAN PIPELINE COLUMNS */}
               <div className="flex items-start space-x-3.5 overflow-x-auto pb-6 pt-1 min-h-[620px] scrollbar-thin">
-                {PIPELINE_STAGES.map((stage) => {
+                {activePipelineStages.map((stage) => {
                   const stageLeads = filteredPipelineLeads.filter((l) => getLeadEffectiveStage(l) === stage.id);
                   const totalStageValue = stageLeads.reduce((acc, l) => acc + (l.dealValue || 0), 0);
 
@@ -2186,16 +2307,16 @@ export default function CRMPage() {
                                   <div className="flex items-center justify-between pt-0.5">
                                     <span className="text-[10px] text-slate-400 font-bold">Move Stage:</span>
                                     <select
-                                      value={getLeadEffectiveStage(lead)}
-                                      onChange={(e) => handleUpdateStage(lead, e.target.value)}
-                                      className="bg-slate-50 border border-slate-200 rounded text-[10px] font-bold text-slate-800 px-1.5 py-0.5 focus:outline-none focus:border-indigo-600"
-                                    >
-                                      {PIPELINE_STAGES.map((st) => (
-                                        <option key={st.id} value={st.id}>
-                                          {st.name}
-                                        </option>
-                                      ))}
-                                    </select>
+                                       value={getLeadEffectiveStage(lead)}
+                                       onChange={(e) => handleUpdateStage(lead, e.target.value)}
+                                       className="bg-slate-50 border border-slate-200 rounded text-[10px] font-bold text-slate-800 px-1.5 py-0.5 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                                     >
+                                       {activePipelineStages.map((st) => (
+                                         <option key={st.id} value={st.id}>
+                                           {st.name}
+                                         </option>
+                                       ))}
+                                     </select>
                                   </div>
                                 </div>
                               </div>
@@ -3667,9 +3788,9 @@ export default function CRMPage() {
                   <select
                     value={getLeadEffectiveStage(selectedLead)}
                     onChange={(e) => handleUpdateStage(selectedLead, e.target.value)}
-                    className="bg-white border border-slate-300 rounded-xl px-2.5 py-1 font-bold text-xs text-indigo-600 focus:outline-none"
+                    className="bg-white border border-slate-300 rounded-xl px-2.5 py-1 font-bold text-xs text-indigo-600 focus:outline-none cursor-pointer"
                   >
-                    {PIPELINE_STAGES.map((st) => (
+                    {activePipelineStages.map((st) => (
                       <option key={st.id} value={st.id}>
                         {st.name}
                       </option>
@@ -4176,6 +4297,240 @@ export default function CRMPage() {
                 className="px-5 py-2 rounded-xl text-xs font-extrabold bg-slate-200 hover:bg-slate-300 text-slate-800 transition-colors"
               >
                 Close Audit View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANAGE PIPELINE STAGES & RECYCLE BIN MODAL */}
+      {isManagePipelineModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0" onClick={() => setIsManagePipelineModalOpen(false)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 border border-slate-200 z-10 font-sans animate-in fade-in zoom-in duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 flex items-center space-x-2">
+                  <span>Manage Pipeline Stages ⚙️</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  <strong className="text-indigo-600 font-extrabold">Leads</strong> and <strong className="text-emerald-600 font-extrabold">Won</strong> are compulsory core stages that cannot be deleted or renamed. Create new stages, rename intermediate headers, or restore deleted stages from the Recycle Bin.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsManagePipelineModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 font-bold flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Tabs: Active Stages vs Recycle Bin */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setManagePipelineTab("active")}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                    managePipelineTab === "active"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Active Pipeline Stages ({activePipelineStages.length})
+                </button>
+
+                <button
+                  onClick={() => setManagePipelineTab("bin")}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    managePipelineTab === "bin"
+                      ? "bg-rose-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <i className="fa-solid fa-trash-can text-xs"></i>
+                  <span>Recycle Bin ({deletedPipelineStages.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Active Stages Content */}
+            {managePipelineTab === "active" ? (
+              <div className="space-y-5">
+                {/* Add New Custom Stage Form */}
+                <form onSubmit={handleAddCustomStage} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider block">
+                    Create New Pipeline Stage
+                  </span>
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Stage Name (e.g. Proposal Under Review)"
+                      value={newStageName}
+                      onChange={(e) => setNewStageName(e.target.value)}
+                      className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 flex-1 w-full"
+                      required
+                    />
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-bold text-slate-600">Color:</span>
+                      <input
+                        type="color"
+                        value={newStageColor}
+                        onChange={(e) => setNewStageColor(e.target.value)}
+                        className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer p-0.5 bg-white"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl shadow-md transition-all flex-shrink-0 flex items-center space-x-1 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-plus text-xs"></i>
+                      <span>Add Stage</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Active Stages List */}
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {activePipelineStages.map((st) => (
+                    <div
+                      key={st.id}
+                      className={`border rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs ${
+                        st.isCompulsory
+                          ? "bg-slate-50 border-indigo-200"
+                          : "bg-white border-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        <span
+                          className="w-4 h-4 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: st.color || "#6366f1" }}
+                        ></span>
+
+                        {editingStageId === st.id ? (
+                          <div className="flex items-center space-x-2 flex-1">
+                            <input
+                              type="text"
+                              value={editingStageName}
+                              onChange={(e) => setEditingStageName(e.target.value)}
+                              className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-900 focus:outline-none w-full"
+                            />
+                            <button
+                              onClick={() => handleSaveRenameStage(st.id)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-xl shadow-2xs cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingStageId(null)}
+                              className="text-slate-500 hover:text-slate-700 text-[10px] font-bold px-2 py-1 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2 truncate">
+                            <span className="text-xs font-extrabold text-slate-900 truncate">
+                              {st.name}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400 font-bold">
+                              ({st.id})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        {st.isCompulsory || st.id === "raw" || st.id === "won" ? (
+                          <span className="text-[10px] font-mono font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-xl">
+                            🔒 Compulsory Core Stage
+                          </span>
+                        ) : (
+                          <>
+                            {editingStageId !== st.id && (
+                              <button
+                                onClick={() => {
+                                  setEditingStageId(st.id);
+                                  setEditingStageName(st.name);
+                                }}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-extrabold px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
+                              >
+                                Edit ✏️
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleSoftDeleteStage(st.id)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-extrabold px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
+                              title="Soft delete (move to Recycle Bin)"
+                            >
+                              Move to Bin 🗑️
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              /* Recycle Bin Tab */
+              <div className="space-y-4 font-sans">
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-xs text-amber-900 font-semibold">
+                  ℹ️ Stages deleted from the pipeline are safely kept in the Recycle Bin with status <code className="font-bold">isDeleted: true</code>. You can restore them anytime to bring them back to your live Kanban pipeline board!
+                </div>
+
+                {deletedPipelineStages.length === 0 ? (
+                  <div className="p-8 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                    <span className="text-xl block">🗑️</span>
+                    <span className="text-xs font-bold text-slate-500">Recycle Bin is Empty</span>
+                    <p className="text-[11px] text-slate-400">No soft-deleted pipeline stages found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                    {deletedPipelineStages.map((st) => (
+                      <div
+                        key={st.id}
+                        className="bg-rose-50/40 border border-rose-200 rounded-2xl p-3.5 flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center space-x-3 truncate">
+                          <span
+                            className="w-4 h-4 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: st.color || "#f43f5e" }}
+                          ></span>
+                          <div className="truncate">
+                            <span className="text-xs font-extrabold text-slate-900 block truncate">
+                              {st.name}
+                            </span>
+                            <span className="text-[10px] font-mono text-rose-700 font-bold">
+                              Status: isDeleted = true
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleRestoreSoftDeletedStage(st.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-3.5 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center space-x-1.5 flex-shrink-0 cursor-pointer"
+                        >
+                          <i className="fa-solid fa-rotate-left text-xs"></i>
+                          <span>Restore Stage 🔄</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+              <button
+                onClick={() => setIsManagePipelineModalOpen(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-5 py-2 rounded-xl transition-colors cursor-pointer"
+              >
+                Close Manager
               </button>
             </div>
           </div>

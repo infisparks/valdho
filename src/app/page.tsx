@@ -28,6 +28,7 @@ function URLParamsHandler({
     step: 1 | 2 | 3 | 4;
     leadId: string | null;
     createdDate: string | null;
+    campaignName: string | null;
   }) => void;
 }) {
   const searchParams = useSearchParams();
@@ -36,8 +37,9 @@ function URLParamsHandler({
     const stepParam = searchParams.get("step");
     const leadIdParam = searchParams.get("leadId");
     const createdDateParam = searchParams.get("createdDate");
+    const campaignParam = searchParams.get("campaign");
 
-    if (stepParam) {
+    if (stepParam || campaignParam) {
       let targetStep: 1 | 2 | 3 | 4 = 1;
       if (stepParam === "survey" || stepParam === "2") targetStep = 2;
       else if (stepParam === "meeting" || stepParam === "3") targetStep = 3;
@@ -48,6 +50,7 @@ function URLParamsHandler({
         step: targetStep,
         leadId: leadIdParam,
         createdDate: createdDateParam,
+        campaignName: campaignParam,
       });
     }
   }, [searchParams]);
@@ -61,11 +64,13 @@ export default function Home() {
     step: 1 | 2 | 3 | 4;
     leadId: string | null;
     createdDate: string | null;
+    campaignName: string | null;
   }>({
     isOpen: false,
     step: 1,
     leadId: null,
     createdDate: null,
+    campaignName: null,
   });
 
   const [videoModal, setVideoModal] = useState<{
@@ -86,6 +91,7 @@ export default function Home() {
       step: 1,
       leadId: null,
       createdDate: null,
+      campaignName: null,
     });
   }, []);
 
@@ -95,6 +101,7 @@ export default function Home() {
       step: 1,
       leadId: null,
       createdDate: null,
+      campaignName: null,
     });
   }, []);
 
@@ -104,13 +111,15 @@ export default function Home() {
       step: 1 | 2 | 3 | 4;
       leadId: string | null;
       createdDate: string | null;
+      campaignName: string | null;
     }) => {
       setBookingConfig((prev) => {
         if (
           prev.isOpen === config.isOpen &&
           prev.step === config.step &&
           prev.leadId === config.leadId &&
-          prev.createdDate === config.createdDate
+          prev.createdDate === config.createdDate &&
+          prev.campaignName === config.campaignName
         ) {
           return prev;
         }
@@ -247,6 +256,7 @@ export default function Home() {
         initialStep={bookingConfig.step}
         initialLeadId={bookingConfig.leadId}
         initialCreatedDate={bookingConfig.createdDate}
+        campaignName={bookingConfig.campaignName || "firstoptionagency"}
       />
 
       {/* Sticky Mobile CTA */}

@@ -9,6 +9,7 @@ import {
   sanitizeSlotKey,
   LeadData,
 } from "@/lib/firebase";
+import { getCampaignConfig, DEFAULT_CAMPAIGN_ID } from "@/config/campaigns";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface BookingModalProps {
   initialStep?: 1 | 2 | 3 | 4;
   initialLeadId?: string | null;
   initialCreatedDate?: string | null;
+  campaignName?: string;
 }
 
 const MONTH_NAMES = [
@@ -41,7 +43,11 @@ export function BookingModal({
   initialStep = 1,
   initialLeadId = null,
   initialCreatedDate = null,
+  campaignName = DEFAULT_CAMPAIGN_ID,
 }: BookingModalProps) {
+  // Load dynamic campaign questions & info
+  const activeCampaign = getCampaignConfig(campaignName);
+
   // Step 1: Initial Contact Form
   // Step 2: Qualification Typeform Questionnaire
   // Step 3: Interactive Calendar Booking (Month, Date & Slot Selection)
@@ -62,15 +68,10 @@ export function BookingModal({
 
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
-  // Survey Answers State
-  const [qAnswers, setQAnswers] = useState({
-    industry: "Doctor / Clinic",
-    role: "Founder / Owner",
-    revenue: "₹5L – ₹10L",
-    investmentReady: "Yes",
-  });
+  // Dynamic Survey Answers State
+  const [qAnswers, setQAnswers] = useState<Record<string, string>>({});
 
-  // Qualification Question Index (0 to 3)
+  // Qualification Question Index (0 based)
   const [activeQIndex, setActiveQIndex] = useState<number>(0);
 
   // Get current real-world date for past date prevention
@@ -115,11 +116,11 @@ export function BookingModal({
       else if (step === 4) stepName = "success";
 
       if (stepName) {
-        const newUrl = `${window.location.pathname}?step=${stepName}&leadId=${firebaseLeadId}&createdDate=${todayDate}`;
+        const newUrl = `${window.location.pathname}?step=${stepName}&leadId=${firebaseLeadId}&createdDate=${todayDate}&campaign=${activeCampaign.id}`;
         window.history.replaceState({}, "", newUrl);
       }
     }
-  }, [isOpen, step, firebaseLeadId, createdDate]);
+  }, [isOpen, step, firebaseLeadId, createdDate, activeCampaign.id]);
 
   // Pre-fill contact details from Firebase or LocalStorage
   // FALLBACK: If contact details are NOT found for this user, auto-back to Step 1 (Contact Form popup)
@@ -135,7 +136,7 @@ export function BookingModal({
       if (targetId && targetDate) {
         setFirebaseLeadId(targetId);
         setCreatedDate(targetDate);
-        const fbLead = await getLeadById(targetId, targetDate, "firstoptionagency");
+        const fbLead = await getLeadById(targetId, targetDate, activeCampaign.id);
         if (fbLead && fbLead.fullName && fbLead.phone) {
           setContactInfo({
             fullName: fbLead.fullName || "",
@@ -144,12 +145,7 @@ export function BookingModal({
             countryCode: fbLead.countryCode || "+91",
           });
           if (fbLead.survey) {
-            setQAnswers({
-              industry: fbLead.survey.industry || "Doctor / Clinic",
-              role: fbLead.survey.role || "Founder / Owner",
-              revenue: fbLead.survey.revenue || "₹5L – ₹10L",
-              investmentReady: fbLead.survey.investmentReady || "Yes",
-            });
+            setQAnswers(fbLead.survey as Record<string, string>);
           }
           foundContact = true;
         }
@@ -183,7 +179,7 @@ export function BookingModal({
     }
 
     restoreLead();
-  }, [isOpen, initialStep, initialLeadId, initialCreatedDate]);
+  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, activeCampaign.id]);
 
   // Realtime Booked Slots Listener whenever selected date changes
   useEffect(() => {
@@ -194,12 +190,12 @@ export function BookingModal({
       const formattedDay = selectedDay.toString().padStart(2, "0");
       const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
-      const bookedMap = await getBookedSlotsForDate(appointmentDateStr, "firstoptionagency");
+      const bookedMap = await getBookedSlotsForDate(appointmentDateStr, activeCampaign.id);
       setBookedSlotsMap(bookedMap);
     }
 
     fetchSlots();
-  }, [isOpen, step, selectedDay, currentMonthIndex, currentYear]);
+  }, [isOpen, step, selectedDay, currentMonthIndex, currentYear, activeCampaign.id]);
 
   if (!isOpen) return null;
 
@@ -234,7 +230,7 @@ export function BookingModal({
       status: "partial",
     };
 
-    const res = await saveOrUpdateLead(leadPayload, emailPrefixId, createdDate, "firstoptionagency");
+    const res = await saveOrUpdateLead(leadPayload, emailPrefixId, createdDate, activeCampaign.id);
     if (res) {
       setFirebaseLeadId(res.leadId);
       setCreatedDate(res.createdDate);
@@ -261,7 +257,7 @@ export function BookingModal({
       survey: qAnswers,
     };
 
-    await saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, "firstoptionagency");
+    await saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, activeCampaign.id);
     setStep(3);
   };
 
@@ -347,63 +343,17 @@ export function BookingModal({
       },
     };
 
-    await saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, "firstoptionagency");
+    await saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, activeCampaign.id);
     setStep(4);
   };
 
   const formattedBookingDate = `${selectedDay} ${MONTH_NAMES[currentMonthIndex]} ${currentYear}`;
 
   const whatsappUrl = `https://api.whatsapp.com/send?phone=919876543210&text=${encodeURIComponent(
-    `Hi First Option Agency, I just booked a Growth Consultation Call.\nName: ${contactInfo.fullName || "User"}\nEmail: ${contactInfo.email || "N/A"}\nPhone: ${contactInfo.countryCode} ${contactInfo.phone || "N/A"}\nIndustry: ${qAnswers.industry}\nRole: ${qAnswers.role}\nMonthly Revenue: ${qAnswers.revenue}\nBooked Slot: ${formattedBookingDate} at ${selectedTimeSlot || "02:00 PM"}`
+    `Hi ${activeCampaign.title}, I just booked a Growth Consultation Call.\nName: ${contactInfo.fullName || "User"}\nEmail: ${contactInfo.email || "N/A"}\nPhone: ${contactInfo.countryCode} ${contactInfo.phone || "N/A"}\nBooked Slot: ${formattedBookingDate} at ${selectedTimeSlot || "02:00 PM"}`
   )}`;
 
-  const qualificationQuestions = [
-    {
-      num: 2,
-      question: "What industry are you in? *",
-      field: "industry",
-      options: [
-        { label: "Doctor / Clinic", key: "A" },
-        { label: "Manufacturer / Distributor", key: "B" },
-        { label: "IT / Tech / SaaS", key: "C" },
-        { label: "Service Business", key: "D" },
-        { label: "Other", key: "E" },
-      ],
-    },
-    {
-      num: 3,
-      question: "What is your role in the business? *",
-      field: "role",
-      options: [
-        { label: "Founder / Owner", key: "A" },
-        { label: "Partner", key: "B" },
-        { label: "Marketing Head", key: "C" },
-        { label: "Team Member", key: "D" },
-      ],
-    },
-    {
-      num: 4,
-      question: "What is your current monthly revenue? *",
-      field: "revenue",
-      options: [
-        { label: "Below ₹5L", key: "A" },
-        { label: "₹5L – ₹10L", key: "B" },
-        { label: "₹10L – ₹25L", key: "C" },
-        { label: "₹25L – ₹50L", key: "D" },
-        { label: "₹50L+", key: "E" },
-      ],
-    },
-    {
-      num: 5,
-      question: "Are you ready to invest in a proper marketing system if it makes financial sense? *",
-      field: "investmentReady",
-      options: [
-        { label: "Yes", key: "A" },
-        { label: "Maybe", key: "B" },
-        { label: "Just exploring", key: "C" },
-      ],
-    },
-  ];
+  const qualificationQuestions = activeCampaign.questions;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 animate-toast-in overflow-y-auto">
@@ -512,7 +462,7 @@ export function BookingModal({
           <div>
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5 mb-3">
               <h3 className="text-xs sm:text-base font-bold text-white tracking-wide truncate">
-                Let&apos;s Understand Your Business Before We Grow It
+                {activeCampaign.subtitle}
               </h3>
               <button
                 onClick={handleReset}
@@ -525,6 +475,7 @@ export function BookingModal({
             {/* Current Question */}
             {(() => {
               const currentQ = qualificationQuestions[activeQIndex];
+              if (!currentQ) return null;
               return (
                 <div className="space-y-4 pt-1">
                   <div className="text-sm sm:text-lg md:text-xl font-medium text-slate-100 flex items-start space-x-2">
@@ -534,8 +485,7 @@ export function BookingModal({
 
                   <div className="space-y-2 pt-1 max-w-md">
                     {currentQ.options.map((opt) => {
-                      const isSelected =
-                        qAnswers[currentQ.field as keyof typeof qAnswers] === opt.label;
+                      const isSelected = qAnswers[currentQ.field] === opt.label;
                       return (
                         <button
                           key={opt.key}
@@ -779,7 +729,7 @@ export function BookingModal({
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3.5 text-left text-xs text-slate-300 space-y-1 font-mono">
             <div><span className="text-slate-500">Name:</span> {contactInfo.fullName || "User"}</div>
             <div><span className="text-slate-500">Phone:</span> {contactInfo.countryCode} {contactInfo.phone || "N/A"}</div>
-            <div><span className="text-slate-500">Industry:</span> {qAnswers.industry}</div>
+            <div><span className="text-slate-500">Campaign:</span> {activeCampaign.title}</div>
             <div><span className="text-slate-500">Booked Slot:</span> {formattedBookingDate} ({selectedTimeSlot})</div>
           </div>
 

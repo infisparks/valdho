@@ -1258,6 +1258,17 @@ export default function CRMPage() {
 
             <button
               onClick={() => {
+                router.push("/crms/whatsapp");
+                setIsMobileSidebarOpen(false);
+              }}
+              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors shadow-2xs"
+            >
+              <i className="fa-brands fa-whatsapp text-sm text-emerald-600"></i>
+              <span>WhatsApp API Manager 💬</span>
+            </button>
+
+            <button
+              onClick={() => {
                 changeTab("leads");
                 setIsMobileSidebarOpen(false);
               }}

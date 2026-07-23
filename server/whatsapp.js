@@ -741,13 +741,23 @@ router.post("/auto-send-meeting", async (req, res) => {
     const cleanNumber = sanitizePhoneNumber(phone);
     const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
 
+    // Save resolved meeting URL on lead object in Firebase RTDB so stage automations & CRM display it
+    if (email) {
+      const cleanEmailId = email.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      await firebaseDb(`leads/${cleanEmailId}/meeting`, "PATCH", { meetingUrl: resolvedMeetingUrl });
+      const campaigns = (await firebaseDb("campaigns")) || {};
+      for (const cKey of Object.keys(campaigns)) {
+        await firebaseDb(`campaigns/${cKey}/leads/${cleanEmailId}/meeting`, "PATCH", { meetingUrl: resolvedMeetingUrl });
+      }
+    }
+
     if (evoRes.ok) {
       await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", { status: "open", qrCode: null, updatedAt: new Date().toISOString() });
       const logId = `auto_meeting_${Date.now()}`;
       await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", { id: logId, type: "auto_meeting", number: cleanNumber, text: formattedMessage, status: "sent", timestamp: new Date().toISOString() });
     }
 
-    return res.status(200).json({ success: evoRes.ok, message: evoRes.ok ? "Meeting confirmation sent" : "Send failed", data: evoRes.data });
+    return res.status(200).json({ success: evoRes.ok, meetingUrl: resolvedMeetingUrl, message: evoRes.ok ? "Meeting confirmation sent" : "Send failed", data: evoRes.data });
   } catch (err) {
     console.error("Auto Send Meeting Exception:", err);
     return res.status(500).json({ success: false, error: err.message });

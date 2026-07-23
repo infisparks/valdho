@@ -105,16 +105,21 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
     const accessToken = await getGoogleAccessToken(activeOAuthAcc);
     if (!accessToken) return null;
 
-    // Parse start datetime
+    // Parse start datetime robustly across formats (e.g. "July 24, 2026", "2026-07-24")
     let startIso = new Date().toISOString();
     if (dateStr) {
+      let baseDt = new Date(dateStr.trim());
+      if (isNaN(baseDt.getTime())) {
+        baseDt = new Date();
+      }
+
       let hour = 12;
       let minute = 0;
       if (timeStr) {
         const cleanTime = timeStr.trim();
         if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
           const isPm = cleanTime.includes("PM");
-          const timePart = cleanTime.replace("AM", "").replace("PM", "").trim();
+          const timePart = cleanTime.replace(/AM|PM/gi, "").trim();
           const parts = timePart.split(":");
           hour = parseInt(parts[0], 10);
           if (isPm && hour < 12) hour += 12;
@@ -126,8 +131,9 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
           minute = parseInt(parts[1], 10);
         }
       }
-      const dt = new Date(`${dateStr.trim()}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`);
-      if (!isNaN(dt.getTime())) startIso = dt.toISOString();
+
+      baseDt.setHours(hour, minute, 0, 0);
+      if (!isNaN(baseDt.getTime())) startIso = baseDt.toISOString();
     }
 
     const endDt = new Date(new Date(startIso).getTime() + 45 * 60 * 1000); // 45 minute duration
@@ -256,8 +262,47 @@ router.get("/callback", async (req, res) => {
 
     console.log(`[Google OAuth Success 🚀] Connected Google Account: ${payload.email}`);
 
-    // Redirect back to frontend Integrations page with success toast
-    return res.redirect("/crms/whatsapp?oauth=success");
+    // Return HTML success response that notifies opener window and redirects cleanly
+    return res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8"/>
+        <title>Google Meet Integration Successful</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+      </head>
+      <body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans p-4">
+        <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+          <div class="w-16 h-16 rounded-3xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-3xl font-extrabold flex items-center justify-center mx-auto">
+            ✓
+          </div>
+          <h2 class="text-xl font-black text-white">Google Meet Connected!</h2>
+          <p class="text-xs text-slate-300">
+            Connected Account: <strong class="text-emerald-400 font-mono">${payload.email}</strong>
+          </p>
+          <p class="text-[11px] text-slate-400">
+            Google Calendar API is now active globally for all your campaigns to auto-generate unique Google Meet links for every booking!
+          </p>
+          <div class="pt-2">
+            <button onclick="window.close(); if(window.opener) window.opener.location.reload();" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-lg cursor-pointer">
+              Return to CRM Dashboard
+            </button>
+          </div>
+        </div>
+        <script>
+          setTimeout(() => {
+            if (window.opener) {
+              window.opener.location.href = window.opener.location.origin + '/crms/whatsapp?oauth=success';
+              window.close();
+            } else if (document.referrer) {
+              window.location.href = document.referrer;
+            }
+          }, 3000);
+        </script>
+      </body>
+      </html>
+    `);
   } catch (err) {
     console.error("OAuth Callback Exception:", err);
     return res.status(500).send(`Google OAuth Exception: ${err.message}`);

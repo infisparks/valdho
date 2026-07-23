@@ -89,6 +89,7 @@ export function BookingModal({
 
   // Real-time booked slots map for the selected date
   const [bookedSlotsMap, setBookedSlotsMap] = useState<Record<string, boolean>>({});
+  const [generatedMeetUrl, setGeneratedMeetUrl] = useState<string | null>(null);
 
   // Synchronize initialStep when modal opens or URL parameters change
   useEffect(() => {
@@ -399,7 +400,7 @@ export function BookingModal({
     await saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, activeCampaign.id);
     setStep(4);
 
-    // Asynchronously trigger automatic Calendar Meeting Booked WhatsApp Message in background (no user wait)
+    // Asynchronously trigger automatic Calendar Meeting Booked WhatsApp Message in background
     const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
     const formattedDateStr = `${MONTH_NAMES[currentMonthIndex]} ${selectedDay}, ${currentYear}`;
     fetch(`${serverUrl}/api/whatsapp/auto-send-meeting`, {
@@ -412,7 +413,14 @@ export function BookingModal({
         date: formattedDateStr,
         time: time,
       }),
-    }).catch((err) => console.error("Async WhatsApp Auto-Meeting Trigger Error:", err));
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.meetingUrl) {
+          setGeneratedMeetUrl(data.meetingUrl);
+        }
+      })
+      .catch((err) => console.error("Async WhatsApp Auto-Meeting Trigger Error:", err));
   };
 
   const formattedBookingDate = `${selectedDay} ${MONTH_NAMES[currentMonthIndex]} ${currentYear}`;
@@ -800,6 +808,14 @@ export function BookingModal({
             <div><span className="text-slate-500">Phone:</span> {contactInfo.countryCode} {contactInfo.phone || "N/A"}</div>
             <div><span className="text-slate-500">Campaign:</span> {activeCampaign.title}</div>
             <div><span className="text-slate-500">Booked Slot:</span> {formattedBookingDate} ({selectedTimeSlot})</div>
+            {generatedMeetUrl && (
+              <div className="pt-1.5 border-t border-zinc-800 text-indigo-300">
+                <span className="text-slate-500 block">Google Meet Link:</span>
+                <a href={generatedMeetUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline text-indigo-400 break-all hover:text-white">
+                  🎥 {generatedMeetUrl}
+                </a>
+              </div>
+            )}
           </div>
 
           <a

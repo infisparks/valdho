@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { saveOrUpdateLead, getLeadById, LeadData } from "@/lib/firebase";
+import { saveOrUpdateLead, getLeadById, sanitizeEmailToId, LeadData } from "@/lib/firebase";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -135,9 +135,13 @@ export function BookingModal({
       return;
     }
 
+    // Determine deterministic email prefix lead ID
+    const emailPrefixId = sanitizeEmailToId(contactInfo.email);
+
     // Persist contact to LocalStorage
     try {
       localStorage.setItem("firstoption_user_contact", JSON.stringify(contactInfo));
+      localStorage.setItem("firstoption_lead_id", emailPrefixId);
     } catch (err) {
       console.error("LocalStorage save error:", err);
     }
@@ -152,12 +156,11 @@ export function BookingModal({
       survey: qAnswers,
     };
 
-    const res = await saveOrUpdateLead(leadPayload, firebaseLeadId, createdDate, "firstoptionagency");
+    const res = await saveOrUpdateLead(leadPayload, emailPrefixId, createdDate, "firstoptionagency");
     if (res) {
       setFirebaseLeadId(res.leadId);
       setCreatedDate(res.createdDate);
       try {
-        localStorage.setItem("firstoption_lead_id", res.leadId);
         localStorage.setItem("firstoption_created_date", res.createdDate);
       } catch (err) {
         console.error("LocalStorage leadId error:", err);
@@ -169,6 +172,8 @@ export function BookingModal({
 
   // Step 2 Submit: Save Survey Answers to SAME Firebase Lead Node (status: "survey_completed")
   const handleStep2Submit = async () => {
+    const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
+
     const surveyPayload: LeadData = {
       fullName: contactInfo.fullName,
       email: contactInfo.email,
@@ -178,7 +183,7 @@ export function BookingModal({
       survey: qAnswers,
     };
 
-    await saveOrUpdateLead(surveyPayload, firebaseLeadId, createdDate, "firstoptionagency");
+    await saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, "firstoptionagency");
     setStep(3);
   };
 
@@ -217,6 +222,7 @@ export function BookingModal({
   const handleSelectSlot = async (time: string) => {
     setSelectedTimeSlot(time);
 
+    const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
     const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");
     const formattedDay = selectedDay.toString().padStart(2, "0");
     const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
@@ -235,7 +241,7 @@ export function BookingModal({
       },
     };
 
-    await saveOrUpdateLead(completedPayload, firebaseLeadId, createdDate, "firstoptionagency");
+    await saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, "firstoptionagency");
     setStep(4);
   };
 

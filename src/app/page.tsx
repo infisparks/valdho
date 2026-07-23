@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { UrgencyBar } from "@/components/UrgencyBar";
 import { HeaderBadge } from "@/components/HeaderBadge";
@@ -41,7 +41,7 @@ function URLParamsHandler({
       let targetStep: 1 | 2 | 3 | 4 = 1;
       if (stepParam === "survey" || stepParam === "2") targetStep = 2;
       else if (stepParam === "meeting" || stepParam === "3") targetStep = 3;
-      else if (stepParam === "4") targetStep = 4;
+      else if (stepParam === "4" || stepParam === "success") targetStep = 4;
 
       onConfigureBooking({
         isOpen: true,
@@ -50,7 +50,7 @@ function URLParamsHandler({
         createdDate: createdDateParam,
       });
     }
-  }, [searchParams, onConfigureBooking]);
+  }, [searchParams]);
 
   return null;
 }
@@ -80,50 +80,63 @@ export default function Home() {
     embedId: undefined,
   });
 
-  const handleOpenBooking = () => {
+  const handleOpenBooking = useCallback(() => {
     setBookingConfig({
       isOpen: true,
       step: 1,
       leadId: null,
       createdDate: null,
     });
-  };
+  }, []);
 
-  const handleCloseBooking = () => {
+  const handleCloseBooking = useCallback(() => {
     setBookingConfig({
       isOpen: false,
       step: 1,
       leadId: null,
       createdDate: null,
     });
-  };
+  }, []);
 
-  const handleConfigureBooking = (config: {
-    isOpen: boolean;
-    step: 1 | 2 | 3 | 4;
-    leadId: string | null;
-    createdDate: string | null;
-  }) => {
-    setBookingConfig(config);
-  };
+  const handleConfigureBooking = useCallback(
+    (config: {
+      isOpen: boolean;
+      step: 1 | 2 | 3 | 4;
+      leadId: string | null;
+      createdDate: string | null;
+    }) => {
+      setBookingConfig((prev) => {
+        if (
+          prev.isOpen === config.isOpen &&
+          prev.step === config.step &&
+          prev.leadId === config.leadId &&
+          prev.createdDate === config.createdDate
+        ) {
+          return prev;
+        }
+        return config;
+      });
+    },
+    []
+  );
 
-  const handleOpenVideo = (title: string, author: string, embedId?: string) => {
+  const handleOpenVideo = useCallback((title: string, author: string, embedId?: string) => {
     setVideoModal({
       isOpen: true,
       title,
       author,
       embedId,
     });
-  };
+  }, []);
 
-  const handleCloseVideo = () => {
+  const handleCloseVideo = useCallback(() => {
     setVideoModal({
       isOpen: false,
       title: "",
       author: "",
       embedId: undefined,
     });
-  };
+  }, []);
 
   return (
     <div className="w-full pb-32 text-slate-100 flex flex-col items-center justify-start min-h-screen antialiased">

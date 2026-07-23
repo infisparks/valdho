@@ -70,23 +70,23 @@ export default function Home() {
           onVideoClick={handleOpenVideo}
         />
 
-        {/* 2. Cycle Section */}
+        {/* 2. Client Results & Proof (Moved right after Hero) */}
+        <ClientResultsSection onVideoClick={handleOpenVideo} />
+
+        {/* 3. Cycle Section ("Most businesses are stuck in this cycle") */}
         <CycleSection />
 
-        {/* 3. Problem Diagnosis Section */}
+        {/* 4. Problem Diagnosis Section */}
         <ProblemSection />
 
-        {/* 4. Solution Section */}
+        {/* 5. Solution Section */}
         <SolutionSection onBookClick={handleOpenBooking} />
 
-        {/* 5. Why We Are Different Section */}
+        {/* 6. Why We Are Different Section */}
         <WhyDifferentSection />
 
-        {/* 6. Meet The Founder Section */}
+        {/* 7. Meet The Founder Section */}
         <FounderSection onBookClick={handleOpenBooking} />
-
-        {/* 7. Client Results & Proof */}
-        <ClientResultsSection onVideoClick={handleOpenVideo} />
 
         {/* 8. Interactive Revenue Calculator Widget */}
         <GrowthCalculator onBookClick={handleOpenBooking} />

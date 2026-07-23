@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getDatabase, ref, update, push } from "firebase/database";
+import { getDatabase, ref, update, push, get } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -42,6 +42,10 @@ export interface LeadData {
   status: "partial" | "survey_completed" | "completed";
   survey?: SurveyData;
   meeting?: MeetingData;
+  links?: {
+    surveyUrl?: string;
+    meetingUrl?: string;
+  };
 }
 
 export interface SaveLeadResult {
@@ -50,11 +54,32 @@ export interface SaveLeadResult {
 }
 
 /**
+ * Fetch lead profile from Firebase by leadId & createdDate
+ */
+export async function getLeadById(
+  leadId: string,
+  createdDate: string,
+  campaignName: string = "firstoptionagency"
+): Promise<LeadData | null> {
+  try {
+    const leadRef = ref(db, `campaigns/${campaignName}/leads/${createdDate}/${leadId}`);
+    const snapshot = await get(leadRef);
+    if (snapshot.exists()) {
+      return snapshot.val() as LeadData;
+    }
+    return null;
+  } catch (error) {
+    console.error("Firebase getLeadById Error:", error);
+    return null;
+  }
+}
+
+/**
  * High-Performance Dual-Index Architecture:
  * 1. Master Lead Record -> campaigns/[campaign]/leads/[createdDate]/[leadId]
  * 2. Instant Meeting Index -> campaigns/[campaign]/meetings/[meetingDate]/[leadId]
  *
- * Uses Atomic Multi-Location Updates so CRM queries for "Today's Meetings" run in O(1) time!
+ * Uses Atomic Multi-Location Updates with direct WhatsApp re-engagement links!
  */
 export async function saveOrUpdateLead(
   lead: LeadData,
@@ -80,6 +105,11 @@ export async function saveOrUpdateLead(
 
     const updates: Record<string, any> = {};
 
+    // Get current window origin or fallback URL for link generation
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://firstoptionagency.in";
+    const surveyUrl = `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`;
+    const meetingUrl = `${origin}/?step=meeting&leadId=${leadId}&createdDate=${createdDate}`;
+
     // 1. Master Lead Record Payload
     const leadPayload: Record<string, any> = {
       id: leadId,
@@ -92,6 +122,10 @@ export async function saveOrUpdateLead(
       phone: lead.phone,
       countryCode: lead.countryCode || "+91",
       status: lead.status,
+      links: {
+        surveyUrl: surveyUrl,
+        meetingUrl: meetingUrl,
+      },
     };
 
     if (lead.survey) {
@@ -123,6 +157,7 @@ export async function saveOrUpdateLead(
         status: "booked",
         createdDate: createdDate,
         bookedAt: lead.meeting.bookedAt || timestamp,
+        survey: lead.survey || {},
       };
 
       updates[`campaigns/${campaignName}/meetings/${mDate}/${leadId}`] = meetingIndexPayload;

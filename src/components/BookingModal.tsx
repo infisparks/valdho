@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { saveOrUpdateLead, LeadData } from "@/lib/firebase";
+import { saveOrUpdateLead, getLeadById, LeadData } from "@/lib/firebase";
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialStep?: 1 | 2 | 3 | 4;
+  initialLeadId?: string | null;
+  initialCreatedDate?: string | null;
 }
 
 const MONTH_NAMES = [
@@ -13,16 +16,22 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-export function BookingModal({ isOpen, onClose }: BookingModalProps) {
+export function BookingModal({
+  isOpen,
+  onClose,
+  initialStep = 1,
+  initialLeadId = null,
+  initialCreatedDate = null,
+}: BookingModalProps) {
   // Step 1: Initial Contact Form
   // Step 2: Qualification Typeform Questionnaire
   // Step 3: Interactive Calendar Booking (Month, Date & Slot Selection)
   // Step 4: Final Success Confirmation & WhatsApp redirect
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(initialStep);
 
   // Lead ID & Creation Date in Firebase & LocalStorage
-  const [firebaseLeadId, setFirebaseLeadId] = useState<string | null>(null);
-  const [createdDate, setCreatedDate] = useState<string | null>(null);
+  const [firebaseLeadId, setFirebaseLeadId] = useState<string | null>(initialLeadId);
+  const [createdDate, setCreatedDate] = useState<string | null>(initialCreatedDate);
 
   // Form Contact State
   const [contactInfo, setContactInfo] = useState({
@@ -51,34 +60,67 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
   const [selectedDay, setSelectedDay] = useState<number>(23);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
-  // Pre-fill contact details & lead info from LocalStorage on mount/modal open
+  // Synchronize initialStep when modal opens or URL parameters change
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const savedContact = localStorage.getItem("firstoption_user_contact");
-        const savedLeadId = localStorage.getItem("firstoption_lead_id");
-        const savedCreatedDate = localStorage.getItem("firstoption_created_date");
+    if (isOpen) {
+      if (initialStep) setStep(initialStep);
+      if (initialLeadId) setFirebaseLeadId(initialLeadId);
+      if (initialCreatedDate) setCreatedDate(initialCreatedDate);
+    }
+  }, [isOpen, initialStep, initialLeadId, initialCreatedDate]);
 
-        if (savedContact) {
-          const parsed = JSON.parse(savedContact);
+  // Pre-fill contact details from Firebase (if URL params exist) or LocalStorage
+  useEffect(() => {
+    async function restoreLead() {
+      if (!isOpen) return;
+
+      const targetId = initialLeadId || (typeof window !== "undefined" ? localStorage.getItem("firstoption_lead_id") : null);
+      const targetDate = initialCreatedDate || (typeof window !== "undefined" ? localStorage.getItem("firstoption_created_date") : null);
+
+      if (targetId && targetDate) {
+        setFirebaseLeadId(targetId);
+        setCreatedDate(targetDate);
+        const fbLead = await getLeadById(targetId, targetDate, "firstoptionagency");
+        if (fbLead) {
           setContactInfo({
-            fullName: parsed.fullName || "",
-            email: parsed.email || "",
-            phone: parsed.phone || "",
-            countryCode: parsed.countryCode || "+91",
+            fullName: fbLead.fullName || "",
+            email: fbLead.email || "",
+            phone: fbLead.phone || "",
+            countryCode: fbLead.countryCode || "+91",
           });
+          if (fbLead.survey) {
+            setQAnswers({
+              industry: fbLead.survey.industry || "Doctor / Clinic",
+              role: fbLead.survey.role || "Founder / Owner",
+              revenue: fbLead.survey.revenue || "₹5L – ₹10L",
+              investmentReady: fbLead.survey.investmentReady || "Yes",
+            });
+          }
+          return;
         }
-        if (savedLeadId) {
-          setFirebaseLeadId(savedLeadId);
+      }
+
+      // Fallback to LocalStorage
+      if (typeof window !== "undefined") {
+        try {
+          const savedContact = localStorage.getItem("firstoption_user_contact");
+          if (savedContact) {
+            const parsed = JSON.parse(savedContact);
+            setContactInfo({
+              fullName: parsed.fullName || "",
+              email: parsed.email || "",
+              phone: parsed.phone || "",
+              countryCode: parsed.countryCode || "+91",
+            });
+          }
+        } catch (e) {
+          console.error("LocalStorage restore error:", e);
         }
-        if (savedCreatedDate) {
-          setCreatedDate(savedCreatedDate);
-        }
-      } catch (e) {
-        console.error("LocalStorage restore error:", e);
       }
     }
-  }, [isOpen]);
+
+    restoreLead();
+  }, [isOpen, initialLeadId, initialCreatedDate]);
 
   if (!isOpen) return null;
 

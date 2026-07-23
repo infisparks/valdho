@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { UrgencyBar } from "@/components/UrgencyBar";
 import { HeaderBadge } from "@/components/HeaderBadge";
 import { HeroSection } from "@/components/HeroSection";
@@ -19,8 +20,54 @@ import { BookingModal } from "@/components/BookingModal";
 import { StickyMobileCTA } from "@/components/StickyMobileCTA";
 import { SocialProofToast } from "@/components/SocialProofToast";
 
+function URLParamsHandler({
+  onConfigureBooking,
+}: {
+  onConfigureBooking: (config: {
+    isOpen: boolean;
+    step: 1 | 2 | 3 | 4;
+    leadId: string | null;
+    createdDate: string | null;
+  }) => void;
+}) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const stepParam = searchParams.get("step");
+    const leadIdParam = searchParams.get("leadId");
+    const createdDateParam = searchParams.get("createdDate");
+
+    if (stepParam) {
+      let targetStep: 1 | 2 | 3 | 4 = 1;
+      if (stepParam === "survey" || stepParam === "2") targetStep = 2;
+      else if (stepParam === "meeting" || stepParam === "3") targetStep = 3;
+      else if (stepParam === "4") targetStep = 4;
+
+      onConfigureBooking({
+        isOpen: true,
+        step: targetStep,
+        leadId: leadIdParam,
+        createdDate: createdDateParam,
+      });
+    }
+  }, [searchParams, onConfigureBooking]);
+
+  return null;
+}
+
 export default function Home() {
-  const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [bookingConfig, setBookingConfig] = useState<{
+    isOpen: boolean;
+    step: 1 | 2 | 3 | 4;
+    leadId: string | null;
+    createdDate: string | null;
+  }>({
+    isOpen: false,
+    step: 1,
+    leadId: null,
+    createdDate: null,
+  });
+
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -33,8 +80,32 @@ export default function Home() {
     embedId: undefined,
   });
 
-  const handleOpenBooking = () => setIsBookingOpen(true);
-  const handleCloseBooking = () => setIsBookingOpen(false);
+  const handleOpenBooking = () => {
+    setBookingConfig({
+      isOpen: true,
+      step: 1,
+      leadId: null,
+      createdDate: null,
+    });
+  };
+
+  const handleCloseBooking = () => {
+    setBookingConfig({
+      isOpen: false,
+      step: 1,
+      leadId: null,
+      createdDate: null,
+    });
+  };
+
+  const handleConfigureBooking = (config: {
+    isOpen: boolean;
+    step: 1 | 2 | 3 | 4;
+    leadId: string | null;
+    createdDate: string | null;
+  }) => {
+    setBookingConfig(config);
+  };
 
   const handleOpenVideo = (title: string, author: string, embedId?: string) => {
     setVideoModal({
@@ -56,6 +127,11 @@ export default function Home() {
 
   return (
     <div className="w-full pb-32 text-slate-100 flex flex-col items-center justify-start min-h-screen antialiased">
+      {/* URL Parameter Direct Link Handler */}
+      <Suspense fallback={null}>
+        <URLParamsHandler onConfigureBooking={handleConfigureBooking} />
+      </Suspense>
+
       {/* Top Urgency Ticker Bar */}
       <UrgencyBar />
 
@@ -153,8 +229,11 @@ export default function Home() {
 
       {/* Booking Modal */}
       <BookingModal
-        isOpen={isBookingOpen}
+        isOpen={bookingConfig.isOpen}
         onClose={handleCloseBooking}
+        initialStep={bookingConfig.step}
+        initialLeadId={bookingConfig.leadId}
+        initialCreatedDate={bookingConfig.createdDate}
       />
 
       {/* Sticky Mobile CTA */}

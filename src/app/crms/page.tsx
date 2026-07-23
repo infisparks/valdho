@@ -491,7 +491,7 @@ export default function CRMPage() {
 
                         const isSurveyDone =
                           lead.status === "survey_completed" || lead.status === "completed";
-                        const isMeetingDone = lead.status === "completed";
+                        const isMeetingDone = lead.status === "completed" || !!lead.meeting?.meetingDate;
 
                         return (
                           <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
@@ -506,36 +506,54 @@ export default function CRMPage() {
 
                             {/* 3-Step Progress Pipeline */}
                             <td className="px-4 py-3">
-                              <div className="flex items-center space-x-1 text-[11px] font-bold">
-                                {/* Step 1: Fill Detail (Always Green since user filled popup) */}
-                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
-                                  <span>✓ Fill Detail</span>
-                                </span>
-
-                                <span className="text-slate-300 font-mono">›</span>
-
-                                {/* Step 2: Fill Survey */}
-                                {isSurveyDone ? (
+                              <div className="flex flex-col space-y-1">
+                                <div className="flex items-center space-x-1 text-[11px] font-bold">
+                                  {/* Step 1: Fill Detail */}
                                   <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
-                                    <span>✓ Fill Survey</span>
+                                    <span>✓ Fill Detail</span>
                                   </span>
-                                ) : (
-                                  <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
-                                    <span>✗ Fill Survey</span>
-                                  </span>
-                                )}
 
-                                <span className="text-slate-300 font-mono">›</span>
+                                  <span className="text-slate-300 font-mono">›</span>
 
-                                {/* Step 3: Booked Meeting */}
-                                {isMeetingDone ? (
-                                  <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
-                                    <span>✓ Booked Meeting</span>
-                                  </span>
-                                ) : (
-                                  <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
-                                    <span>✗ Booked Meeting</span>
-                                  </span>
+                                  {/* Step 2: Fill Survey */}
+                                  {isSurveyDone ? (
+                                    <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                      <span>✓ Fill Survey</span>
+                                    </span>
+                                  ) : (
+                                    <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                      <span>✗ Fill Survey</span>
+                                    </span>
+                                  )}
+
+                                  <span className="text-slate-300 font-mono">›</span>
+
+                                  {/* Step 3: Booked Meeting with Date & Time */}
+                                  {isMeetingDone ? (
+                                    <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1 shadow-sm">
+                                      <i className="fa-regular fa-calendar-check text-[10px]"></i>
+                                      <span>
+                                        ✓ Booked Meeting{" "}
+                                        {lead.meeting?.meetingDate && lead.meeting?.meetingTime
+                                          ? `(${lead.meeting.meetingDate} @ ${lead.meeting.meetingTime})`
+                                          : ""}
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                      <span>✗ Booked Meeting</span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Dedicated Sub-line for Meeting Date & Time */}
+                                {lead.meeting?.meetingDate && lead.meeting?.meetingTime && (
+                                  <div className="text-[11px] font-extrabold text-emerald-700 flex items-center space-x-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit">
+                                    <i className="fa-solid fa-clock text-xs"></i>
+                                    <span>
+                                      Meeting Scheduled: {lead.meeting.meetingDate} at {lead.meeting.meetingTime}
+                                    </span>
+                                  </div>
                                 )}
                               </div>
                             </td>
@@ -617,9 +635,14 @@ export default function CRMPage() {
                       {meetingsList.map((m, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                           <td className="px-4 py-3">
-                            <span className="bg-indigo-100 text-indigo-900 font-black px-2.5 py-1 rounded-lg text-xs border border-indigo-200">
-                              {m.meetingTime}
-                            </span>
+                            <div className="space-y-0.5">
+                              <span className="bg-indigo-100 text-indigo-900 font-black px-2.5 py-1 rounded-lg text-xs border border-indigo-200 block w-fit">
+                                {m.meetingTime}
+                              </span>
+                              <div className="text-[10px] text-slate-500 font-mono font-bold">
+                                {m.meetingDate}
+                              </div>
+                            </div>
                           </td>
 
                           <td className="px-4 py-3">
@@ -655,7 +678,7 @@ export default function CRMPage() {
                           <td className="px-4 py-3 text-right">
                             <a
                               href={`https://api.whatsapp.com/send?phone=${m.countryCode ? m.countryCode.replace("+", "") : "91"}${m.phone}&text=${encodeURIComponent(
-                                `Hi ${m.fullName}, reminder for our Strategy Call scheduled today at ${m.meetingTime}.`
+                                `Hi ${m.fullName}, reminder for our Strategy Call scheduled on ${m.meetingDate} at ${m.meetingTime}.`
                               )}`}
                               target="_blank"
                               rel="noopener noreferrer"

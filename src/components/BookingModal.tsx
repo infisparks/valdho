@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import {
   saveOrUpdateLead,
   getLeadById,
+  findExistingLead,
   sanitizeEmailToId,
   getBookedSlotsForDate,
   sanitizeSlotKey,
@@ -133,21 +134,24 @@ export function BookingModal({
 
       let foundContact = false;
 
-      if (targetId && targetDate) {
-        setFirebaseLeadId(targetId);
-        setCreatedDate(targetDate);
-        const fbLead = await getLeadById(targetId, targetDate, activeCampaign.id);
-        if (fbLead && fbLead.fullName && fbLead.phone) {
-          setContactInfo({
-            fullName: fbLead.fullName || "",
-            email: fbLead.email || "",
-            phone: fbLead.phone || "",
-            countryCode: fbLead.countryCode || "+91",
-          });
-          if (fbLead.survey) {
-            setQAnswers(fbLead.survey as Record<string, string>);
+      if (targetId) {
+        const existingMatch = await findExistingLead(targetId, targetDate, activeCampaign.id);
+        if (existingMatch && existingMatch.lead) {
+          const fbLead = existingMatch.lead;
+          setFirebaseLeadId(targetId);
+          setCreatedDate(existingMatch.createdDate);
+          if (fbLead.fullName && fbLead.phone) {
+            setContactInfo({
+              fullName: fbLead.fullName || "",
+              email: fbLead.email || "",
+              phone: fbLead.phone || "",
+              countryCode: fbLead.countryCode || "+91",
+            });
+            if (fbLead.survey) {
+              setQAnswers(fbLead.survey as Record<string, string>);
+            }
+            foundContact = true;
           }
-          foundContact = true;
         }
       }
 
@@ -197,9 +201,31 @@ export function BookingModal({
     fetchSlots();
   }, [isOpen, step, selectedDay, currentMonthIndex, currentYear, activeCampaign.id]);
 
+  // Auto-restore profile when user finishes typing email in Step 1
+  const handleEmailBlur = async () => {
+    if (contactInfo.email && contactInfo.email.includes("@")) {
+      const emailPrefixId = sanitizeEmailToId(contactInfo.email);
+      const existingMatch = await findExistingLead(emailPrefixId, createdDate, activeCampaign.id);
+      if (existingMatch && existingMatch.lead) {
+        const fbLead = existingMatch.lead;
+        setFirebaseLeadId(emailPrefixId);
+        setCreatedDate(existingMatch.createdDate);
+        setContactInfo((prev) => ({
+          fullName: prev.fullName || fbLead.fullName || "",
+          email: prev.email || fbLead.email || "",
+          phone: prev.phone || fbLead.phone || "",
+          countryCode: prev.countryCode || fbLead.countryCode || "+91",
+        }));
+        if (fbLead.survey) {
+          setQAnswers(fbLead.survey as Record<string, string>);
+        }
+      }
+    }
+  };
+
   if (!isOpen) return null;
 
-  // Step 1 Submit: Save ONLY Contact details to Firebase (status: "partial")
+  // Step 1 Submit: Save ONLY Contact details to Firebase without wiping existing survey or meeting details
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPhoneError(null);
@@ -221,7 +247,7 @@ export function BookingModal({
       console.error("LocalStorage save error:", err);
     }
 
-    // Sync to Firebase with status "partial" (DO NOT send survey or links yet)
+    // Sync to Firebase with status "partial" (preserves existing survey/meeting if already completed)
     const leadPayload: LeadData = {
       fullName: contactInfo.fullName,
       email: contactInfo.email,
@@ -234,6 +260,9 @@ export function BookingModal({
     if (res) {
       setFirebaseLeadId(res.leadId);
       setCreatedDate(res.createdDate);
+      if (res.leadData?.survey) {
+        setQAnswers(res.leadData.survey as Record<string, string>);
+      }
       try {
         localStorage.setItem("firstoption_created_date", res.createdDate);
       } catch (err) {
@@ -403,6 +432,7 @@ export function BookingModal({
                 placeholder="name@example.com"
                 value={contactInfo.email}
                 onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
+                onBlur={handleEmailBlur}
                 className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-sm"
               />
             </div>

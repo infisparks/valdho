@@ -24,13 +24,25 @@ interface WhatsappInstance {
 
 interface MessageLog {
   id: string;
-  type: "text" | "media";
+  type: "text" | "media" | "auto_welcome" | "auto_survey" | "auto_meeting";
   number: string;
   text?: string;
   mediaUrl?: string;
   caption?: string;
   status: string;
   timestamp: string;
+}
+
+interface StepConfig {
+  isEnabled: boolean;
+  template: string;
+}
+
+interface WhatsappWorkflowConfig {
+  selectedInstanceName: string;
+  step1Welcome: StepConfig;
+  step2Survey: StepConfig;
+  step3Meeting: StepConfig;
 }
 
 const SERVER_URL = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
@@ -46,6 +58,28 @@ export default function WhatsappManagerPage() {
   const [newInstanceName, setNewInstanceName] = useState("");
   const [isCreatingInstance, setIsCreatingInstance] = useState(false);
   const [isSyncingStatus, setIsSyncingStatus] = useState(false);
+
+  // Auto-Workflow Config State for 3 Steps
+  const [config, setConfig] = useState<WhatsappWorkflowConfig>({
+    selectedInstanceName: "",
+    step1Welcome: {
+      isEnabled: true,
+      template:
+        "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.",
+    },
+    step2Survey: {
+      isEnabled: true,
+      template:
+        "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.",
+    },
+    step3Meeting: {
+      isEnabled: true,
+      template:
+        "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+    },
+  });
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configStatus, setConfigStatus] = useState<string | null>(null);
 
   // Send Message State
   const [selectedInstanceName, setSelectedInstanceName] = useState<string>("");
@@ -108,6 +142,39 @@ export default function WhatsappManagerPage() {
     return () => unsubscribe();
   }, [selectedInstanceName]);
 
+  // Realtime Sync for WhatsApp Workflow Config from Firebase RTDB `/whatsapp_configuration/firstoptionagency`
+  useEffect(() => {
+    const configRef = ref(db, "whatsapp_configuration/firstoptionagency");
+    const unsubscribe = onValue(configRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        setConfig({
+          selectedInstanceName: data.selectedInstanceName || "",
+          step1Welcome: {
+            isEnabled: data.step1Welcome?.isEnabled !== false,
+            template:
+              data.step1Welcome?.template ||
+              "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.",
+          },
+          step2Survey: {
+            isEnabled: data.step2Survey?.isEnabled !== false,
+            template:
+              data.step2Survey?.template ||
+              "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.",
+          },
+          step3Meeting: {
+            isEnabled: data.step3Meeting?.isEnabled !== false,
+            template:
+              data.step3Meeting?.template ||
+              "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+          },
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Realtime Sync Message Logs for Selected Instance
   useEffect(() => {
     if (!selectedInstanceName) return;
@@ -145,6 +212,32 @@ export default function WhatsappManagerPage() {
     fetchLiveStatusList();
   }, [fetchLiveStatusList]);
 
+  // Handle Save Configuration
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingConfig(true);
+    setConfigStatus(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/whatsapp/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConfigStatus("All 3 Step WhatsApp Configurations saved successfully!");
+        setTimeout(() => setConfigStatus(null), 3000);
+      } else {
+        alert(`Error saving config: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error("Save Config Error:", err);
+      alert(`Server Connection Error: ${err.message}`);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
   // Handle Create Instance
   const handleCreateInstance = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,7 +261,6 @@ export default function WhatsappManagerPage() {
         if (data.isAlreadyConfigured) {
           alert(`Instance "${targetName}" is already created & configured! Connecting to fetch status/QR...`);
         }
-        // Automatically connect to get QR code / status
         await handleConnectInstance(targetName, targetId);
       } else {
         alert(`Instance Status Notice: ${data.error || "Unable to create instance"}`);
@@ -379,6 +471,193 @@ export default function WhatsappManagerPage() {
 
       {/* Main Body */}
       <main className="max-w-7xl mx-auto p-4 sm:p-8 space-y-6">
+        {/* AUTOMATED LEAD WORKFLOW CONFIGURATION CARDS (STEP 1, STEP 2, STEP 3) */}
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center space-x-2">
+                <span>Automated Lead Funnel WhatsApp Notifications 🤖</span>
+              </h2>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Configure instant WhatsApp messages sent automatically at each step of the booking funnel (Contact Info, Survey, & Calendar Booking).
+              </p>
+            </div>
+
+            {/* Global Instance Selector for Auto-Notifications */}
+            <div className="space-y-1 w-full sm:w-auto">
+              <label className="text-[11px] font-bold text-slate-700 block">Sender Instance:</label>
+              <select
+                value={config.selectedInstanceName}
+                onChange={(e) => setConfig((prev) => ({ ...prev, selectedInstanceName: e.target.value }))}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-600 cursor-pointer w-full"
+              >
+                <option value="">-- Use First Active Instance --</option>
+                {instances.map((inst) => (
+                  <option key={inst.instanceId} value={inst.instanceName}>
+                    🚀 {inst.instanceName} ({inst.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveConfig} className="space-y-6 font-sans">
+            {/* STEP 1 CONFIGURATION CARD */}
+            <div className="border border-slate-200 rounded-2xl p-5 space-y-3 bg-slate-50/50">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-indigo-700 flex items-center space-x-1.5">
+                  <span className="w-5 h-5 rounded bg-indigo-600 text-white flex items-center justify-center text-[10px]">1</span>
+                  <span>Step 1: Contact Form Submitted (Name, Email, Phone)</span>
+                </h3>
+
+                <label className="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl cursor-pointer hover:bg-emerald-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={config.step1Welcome.isEnabled}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        step1Welcome: { ...prev.step1Welcome, isEnabled: e.target.checked },
+                      }))
+                    }
+                    className="w-3.5 h-3.5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-[11px] font-bold text-emerald-800">
+                    {config.step1Welcome.isEnabled ? "Step 1 Active ✓" : "Step 1 Off ❌"}
+                  </span>
+                </label>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                  <span>Message Template:</span>
+                  <span>Tags: {"{{name}}"}, {"{{email}}"}, {"{{phone}}"}</span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={config.step1Welcome.template}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      step1Welcome: { ...prev.step1Welcome, template: e.target.value },
+                    }))
+                  }
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                ></textarea>
+              </div>
+            </div>
+
+            {/* STEP 2 CONFIGURATION CARD */}
+            <div className="border border-slate-200 rounded-2xl p-5 space-y-3 bg-slate-50/50">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-indigo-700 flex items-center space-x-1.5">
+                  <span className="w-5 h-5 rounded bg-indigo-600 text-white flex items-center justify-center text-[10px]">2</span>
+                  <span>Step 2: Qualification Survey Questionnaire Completed 📋</span>
+                </h3>
+
+                <label className="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl cursor-pointer hover:bg-emerald-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={config.step2Survey.isEnabled}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        step2Survey: { ...prev.step2Survey, isEnabled: e.target.checked },
+                      }))
+                    }
+                    className="w-3.5 h-3.5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-[11px] font-bold text-emerald-800">
+                    {config.step2Survey.isEnabled ? "Step 2 Active ✓" : "Step 2 Off ❌"}
+                  </span>
+                </label>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                  <span>Message Template:</span>
+                  <span>Tags: {"{{name}}"}, {"{{email}}"}, {"{{phone}}"}</span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={config.step2Survey.template}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      step2Survey: { ...prev.step2Survey, template: e.target.value },
+                    }))
+                  }
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                ></textarea>
+              </div>
+            </div>
+
+            {/* STEP 3/4 CONFIGURATION CARD */}
+            <div className="border border-slate-200 rounded-2xl p-5 space-y-3 bg-slate-50/50">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-indigo-700 flex items-center space-x-1.5">
+                  <span className="w-5 h-5 rounded bg-indigo-600 text-white flex items-center justify-center text-[10px]">3</span>
+                  <span>Step 3/4: Calendar Meeting Booked Confirmation 📅</span>
+                </h3>
+
+                <label className="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl cursor-pointer hover:bg-emerald-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={config.step3Meeting.isEnabled}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        step3Meeting: { ...prev.step3Meeting, isEnabled: e.target.checked },
+                      }))
+                    }
+                    className="w-3.5 h-3.5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-[11px] font-bold text-emerald-800">
+                    {config.step3Meeting.isEnabled ? "Step 3 Active ✓" : "Step 3 Off ❌"}
+                  </span>
+                </label>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                  <span>Message Template:</span>
+                  <span>Tags: {"{{name}}"}, {"{{email}}"}, {"{{date}}"}, {"{{time}}"}</span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={config.step3Meeting.template}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      step3Meeting: { ...prev.step3Meeting, template: e.target.value },
+                    }))
+                  }
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                ></textarea>
+              </div>
+            </div>
+
+            {configStatus && (
+              <div className="p-3 rounded-xl text-xs font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                ✓ {configStatus}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSavingConfig}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingConfig ? (
+                <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+              ) : (
+                <i className="fa-solid fa-floppy-disk text-xs"></i>
+              )}
+              <span>Save All WhatsApp Workflow Configurations 💾</span>
+            </button>
+          </form>
+        </div>
+
         {/* Create Instance Card */}
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

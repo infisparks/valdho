@@ -271,6 +271,18 @@ export function BookingModal({
     }
 
     setStep(2);
+
+    // Asynchronously trigger automatic WhatsApp Welcome Message in background (no user wait / zero lag)
+    const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+    fetch(`${serverUrl}/api/whatsapp/auto-send-welcome`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: contactInfo.fullName,
+        email: contactInfo.email,
+        phone: `${contactInfo.countryCode}${cleanPhone}`,
+      }),
+    }).catch((err) => console.error("Async WhatsApp Auto-Welcome Trigger Error:", err));
   };
 
   // Step 2 Submit: Save Survey Answers to SAME Firebase Lead Node (status: "survey_completed")
@@ -288,6 +300,18 @@ export function BookingModal({
 
     await saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, activeCampaign.id);
     setStep(3);
+
+    // Asynchronously trigger automatic Survey WhatsApp Message in background (no user wait)
+    const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+    fetch(`${serverUrl}/api/whatsapp/auto-send-survey`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: contactInfo.fullName,
+        email: contactInfo.email,
+        phone: `${contactInfo.countryCode}${contactInfo.phone.replace(/\D/g, "")}`,
+      }),
+    }).catch((err) => console.error("Async WhatsApp Auto-Survey Trigger Error:", err));
   };
 
   const handleReset = () => {
@@ -374,6 +398,21 @@ export function BookingModal({
 
     await saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, activeCampaign.id);
     setStep(4);
+
+    // Asynchronously trigger automatic Calendar Meeting Booked WhatsApp Message in background (no user wait)
+    const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+    const formattedDateStr = `${MONTH_NAMES[currentMonthIndex]} ${selectedDay}, ${currentYear}`;
+    fetch(`${serverUrl}/api/whatsapp/auto-send-meeting`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: contactInfo.fullName,
+        email: contactInfo.email,
+        phone: `${contactInfo.countryCode}${contactInfo.phone.replace(/\D/g, "")}`,
+        date: formattedDateStr,
+        time: time,
+      }),
+    }).catch((err) => console.error("Async WhatsApp Auto-Meeting Trigger Error:", err));
   };
 
   const formattedBookingDate = `${selectedDay} ${MONTH_NAMES[currentMonthIndex]} ${currentYear}`;

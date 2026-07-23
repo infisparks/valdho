@@ -301,7 +301,6 @@ router.get("/instance/list", async (req, res) => {
         status = normalizeInstanceStatus(match, record.status);
       }
 
-      // If status is open, clear QR code in Firebase
       if (status === "open" && record.qrCode) {
         await firebaseDb(`whatsapp_unofficial_instances/${record.instanceName}`, "PATCH", {
           status: "open",
@@ -360,7 +359,6 @@ router.get("/instance/connection-state/:instanceName", async (req, res) => {
     const evoRes = await evoApiCall(`/instance/connectionState/${instanceName}`, "GET");
     const normStatus = normalizeInstanceStatus(evoRes.data, "open");
 
-    // Sync to Firebase
     await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
       status: normStatus,
       qrCode: normStatus === "open" ? null : undefined,
@@ -380,9 +378,8 @@ router.get("/instance/connection-state/:instanceName", async (req, res) => {
 });
 
 /**
- * 5. Send Text Message (With Auto-Status Open Update)
+ * 5. Send Text Message
  * POST /api/whatsapp/message/send-text
- * Body: { instanceName: "customer1", number: "919876543210", text: "Hello" }
  */
 router.post("/message/send-text", async (req, res) => {
   try {
@@ -408,7 +405,6 @@ router.post("/message/send-text", async (req, res) => {
       });
     }
 
-    // Since message sent successfully, mark instance as OPEN / CONNECTED in Firebase!
     await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
       status: "open",
       qrCode: null,
@@ -437,9 +433,8 @@ router.post("/message/send-text", async (req, res) => {
 });
 
 /**
- * 6. Send Media (Image or PDF with Auto-Status Open Update)
+ * 6. Send Media
  * POST /api/whatsapp/message/send-media
- * Body: { instanceName: "customer1", number: "919876543210", media: "https://...", caption: "Invoice" }
  */
 router.post("/message/send-media", async (req, res) => {
   try {
@@ -466,7 +461,6 @@ router.post("/message/send-media", async (req, res) => {
       });
     }
 
-    // Since message sent successfully, mark instance as OPEN / CONNECTED in Firebase!
     await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
       status: "open",
       qrCode: null,
@@ -550,7 +544,209 @@ router.delete("/instance/delete/:instanceId", async (req, res) => {
 });
 
 /**
- * 9. Webhook Receiver for Evolution API Events
+ * 9. Get WhatsApp Lead Workflow Configuration (Step 1 Contact, Step 2 Survey, Step 3 Meeting)
+ * GET /api/whatsapp/config
+ */
+router.get("/config", async (req, res) => {
+  try {
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    const defaultConfig = {
+      selectedInstanceName: config.selectedInstanceName || "",
+      step1Welcome: {
+        isEnabled: config.step1Welcome?.isEnabled !== undefined ? config.step1Welcome.isEnabled : (config.isEnabled !== undefined ? config.isEnabled : true),
+        template: config.step1Welcome?.template || config.welcomeMessageTemplate || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.",
+      },
+      step2Survey: {
+        isEnabled: config.step2Survey?.isEnabled !== undefined ? config.step2Survey.isEnabled : true,
+        template: config.step2Survey?.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.",
+      },
+      step3Meeting: {
+        isEnabled: config.step3Meeting?.isEnabled !== undefined ? config.step3Meeting.isEnabled : true,
+        template: config.step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+      },
+    };
+    return res.status(200).json({ success: true, data: defaultConfig });
+  } catch (err) {
+    console.error("Get Config Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 10. Save WhatsApp Lead Workflow Configuration
+ * POST /api/whatsapp/config
+ */
+router.post("/config", async (req, res) => {
+  try {
+    const { selectedInstanceName, step1Welcome, step2Survey, step3Meeting } = req.body;
+    const configPayload = {
+      selectedInstanceName: selectedInstanceName || "",
+      step1Welcome: {
+        isEnabled: step1Welcome?.isEnabled !== false,
+        template: step1Welcome?.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.",
+      },
+      step2Survey: {
+        isEnabled: step2Survey?.isEnabled !== false,
+        template: step2Survey?.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.",
+      },
+      step3Meeting: {
+        isEnabled: step3Meeting?.isEnabled !== false,
+        template: step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!",
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    await firebaseDb("whatsapp_configuration/firstoptionagency", "PUT", configPayload);
+
+    return res.status(200).json({
+      success: true,
+      message: "WhatsApp configurations saved successfully",
+      data: configPayload,
+    });
+  } catch (err) {
+    console.error("Save Config Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Helper to resolve active instance name
+ */
+async function resolveActiveInstance(preferredInstance) {
+  if (preferredInstance) return preferredInstance;
+  const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
+  const instancesList = Object.values(fbInstances).filter(Boolean);
+  const openInst = instancesList.find((i) => i.status === "open") || instancesList[0];
+  return openInst ? openInst.instanceName : null;
+}
+
+/**
+ * 11. Automated Send Welcome WhatsApp Message for Lead Popup Step 1
+ * POST /api/whatsapp/auto-send-welcome
+ */
+router.post("/auto-send-welcome", async (req, res) => {
+  try {
+    const { fullName, email, phone } = req.body;
+    if (!phone) return res.status(400).json({ success: false, error: "Phone number is required" });
+
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    const stepConfig = config.step1Welcome || { isEnabled: config.isEnabled !== false, template: config.welcomeMessageTemplate };
+
+    if (stepConfig.isEnabled === false) {
+      return res.status(200).json({ success: false, disabled: true, message: "Step 1 WhatsApp welcome is disabled." });
+    }
+
+    const instanceName = await resolveActiveInstance(config.selectedInstanceName);
+    if (!instanceName) return res.status(400).json({ success: false, error: "No active WhatsApp instance available." });
+
+    let rawTemplate = stepConfig.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.";
+    const formattedMessage = rawTemplate
+      .replace(/\{\{\s*name\s*\}\}/gi, fullName || "Valued Client")
+      .replace(/\{\{\s*email\s*\}\}/gi, email || "N/A")
+      .replace(/\{\{\s*phone\s*\}\}/gi, phone || "N/A");
+
+    const cleanNumber = sanitizePhoneNumber(phone);
+    const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
+
+    if (evoRes.ok) {
+      await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", { status: "open", qrCode: null, updatedAt: new Date().toISOString() });
+      const logId = `auto_welcome_${Date.now()}`;
+      await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", { id: logId, type: "auto_welcome", number: cleanNumber, text: formattedMessage, status: "sent", timestamp: new Date().toISOString() });
+    }
+
+    return res.status(200).json({ success: evoRes.ok, message: evoRes.ok ? "Welcome message sent" : "Send failed", data: evoRes.data });
+  } catch (err) {
+    console.error("Auto Send Welcome Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 12. Automated Send WhatsApp Message for Lead Popup Step 2 (Survey Completed)
+ * POST /api/whatsapp/auto-send-survey
+ */
+router.post("/auto-send-survey", async (req, res) => {
+  try {
+    const { fullName, email, phone } = req.body;
+    if (!phone) return res.status(400).json({ success: false, error: "Phone number is required" });
+
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    const stepConfig = config.step2Survey || { isEnabled: true };
+
+    if (stepConfig.isEnabled === false) {
+      return res.status(200).json({ success: false, disabled: true, message: "Step 2 Survey WhatsApp message is disabled." });
+    }
+
+    const instanceName = await resolveActiveInstance(config.selectedInstanceName);
+    if (!instanceName) return res.status(400).json({ success: false, error: "No active WhatsApp instance available." });
+
+    let rawTemplate = stepConfig.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.";
+    const formattedMessage = rawTemplate
+      .replace(/\{\{\s*name\s*\}\}/gi, fullName || "Valued Client")
+      .replace(/\{\{\s*email\s*\}\}/gi, email || "N/A")
+      .replace(/\{\{\s*phone\s*\}\}/gi, phone || "N/A");
+
+    const cleanNumber = sanitizePhoneNumber(phone);
+    const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
+
+    if (evoRes.ok) {
+      await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", { status: "open", qrCode: null, updatedAt: new Date().toISOString() });
+      const logId = `auto_survey_${Date.now()}`;
+      await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", { id: logId, type: "auto_survey", number: cleanNumber, text: formattedMessage, status: "sent", timestamp: new Date().toISOString() });
+    }
+
+    return res.status(200).json({ success: evoRes.ok, message: evoRes.ok ? "Survey message sent" : "Send failed", data: evoRes.data });
+  } catch (err) {
+    console.error("Auto Send Survey Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 13. Automated Send WhatsApp Message for Lead Popup Step 3/4 (Calendar Meeting Booked)
+ * POST /api/whatsapp/auto-send-meeting
+ */
+router.post("/auto-send-meeting", async (req, res) => {
+  try {
+    const { fullName, email, phone, date, time } = req.body;
+    if (!phone) return res.status(400).json({ success: false, error: "Phone number is required" });
+
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    const stepConfig = config.step3Meeting || { isEnabled: true };
+
+    if (stepConfig.isEnabled === false) {
+      return res.status(200).json({ success: false, disabled: true, message: "Step 3 Meeting WhatsApp confirmation is disabled." });
+    }
+
+    const instanceName = await resolveActiveInstance(config.selectedInstanceName);
+    if (!instanceName) return res.status(400).json({ success: false, error: "No active WhatsApp instance available." });
+
+    let rawTemplate = stepConfig.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. We look forward to speaking with you!";
+    const formattedMessage = rawTemplate
+      .replace(/\{\{\s*name\s*\}\}/gi, fullName || "Valued Client")
+      .replace(/\{\{\s*email\s*\}\}/gi, email || "N/A")
+      .replace(/\{\{\s*phone\s*\}\}/gi, phone || "N/A")
+      .replace(/\{\{\s*date\s*\}\}/gi, date || "Upcoming Date")
+      .replace(/\{\{\s*time\s*\}\}/gi, time || "Scheduled Time");
+
+    const cleanNumber = sanitizePhoneNumber(phone);
+    const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
+
+    if (evoRes.ok) {
+      await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", { status: "open", qrCode: null, updatedAt: new Date().toISOString() });
+      const logId = `auto_meeting_${Date.now()}`;
+      await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", { id: logId, type: "auto_meeting", number: cleanNumber, text: formattedMessage, status: "sent", timestamp: new Date().toISOString() });
+    }
+
+    return res.status(200).json({ success: evoRes.ok, message: evoRes.ok ? "Meeting confirmation sent" : "Send failed", data: evoRes.data });
+  } catch (err) {
+    console.error("Auto Send Meeting Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 14. Webhook Receiver for Evolution API Events
  * POST /api/evolution/webhook
  */
 router.post("/webhook", async (req, res) => {

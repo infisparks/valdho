@@ -115,7 +115,6 @@ function extractLeadsFromFirebaseData(obj, foundLeads = [], path = "") {
 
   // If object has phone and name or email, it's a valid lead
   if (obj.phone && (obj.fullName || obj.email || obj.pipelineStage)) {
-    // Generate deterministic ID if missing
     const leadId = obj.id || obj.email || `lead_${foundLeads.length + 1}`;
     foundLeads.push({ ...obj, leadId, _path: path });
     return foundLeads;
@@ -311,9 +310,18 @@ async function evaluateStageAutomations() {
 
         if (!isTimeReached) continue;
 
-        // Guard Check: Verify if this specific trigger key has already been executed
+        // Guard Check: Verify if this specific trigger key has already been executed successfully
         const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
-        if (alreadySent) continue; // Already executed
+        if (alreadySent && alreadySent.status === "sent") {
+          // Message was already sent successfully for this trigger key!
+          continue;
+        }
+
+        // If previously failed less than 30s ago, wait before retrying to prevent spamming failed attempts
+        if (alreadySent && alreadySent.status === "failed" && alreadySent.failedAt) {
+          const failedDiffMs = nowMs - new Date(alreadySent.failedAt).getTime();
+          if (failedDiffMs < 30000) continue;
+        }
 
         // Format Dynamic Message Template
         const formattedDate = lead.meeting?.meetingDate || "Upcoming Date";
@@ -336,18 +344,24 @@ async function evaluateStageAutomations() {
           text: textMessage,
         });
 
-        // Record Guard Flag to prevent duplicate sends
+        // Record Guard Flag status
         await firebaseDb(`whatsapp_sent_automations/${triggerKey}`, "PUT", {
           sentAt: new Date().toISOString(),
           status: evoRes.ok ? "sent" : "failed",
+          failedAt: evoRes.ok ? null : new Date().toISOString(),
           leadId: lead.leadId || lead.phone,
           ruleId: rule.id,
           phone: cleanNumber,
           instanceName: targetInstance,
+          error: evoRes.ok ? null : (evoRes.data?.error || evoRes.data?.message || `HTTP ${evoRes.status}`),
         });
 
-        // Log into Activity Logs
+        // Log into Realtime Activity Logs for instant retrieval
         const logId = `auto_stage_${Date.now()}`;
+        const errorMessage = evoRes.ok
+          ? null
+          : (evoRes.data?.error || evoRes.data?.message || evoRes.data?.response?.message || `HTTP Error ${evoRes.status}: Evolution API request failed`);
+
         const logData = {
           id: logId,
           type: "auto_stage_automation",
@@ -358,7 +372,7 @@ async function evaluateStageAutomations() {
           text: textMessage,
           instanceName: targetInstance,
           status: evoRes.ok ? "sent" : "failed",
-          error: evoRes.ok ? null : (evoRes.data?.error || JSON.stringify(evoRes.data) || "Send failed"),
+          error: errorMessage,
           timestamp: new Date().toISOString(),
         };
 

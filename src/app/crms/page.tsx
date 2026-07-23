@@ -402,11 +402,13 @@ export default function CRMPage() {
   const [isLeadLogsModalOpen, setIsLeadLogsModalOpen] = useState(false);
   const [leadLogsList, setLeadLogsList] = useState<any[]>([]);
   const [isLoadingLeadLogs, setIsLoadingLeadLogs] = useState(false);
+  const [visibleLogsCount, setVisibleLogsCount] = useState<number>(20);
 
   const handleOpenLeadLogsModal = (lead: LeadData) => {
     setSelectedLeadForLogs(lead);
     setIsLeadLogsModalOpen(true);
     setIsLoadingLeadLogs(true);
+    setVisibleLogsCount(20); // Reset pagination count to default 20
 
     const cleanNum = lead.phone ? lead.phone.replace(/\D/g, "") : "";
     const fullCleanNum = cleanNum.length === 10 ? "91" + cleanNum : cleanNum;
@@ -5279,34 +5281,54 @@ export default function CRMPage() {
                   </p>
                 </div>
               ) : (
-                leadLogsList.map((log: any) => (
-                  <div key={log.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-slate-900 flex items-center space-x-1.5">
-                        <span>⚡ {log.ruleTitle || "Automation Rule"}</span>
-                      </span>
+                <>
+                  {leadLogsList.slice(0, visibleLogsCount).map((log: any) => (
+                    <div key={log.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900 flex items-center space-x-1.5">
+                          <span>⚡ {log.ruleTitle || "Automation Rule"}</span>
+                        </span>
 
-                      <span
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                          log.status === "sent"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border-rose-200"
-                        }`}
-                      >
-                        {log.status === "sent" ? "🟢 Sent" : "🔴 Failed"}
-                      </span>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                            log.status === "sent"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                          }`}
+                        >
+                          {log.status === "sent" ? "🟢 Sent" : "🔴 Failed"}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-700 font-mono bg-white p-2 rounded-xl border border-slate-200">
+                        "{log.text}"
+                      </p>
+
+                      {log.error && (
+                        <div className="bg-rose-50 border border-rose-200 p-2 rounded-xl text-[10px] font-mono text-rose-700 space-y-0.5">
+                          <span className="font-bold block text-rose-800">⚠️ Failure Diagnostics:</span>
+                          <p>{typeof log.error === "object" ? JSON.stringify(log.error) : String(log.error)}</p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1">
+                        <span>🚀 Instance: {log.instanceName || "Default"}</span>
+                        <span>🕒 {new Date(log.timestamp).toLocaleString("en-IN")}</span>
+                      </div>
                     </div>
+                  ))}
 
-                    <p className="text-[11px] text-slate-700 font-mono bg-white p-2 rounded-xl border border-slate-200">
-                      "{log.text}"
-                    </p>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                      <span>🚀 Instance: {log.instanceName || "Default"}</span>
-                      <span>🕒 {new Date(log.timestamp).toLocaleString("en-IN")}</span>
-                    </div>
-                  </div>
-                ))
+                  {/* Load More Button for Pagination */}
+                  {leadLogsList.length > visibleLogsCount && (
+                    <button
+                      type="button"
+                      onClick={() => setVisibleLogsCount((prev) => prev + 20)}
+                      className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold py-2.5 rounded-2xl transition-all cursor-pointer shadow-2xs flex items-center justify-center space-x-2"
+                    >
+                      <span>Load More WhatsApp Logs ({leadLogsList.length - visibleLogsCount} remaining) 👇</span>
+                    </button>
+                  )}
+                </>
               )}
             </div>
 

@@ -45,6 +45,7 @@ export default function WhatsappManagerPage() {
   const [instances, setInstances] = useState<WhatsappInstance[]>([]);
   const [newInstanceName, setNewInstanceName] = useState("");
   const [isCreatingInstance, setIsCreatingInstance] = useState(false);
+  const [isSyncingStatus, setIsSyncingStatus] = useState(false);
 
   // Send Message State
   const [selectedInstanceName, setSelectedInstanceName] = useState<string>("");
@@ -127,6 +128,23 @@ export default function WhatsappManagerPage() {
     return () => unsubscribe();
   }, [selectedInstanceName]);
 
+  // Trigger Live Sync with Evolution API
+  const fetchLiveStatusList = useCallback(async () => {
+    setIsSyncingStatus(true);
+    try {
+      await fetch(`${SERVER_URL}/api/whatsapp/instance/list`);
+    } catch (err) {
+      console.error("Sync Status List Error:", err);
+    } finally {
+      setIsSyncingStatus(false);
+    }
+  }, []);
+
+  // Sync on Mount
+  useEffect(() => {
+    fetchLiveStatusList();
+  }, [fetchLiveStatusList]);
+
   // Handle Create Instance
   const handleCreateInstance = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,6 +192,8 @@ export default function WhatsappManagerPage() {
       const data = await res.json();
       if (!data.success) {
         alert(`Connect Error: ${data.error}`);
+      } else {
+        await fetchLiveStatusList();
       }
     } catch (err: any) {
       console.error("Connect Instance Error:", err);
@@ -194,6 +214,8 @@ export default function WhatsappManagerPage() {
       const data = await res.json();
       if (!data.success) {
         alert(`Logout Error: ${data.error}`);
+      } else {
+        await fetchLiveStatusList();
       }
     } catch (err: any) {
       console.error("Logout Error:", err);
@@ -220,6 +242,7 @@ export default function WhatsappManagerPage() {
         if (selectedInstanceName === inst.instanceName) {
           setSelectedInstanceName("");
         }
+        await fetchLiveStatusList();
       } else {
         alert(`Delete Error: ${data.error}`);
       }
@@ -282,11 +305,12 @@ export default function WhatsappManagerPage() {
       if (data.success) {
         setSendMessageStatus({
           type: "success",
-          msg: `Message sent successfully to ${targetNumber}!`,
+          msg: `Message sent successfully to ${targetNumber}! Status updated to 🟢 Connected!`,
         });
         setMessageText("");
         setMediaUrl("");
         setMediaCaption("");
+        await fetchLiveStatusList();
       } else {
         setSendMessageStatus({
           type: "error",
@@ -322,7 +346,7 @@ export default function WhatsappManagerPage() {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => router.push("/crms")}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-3 py-2 rounded-xl transition-all flex items-center space-x-1.5"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-3 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer"
             >
               <i className="fa-solid fa-arrow-left"></i>
               <span>Back to Admin CRM</span>
@@ -337,6 +361,15 @@ export default function WhatsappManagerPage() {
           </div>
 
           <div className="flex items-center space-x-3">
+            <button
+              onClick={fetchLiveStatusList}
+              disabled={isSyncingStatus}
+              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              <i className={`fa-solid fa-rotate ${isSyncingStatus ? "fa-spin" : ""}`}></i>
+              <span>Refresh Status 🔄</span>
+            </button>
+
             <span className="text-xs font-mono font-bold bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-xl border border-emerald-200">
               🟢 API Status: Active
             </span>
@@ -370,7 +403,7 @@ export default function WhatsappManagerPage() {
               <button
                 type="submit"
                 disabled={isCreatingInstance}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl shadow-md transition-all flex-shrink-0 flex items-center space-x-1.5 disabled:opacity-50"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl shadow-md transition-all flex-shrink-0 flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
               >
                 {isCreatingInstance ? (
                   <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
@@ -385,9 +418,17 @@ export default function WhatsappManagerPage() {
 
         {/* Instances Grid */}
         <div className="space-y-3 font-sans">
-          <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider text-slate-500">
-            WhatsApp Instances ({instances.length})
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider text-slate-500">
+              WhatsApp Instances ({instances.length})
+            </h3>
+            <button
+              onClick={fetchLiveStatusList}
+              className="text-xs font-extrabold text-indigo-600 hover:underline"
+            >
+              🔄 Refresh Live Connection Statuses
+            </button>
+          </div>
 
           {instances.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-3xl p-10 text-center space-y-2">
@@ -442,7 +483,7 @@ export default function WhatsappManagerPage() {
                       </div>
 
                       {/* QR Code Display if Connecting */}
-                      {inst.qrCode ? (
+                      {inst.qrCode && !isConnected ? (
                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-2">
                           <span className="text-xs font-bold text-slate-700 block">
                             Scan QR Code with WhatsApp:
@@ -461,8 +502,8 @@ export default function WhatsappManagerPage() {
                         </div>
                       ) : isConnected ? (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center space-y-1">
-                          <div className="text-emerald-700 font-extrabold text-sm">
-                            ✅ Device Linked & Connected!
+                          <div className="text-emerald-700 font-extrabold text-sm flex items-center justify-center space-x-1">
+                            <span>✅ Device Linked & Connected!</span>
                           </div>
                           <p className="text-xs text-emerald-800">
                             Ready to send automated messages and media.
@@ -482,7 +523,7 @@ export default function WhatsappManagerPage() {
                       {!isConnected && (
                         <button
                           onClick={() => handleConnectInstance(inst.instanceName, inst.instanceId)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center space-x-1"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center space-x-1 cursor-pointer"
                         >
                           <i className="fa-solid fa-qrcode"></i>
                           <span>Connect QR</span>
@@ -492,7 +533,7 @@ export default function WhatsappManagerPage() {
                       {isConnected && (
                         <button
                           onClick={() => handleDisconnectInstance(inst)}
-                          className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors"
+                          className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
                         >
                           Disconnect 🚪
                         </button>
@@ -500,7 +541,7 @@ export default function WhatsappManagerPage() {
 
                       <button
                         onClick={() => handleDeleteInstance(inst)}
-                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-2.5 py-1.5 rounded-xl transition-colors ml-auto"
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-2.5 py-1.5 rounded-xl transition-colors ml-auto cursor-pointer"
                         title="Delete Instance"
                       >
                         <i className="fa-solid fa-trash-can"></i>
@@ -533,7 +574,7 @@ export default function WhatsappManagerPage() {
                 <select
                   value={selectedInstanceName}
                   onChange={(e) => setSelectedInstanceName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
                   required
                 >
                   <option value="">-- Choose Instance --</option>
@@ -564,7 +605,7 @@ export default function WhatsappManagerPage() {
                 <select
                   value={messageType}
                   onChange={(e) => setMessageType(e.target.value as any)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
                 >
                   <option value="text">Text Message</option>
                   <option value="image">Image Attachment</option>
@@ -630,7 +671,7 @@ export default function WhatsappManagerPage() {
             <button
               type="submit"
               disabled={isSendingMessage}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
             >
               {isSendingMessage ? (
                 <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>

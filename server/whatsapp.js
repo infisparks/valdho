@@ -56,6 +56,44 @@ async function evoApiCall(endpoint, method = "GET", body = null, customHeaders =
 }
 
 /**
+ * Helper to normalize instance status from Evolution API response
+ */
+function normalizeInstanceStatus(evoData, fallbackStatus = "created") {
+  if (!evoData) return fallbackStatus;
+
+  const rawState = (
+    evoData.connectionStatus ||
+    evoData.status ||
+    evoData.state ||
+    evoData.instance?.status ||
+    evoData.instance?.state ||
+    evoData.connection?.state ||
+    ""
+  ).toLowerCase();
+
+  if (
+    rawState === "open" ||
+    rawState === "connected" ||
+    rawState === "paired" ||
+    rawState === "connecting_open" ||
+    evoData.owner ||
+    evoData.profilePictureUrl
+  ) {
+    return "open";
+  }
+
+  if (rawState === "connecting" || rawState === "qrcode" || rawState === "pairing") {
+    return "connecting";
+  }
+
+  if (rawState === "close" || rawState === "closed" || rawState === "disconnected" || rawState === "refused") {
+    return "close";
+  }
+
+  return fallbackStatus;
+}
+
+/**
  * Sanitize phone numbers to international standard format (e.g. 919876543210)
  */
 function sanitizePhoneNumber(number) {
@@ -172,7 +210,7 @@ router.post("/instance/create", async (req, res) => {
 });
 
 /**
- * 2. Connect Instance (Generate QR Code)
+ * 2. Connect Instance (Generate QR Code or Detect Already Open)
  * POST /api/whatsapp/instance/connect
  * Body: { instanceName: "customer1", instanceId: "..." }
  */
@@ -201,6 +239,9 @@ router.post("/instance/connect", async (req, res) => {
       targetInstanceId ? { instanceId: targetInstanceId } : {}
     );
 
+    // Check if Evolution API indicates already connected
+    const connState = normalizeInstanceStatus(evoRes.data);
+    
     let qrCodeBase64 = null;
     if (evoRes.data) {
       qrCodeBase64 =
@@ -211,15 +252,13 @@ router.post("/instance/connect", async (req, res) => {
         null;
     }
 
+    const finalStatus = (connState === "open" || (!qrCodeBase64 && evoRes.ok)) ? "open" : "connecting";
+
     const updateData = {
-      status: "connecting",
+      status: finalStatus,
+      qrCode: finalStatus === "open" ? null : (qrCodeBase64 ? (qrCodeBase64.startsWith("data:") ? qrCodeBase64 : `data:image/png;base64,${qrCodeBase64}`) : null),
       updatedAt: new Date().toISOString(),
     };
-    if (qrCodeBase64) {
-      updateData.qrCode = qrCodeBase64.startsWith("data:")
-        ? qrCodeBase64
-        : `data:image/png;base64,${qrCodeBase64}`;
-    }
 
     if (targetInstanceName) {
       await firebaseDb(`whatsapp_unofficial_instances/${targetInstanceName}`, "PATCH", updateData);
@@ -227,7 +266,8 @@ router.post("/instance/connect", async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Connect request initiated",
+      message: finalStatus === "open" ? "Instance is connected and active" : "Connect request initiated",
+      status: finalStatus,
       qrCode: updateData.qrCode || null,
       data: evoRes.data,
     });
@@ -256,11 +296,29 @@ router.get("/instance/list", async (req, res) => {
         (e) => e.instanceName === record.instanceName || e.instanceId === record.instanceId
       );
 
-      const status = match ? match.status || match.connectionStatus || record.status : record.status;
+      let status = record.status;
+      if (match) {
+        status = normalizeInstanceStatus(match, record.status);
+      }
+
+      // If status is open, clear QR code in Firebase
+      if (status === "open" && record.qrCode) {
+        await firebaseDb(`whatsapp_unofficial_instances/${record.instanceName}`, "PATCH", {
+          status: "open",
+          qrCode: null,
+          updatedAt: new Date().toISOString(),
+        });
+      } else if (status !== record.status) {
+        await firebaseDb(`whatsapp_unofficial_instances/${record.instanceName}`, "PATCH", {
+          status,
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
       mergedList.push({
         ...record,
         status,
+        qrCode: status === "open" ? null : record.qrCode,
         liveMatch: !!match,
       });
     }
@@ -268,10 +326,11 @@ router.get("/instance/list", async (req, res) => {
     for (const evoInst of evoInstances) {
       const exists = mergedList.some((m) => m.instanceName === evoInst.instanceName);
       if (!exists) {
+        const normStatus = normalizeInstanceStatus(evoInst, "created");
         mergedList.push({
           instanceId: evoInst.instanceId || evoInst.id || evoInst.instanceName,
           instanceName: evoInst.instanceName,
-          status: evoInst.status || "created",
+          status: normStatus,
           qrCode: null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -291,7 +350,37 @@ router.get("/instance/list", async (req, res) => {
 });
 
 /**
- * 4. Send Text Message
+ * 4. Get Connection State of a Specific Instance
+ * GET /api/whatsapp/instance/connection-state/:instanceName
+ */
+router.get("/instance/connection-state/:instanceName", async (req, res) => {
+  try {
+    const { instanceName } = req.params;
+
+    const evoRes = await evoApiCall(`/instance/connectionState/${instanceName}`, "GET");
+    const normStatus = normalizeInstanceStatus(evoRes.data, "open");
+
+    // Sync to Firebase
+    await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
+      status: normStatus,
+      qrCode: normStatus === "open" ? null : undefined,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return res.status(200).json({
+      success: true,
+      instanceName,
+      status: normStatus,
+      raw: evoRes.data,
+    });
+  } catch (err) {
+    console.error("Connection State Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 5. Send Text Message (With Auto-Status Open Update)
  * POST /api/whatsapp/message/send-text
  * Body: { instanceName: "customer1", number: "919876543210", text: "Hello" }
  */
@@ -319,6 +408,13 @@ router.post("/message/send-text", async (req, res) => {
       });
     }
 
+    // Since message sent successfully, mark instance as OPEN / CONNECTED in Firebase!
+    await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
+      status: "open",
+      qrCode: null,
+      updatedAt: new Date().toISOString(),
+    });
+
     const logId = `log_${Date.now()}`;
     await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
       id: logId,
@@ -341,7 +437,7 @@ router.post("/message/send-text", async (req, res) => {
 });
 
 /**
- * 5. Send Media (Image or PDF)
+ * 6. Send Media (Image or PDF with Auto-Status Open Update)
  * POST /api/whatsapp/message/send-media
  * Body: { instanceName: "customer1", number: "919876543210", media: "https://...", caption: "Invoice" }
  */
@@ -370,6 +466,13 @@ router.post("/message/send-media", async (req, res) => {
       });
     }
 
+    // Since message sent successfully, mark instance as OPEN / CONNECTED in Firebase!
+    await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
+      status: "open",
+      qrCode: null,
+      updatedAt: new Date().toISOString(),
+    });
+
     const logId = `log_${Date.now()}`;
     await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
       id: logId,
@@ -393,7 +496,7 @@ router.post("/message/send-media", async (req, res) => {
 });
 
 /**
- * 6. Logout Instance
+ * 7. Logout Instance
  * DELETE /api/whatsapp/instance/logout/:instanceId
  */
 router.delete("/instance/logout/:instanceId", async (req, res) => {
@@ -422,7 +525,7 @@ router.delete("/instance/logout/:instanceId", async (req, res) => {
 });
 
 /**
- * 7. Delete Instance
+ * 8. Delete Instance
  * DELETE /api/whatsapp/instance/delete/:instanceId
  */
 router.delete("/instance/delete/:instanceId", async (req, res) => {
@@ -447,7 +550,7 @@ router.delete("/instance/delete/:instanceId", async (req, res) => {
 });
 
 /**
- * 8. Webhook Receiver for Evolution API Events
+ * 9. Webhook Receiver for Evolution API Events
  * POST /api/evolution/webhook
  */
 router.post("/webhook", async (req, res) => {

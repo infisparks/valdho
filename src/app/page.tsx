@@ -70,7 +70,7 @@ export default function Home() {
           onVideoClick={handleOpenVideo}
         />
 
-        {/* 2. Client Results & Proof (Moved right after Hero) */}
+        {/* 2. Client Results & Proof */}
         <ClientResultsSection onVideoClick={handleOpenVideo} />
 
         {/* 3. Cycle Section ("Most businesses are stuck in this cycle") */}
@@ -79,20 +79,20 @@ export default function Home() {
         {/* 4. Problem Diagnosis Section */}
         <ProblemSection />
 
-        {/* 5. Solution Section */}
+        {/* 5. Solution Section ("We Don't Run Ads. We Build Revenue Systems.") */}
         <SolutionSection onBookClick={handleOpenBooking} />
 
-        {/* 6. Why We Are Different Section */}
+        {/* 6. How It Works Section (Placed right after SolutionSection) */}
+        <HowItWorksSection onBookClick={handleOpenBooking} />
+
+        {/* 7. Why We Are Different Section */}
         <WhyDifferentSection />
 
-        {/* 7. Meet The Founder Section */}
+        {/* 8. Meet The Founder Section */}
         <FounderSection onBookClick={handleOpenBooking} />
 
-        {/* 8. Interactive Revenue Calculator Widget */}
+        {/* 9. Interactive Revenue Calculator Widget */}
         <GrowthCalculator onBookClick={handleOpenBooking} />
-
-        {/* 9. How It Works Step-by-Step */}
-        <HowItWorksSection onBookClick={handleOpenBooking} />
 
         {/* 10. Industries We Have Worked With Grid */}
         <IndustriesSection />

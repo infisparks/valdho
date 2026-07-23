@@ -4667,286 +4667,296 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* STAGE AUTOMATION CONFIGURATION MODAL */}
+      {/* STAGE AUTOMATION CONFIGURATION RIGHT DRAWER */}
       {isStageAutomationModalOpen && activeAutomationStage && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
-          <div className="fixed inset-0" onClick={() => setIsStageAutomationModalOpen(false)} />
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 border border-slate-200 z-10 animate-in fade-in zoom-in duration-150">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end font-sans">
+          {/* Backdrop Click Handler */}
+          <div
+            className="fixed inset-0 transition-opacity"
+            onClick={() => setIsStageAutomationModalOpen(false)}
+          />
+
+          {/* Right Sliding Drawer Panel */}
+          <div className="relative w-full max-w-2xl bg-white shadow-2xl h-full flex flex-col z-10 border-l border-slate-200 animate-in slide-in-from-right duration-200">
+            {/* Sticky Drawer Header */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between sticky top-0 z-20 shadow-xs">
               <div className="flex items-center space-x-3">
                 <span
                   className="w-4 h-4 rounded-full flex-shrink-0"
                   style={{ backgroundColor: activeAutomationStage.color || "#6366f1" }}
                 />
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-900 flex items-center space-x-2">
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center space-x-2">
                     <span>Stage Automations: {activeAutomationStage.name} ⚡</span>
                   </h3>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Configure automated WhatsApp messages sent relative to meeting date or lead creation date for leads in this stage.
+                    Configure automated WhatsApp messages sent relative to meeting date or lead creation date.
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setIsStageAutomationModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 font-bold flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 font-bold flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            {/* Create New Stage Automation Form */}
-            <form onSubmit={handleSaveStageRule} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                <h4 className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider flex items-center space-x-1.5">
-                  <i className="fa-solid fa-bolt text-xs"></i>
-                  <span>Add Automation Rule for "{activeAutomationStage.name}"</span>
-                </h4>
+            {/* Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
+              {/* Create New Stage Automation Form */}
+              <form onSubmit={handleSaveStageRule} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <h4 className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider flex items-center space-x-1.5">
+                    <i className="fa-solid fa-bolt text-xs"></i>
+                    <span>Add Automation Rule for "{activeAutomationStage.name}"</span>
+                  </h4>
 
-                <button
-                  type="button"
-                  onClick={() => setIsAutomationGuideOpen(!isAutomationGuideOpen)}
-                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 text-xs font-extrabold px-2.5 py-1 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs"
-                  title="Click to view detailed guide & 3 real-world examples"
-                >
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">i</span>
-                  <span>{isAutomationGuideOpen ? "Hide Guide ✕" : "How Automations Work (3 Examples) ℹ️"}</span>
-                </button>
-              </div>
-
-              {isAutomationGuideOpen && (
-                <div className="bg-indigo-900 text-white rounded-2xl p-5 space-y-4 shadow-xl border border-indigo-700 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center justify-between border-b border-indigo-700/80 pb-2.5">
-                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-indigo-200 flex items-center space-x-2">
-                      <span className="w-5 h-5 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[11px]">i</span>
-                      <span>How WhatsApp Stage Automations Work & 3 Examples</span>
-                    </h5>
-                    <span className="text-[10px] font-mono bg-indigo-800 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-600 font-bold">
-                      24/7 Realtime Cron Engine
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-indigo-100 leading-relaxed font-medium">
-                    Our background cron daemon runs every minute, inspecting leads in your Firebase Realtime Database. When a lead enters a stage, the system calculates the exact trigger time based on your configuration:
-                  </p>
-
-                  {/* 3 Interactive Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-sans text-xs">
-                    {/* Example 1 */}
-                    <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wide">
-                          Example 1: Meeting Reminder
-                        </span>
-                        <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.5 rounded font-mono font-bold">
-                          ⏳ Before Event
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-indigo-100 space-y-1">
-                        <p><strong>Base:</strong> Meeting Booked Date</p>
-                        <p><strong>Offset:</strong> 15 Minutes Before</p>
-                      </div>
-                      <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-emerald-300 border border-indigo-700/50">
-                        💬 "Hi {"{{name}}"}, your session starts in 15 mins at {"{{time}}"}!"
-                      </div>
-                    </div>
-
-                    {/* Example 2 */}
-                    <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-cyan-300 text-[11px] uppercase tracking-wide">
-                          Example 2: Post-Survey Follow-up
-                        </span>
-                        <span className="text-[9px] bg-cyan-400/20 text-cyan-200 px-1.5 py-0.5 rounded font-mono font-bold">
-                          ⏩ After Entry
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-indigo-100 space-y-1">
-                        <p><strong>Base:</strong> Lead Creation / Entry</p>
-                        <p><strong>Offset:</strong> 1 Day After</p>
-                      </div>
-                      <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-cyan-300 border border-indigo-700/50">
-                        💬 "Hello {"{{name}}"}, you filled out our survey yesterday! Book a call slot today."
-                      </div>
-                    </div>
-
-                    {/* Example 3 */}
-                    <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-emerald-300 text-[11px] uppercase tracking-wide">
-                          Example 3: Re-engagement
-                        </span>
-                        <span className="text-[9px] bg-emerald-400/20 text-emerald-200 px-1.5 py-0.5 rounded font-mono font-bold">
-                          🔄 Recurring
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-indigo-100 space-y-1">
-                        <p><strong>Base:</strong> Lead Creation / Entry</p>
-                        <p><strong>Offset:</strong> Every 2 Days</p>
-                      </div>
-                      <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-amber-300 border border-indigo-700/50">
-                        💬 "Hi {"{{name}}"}, checking in to see if you have any questions!"
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-rose-950/60 border border-rose-800/80 rounded-xl p-2.5 text-[11px] text-rose-200 flex items-start space-x-2">
-                    <span className="text-sm">⚠️</span>
-                    <div>
-                      <strong className="font-bold text-rose-300 block">Missing Meeting Date Warning:</strong>
-                      If a rule uses <code className="font-bold text-white">Meeting Booked Date</code> as reference, but a lead in that stage doesn't have a booked meeting date yet, a red warning badge <code className="font-bold text-rose-300">⚠️ Meeting Date missing</code> is displayed on their card and sending is safely skipped!
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Rule Title */}
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[11px] font-extrabold text-slate-700">Automation Rule Title:</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 10 Min Before Meeting Reminder or 1 Day After Entry"
-                    value={ruleTitle}
-                    onChange={(e) => setRuleTitle(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
-                    required
-                  />
-                </div>
-
-                {/* Reference Target Base */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Reference Target Base:</label>
-                  <select
-                    value={ruleTriggerBase}
-                    onChange={(e) => setRuleTriggerBase(e.target.value as any)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  <button
+                    type="button"
+                    onClick={() => setIsAutomationGuideOpen(!isAutomationGuideOpen)}
+                    className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 text-xs font-extrabold px-2.5 py-1 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                    title="Click to view detailed guide & 3 real-world examples"
                   >
-                    <option value="meeting">📅 Meeting Booked Date & Time</option>
-                    <option value="created">📝 Lead Creation Date & Time</option>
-                  </select>
+                    <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">i</span>
+                    <span>{isAutomationGuideOpen ? "Hide Guide ✕" : "How Automations Work (3 Examples) ℹ️"}</span>
+                  </button>
                 </div>
 
-                {/* Timing Offset Direction */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Timing Direction:</label>
-                  <select
-                    value={ruleOffsetType}
-                    onChange={(e) => setRuleOffsetType(e.target.value as any)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
-                  >
-                    <option value="before">⏳ Before Event Target</option>
-                    <option value="after">⏩ After Event Entry</option>
-                    <option value="recurring">🔄 Recurring Interval</option>
-                  </select>
-                </div>
+                {isAutomationGuideOpen && (
+                  <div className="bg-indigo-900 text-white rounded-2xl p-5 space-y-4 shadow-xl border border-indigo-700 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between border-b border-indigo-700/80 pb-2.5">
+                      <h5 className="text-xs font-extrabold uppercase tracking-wider text-indigo-200 flex items-center space-x-2">
+                        <span className="w-5 h-5 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[11px]">i</span>
+                        <span>How WhatsApp Stage Automations Work & 3 Examples</span>
+                      </h5>
+                      <span className="text-[10px] font-mono bg-indigo-800 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-600 font-bold">
+                        24/7 Realtime Cron Engine
+                      </span>
+                    </div>
 
-                {/* Offset Value */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Offset Amount:</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={ruleOffsetValue}
-                    onChange={(e) => setRuleOffsetValue(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
-                    required
-                  />
-                </div>
+                    <p className="text-xs text-indigo-100 leading-relaxed font-medium">
+                      Our background cron daemon runs every minute, inspecting leads in your Firebase Realtime Database. When a lead enters a stage, the system calculates the exact trigger time based on your configuration:
+                    </p>
 
-                {/* Offset Unit */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Time Unit:</label>
-                  <select
-                    value={ruleOffsetUnit}
-                    onChange={(e) => setRuleOffsetUnit(e.target.value as any)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
-                  >
-                    <option value="minutes">Minutes (m)</option>
-                    <option value="hours">Hours (h)</option>
-                    <option value="days">Days (d)</option>
-                  </select>
-                </div>
-
-                {/* Message Template */}
-                <div className="space-y-1 sm:col-span-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <label className="font-extrabold text-slate-700">WhatsApp Message Template:</label>
-                    <span className="font-mono text-slate-500">Tags: {"{{name}}"}, {"{{date}}"}, {"{{time}}"}</span>
-                  </div>
-                  <textarea
-                    rows={2}
-                    value={ruleTemplate}
-                    onChange={(e) => setRuleTemplate(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
-                    placeholder="Enter WhatsApp message..."
-                    required
-                  ></textarea>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSavingRule}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
-              >
-                {isSavingRule ? (
-                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
-                ) : (
-                  <i className="fa-solid fa-bolt text-xs"></i>
-                )}
-                <span>Save Stage Automation Rule ⚡</span>
-              </button>
-            </form>
-
-            {/* List of Configured Stage Rules */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                Configured Rules for {activeAutomationStage.name} ({(stageAutomationsMap[activeAutomationStage.id] || []).length})
-              </h4>
-
-              {(stageAutomationsMap[activeAutomationStage.id] || []).length === 0 ? (
-                <div className="p-6 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
-                  <span className="text-xs font-bold text-slate-500">No automation rules configured for this stage yet.</span>
-                  <p className="text-[11px] text-slate-400">Use the form above to add your first WhatsApp automation rule!</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-                  {(stageAutomationsMap[activeAutomationStage.id] || []).map((rule) => (
-                    <div
-                      key={rule.id}
-                      className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                    >
-                      <div className="space-y-1 flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          <span className="text-xs font-extrabold text-slate-900">{rule.title}</span>
-                          <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 uppercase">
-                            {rule.offsetValue} {rule.offsetUnit} {rule.offsetType} ({rule.triggerBase})
+                    {/* 3 Interactive Cards */}
+                    <div className="grid grid-cols-1 gap-3 font-sans text-xs">
+                      {/* Example 1 */}
+                      <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wide">
+                            Example 1: Meeting Reminder
+                          </span>
+                          <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                            ⏳ Before Event
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 italic truncate font-mono">
-                          "{rule.template}"
-                        </p>
+                        <div className="text-[11px] text-indigo-100 space-y-1">
+                          <p><strong>Base:</strong> Meeting Booked Date</p>
+                          <p><strong>Offset:</strong> 15 Minutes Before</p>
+                        </div>
+                        <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-emerald-300 border border-indigo-700/50">
+                          💬 "Hi {"{{name}}"}, your session starts in 15 mins at {"{{time}}"}!"
+                        </div>
                       </div>
 
-                      <button
-                        onClick={() => handleDeleteStageRule(activeAutomationStage.id, rule.id)}
-                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex-shrink-0"
-                      >
-                        Delete 🗑️
-                      </button>
+                      {/* Example 2 */}
+                      <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-cyan-300 text-[11px] uppercase tracking-wide">
+                            Example 2: Post-Survey Follow-up
+                          </span>
+                          <span className="text-[9px] bg-cyan-400/20 text-cyan-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                            ⏩ After Entry
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-indigo-100 space-y-1">
+                          <p><strong>Base:</strong> Lead Creation / Entry</p>
+                          <p><strong>Offset:</strong> 1 Day After</p>
+                        </div>
+                        <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-cyan-300 border border-indigo-700/50">
+                          💬 "Hello {"{{name}}"}, you filled out our survey yesterday! Book a call slot today."
+                        </div>
+                      </div>
+
+                      {/* Example 3 */}
+                      <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-emerald-300 text-[11px] uppercase tracking-wide">
+                            Example 3: Re-engagement
+                          </span>
+                          <span className="text-[9px] bg-emerald-400/20 text-emerald-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                            🔄 Recurring
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-indigo-100 space-y-1">
+                          <p><strong>Base:</strong> Lead Creation / Entry</p>
+                          <p><strong>Offset:</strong> Every 2 Days</p>
+                        </div>
+                        <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-amber-300 border border-indigo-700/50">
+                          💬 "Hi {"{{name}}"}, checking in to see if you have any questions!"
+                        </div>
+                      </div>
                     </div>
-                  ))}
+
+                    <div className="bg-rose-950/60 border border-rose-800/80 rounded-xl p-2.5 text-[11px] text-rose-200 flex items-start space-x-2">
+                      <span className="text-sm">⚠️</span>
+                      <div>
+                        <strong className="font-bold text-rose-300 block">Missing Meeting Date Warning:</strong>
+                        If a rule uses <code className="font-bold text-white">Meeting Booked Date</code> as reference, but a lead in that stage doesn't have a booked meeting date yet, a red warning badge <code className="font-bold text-rose-300">⚠️ Meeting Date missing</code> is displayed on their card and sending is safely skipped!
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Rule Title */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] font-extrabold text-slate-700">Automation Rule Title:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 10 Min Before Meeting Reminder or 1 Day After Entry"
+                      value={ruleTitle}
+                      onChange={(e) => setRuleTitle(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      required
+                    />
+                  </div>
+
+                  {/* Reference Target Base */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700">Reference Target Base:</label>
+                    <select
+                      value={ruleTriggerBase}
+                      onChange={(e) => setRuleTriggerBase(e.target.value as any)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                    >
+                      <option value="meeting">📅 Meeting Booked Date & Time</option>
+                      <option value="created">📝 Lead Creation Date & Time</option>
+                    </select>
+                  </div>
+
+                  {/* Timing Offset Direction */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700">Timing Direction:</label>
+                    <select
+                      value={ruleOffsetType}
+                      onChange={(e) => setRuleOffsetType(e.target.value as any)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                    >
+                      <option value="before">⏳ Before Event Target</option>
+                      <option value="after">⏩ After Event Entry</option>
+                      <option value="recurring">🔄 Recurring Interval</option>
+                    </select>
+                  </div>
+
+                  {/* Offset Value */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700">Offset Amount:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={ruleOffsetValue}
+                      onChange={(e) => setRuleOffsetValue(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      required
+                    />
+                  </div>
+
+                  {/* Offset Unit */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700">Time Unit:</label>
+                    <select
+                      value={ruleOffsetUnit}
+                      onChange={(e) => setRuleOffsetUnit(e.target.value as any)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                    >
+                      <option value="minutes">Minutes (m)</option>
+                      <option value="hours">Hours (h)</option>
+                      <option value="days">Days (d)</option>
+                    </select>
+                  </div>
+
+                  {/* Message Template */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <label className="font-extrabold text-slate-700">WhatsApp Message Template:</label>
+                      <span className="font-mono text-slate-500">Tags: {"{{name}}"}, {"{{date}}"}, {"{{time}}"}</span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={ruleTemplate}
+                      onChange={(e) => setRuleTemplate(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                      placeholder="Enter WhatsApp message..."
+                      required
+                    ></textarea>
+                  </div>
                 </div>
-              )}
+
+                <button
+                  type="submit"
+                  disabled={isSavingRule}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingRule ? (
+                    <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                  ) : (
+                    <i className="fa-solid fa-bolt text-xs"></i>
+                  )}
+                  <span>Save Stage Automation Rule ⚡</span>
+                </button>
+              </form>
+
+              {/* List of Configured Stage Rules */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                  Configured Rules for {activeAutomationStage.name} ({(stageAutomationsMap[activeAutomationStage.id] || []).length})
+                </h4>
+
+                {(stageAutomationsMap[activeAutomationStage.id] || []).length === 0 ? (
+                  <div className="p-6 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                    <span className="text-xs font-bold text-slate-500">No automation rules configured for this stage yet.</span>
+                    <p className="text-[11px] text-slate-400">Use the form above to add your first WhatsApp automation rule!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 font-sans">
+                    {(stageAutomationsMap[activeAutomationStage.id] || []).map((rule) => (
+                      <div
+                        key={rule.id}
+                        className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                      >
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                            <span className="text-xs font-extrabold text-slate-900">{rule.title}</span>
+                            <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 uppercase">
+                              {rule.offsetValue} {rule.offsetUnit} {rule.offsetType} ({rule.triggerBase})
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 italic truncate font-mono">
+                            "{rule.template}"
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => handleDeleteStageRule(activeAutomationStage.id, rule.id)}
+                          className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                        >
+                          Delete 🗑️
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+            {/* Sticky Drawer Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end sticky bottom-0 z-20">
               <button
                 onClick={() => setIsStageAutomationModalOpen(false)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-5 py-2 rounded-xl transition-colors cursor-pointer"
+                className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold px-6 py-2 rounded-xl transition-colors cursor-pointer"
               >
                 Close Automation Settings
               </button>

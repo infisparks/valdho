@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { saveOrUpdateLead, LeadData } from "@/lib/firebase";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -19,7 +20,10 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
   // Step 4: Final Success Confirmation & WhatsApp redirect
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
-  // Form State
+  // Lead ID in Firebase & LocalStorage
+  const [firebaseLeadId, setFirebaseLeadId] = useState<string | null>(null);
+
+  // Form Contact State
   const [contactInfo, setContactInfo] = useState({
     fullName: "",
     email: "",
@@ -27,6 +31,9 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
     countryCode: "+91",
   });
 
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  // Survey Answers State
   const [qAnswers, setQAnswers] = useState({
     industry: "Doctor / Clinic",
     role: "Founder / Owner",
@@ -43,10 +50,70 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
   const [selectedDay, setSelectedDay] = useState<number>(23);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
+  // Pre-fill contact details from LocalStorage on mount/modal open
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const savedContact = localStorage.getItem("firstoption_user_contact");
+        const savedLeadId = localStorage.getItem("firstoption_lead_id");
+        if (savedContact) {
+          const parsed = JSON.parse(savedContact);
+          setContactInfo({
+            fullName: parsed.fullName || "",
+            email: parsed.email || "",
+            phone: parsed.phone || "",
+            countryCode: parsed.countryCode || "+91",
+          });
+        }
+        if (savedLeadId) {
+          setFirebaseLeadId(savedLeadId);
+        }
+      } catch (e) {
+        console.error("LocalStorage restore error:", e);
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  const handleStep1Submit = (e: React.FormEvent) => {
+  // Handle Step 1 Submit with 10-digit validation and Firebase sync
+  const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPhoneError(null);
+
+    const cleanPhone = contactInfo.phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      setPhoneError("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    // Persist to LocalStorage
+    try {
+      localStorage.setItem("firstoption_user_contact", JSON.stringify(contactInfo));
+    } catch (err) {
+      console.error("LocalStorage save error:", err);
+    }
+
+    // Sync to Firebase with status "partial"
+    const leadPayload: LeadData = {
+      fullName: contactInfo.fullName,
+      email: contactInfo.email,
+      phone: cleanPhone,
+      countryCode: contactInfo.countryCode,
+      status: "partial",
+      survey: qAnswers,
+    };
+
+    const newLeadId = await saveOrUpdateLead(leadPayload, firebaseLeadId, "firstoptionagency");
+    if (newLeadId) {
+      setFirebaseLeadId(newLeadId);
+      try {
+        localStorage.setItem("firstoption_lead_id", newLeadId);
+      } catch (err) {
+        console.error("LocalStorage leadId error:", err);
+      }
+    }
+
     setStep(2);
   };
 
@@ -54,12 +121,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
     setStep(1);
     setActiveQIndex(0);
     setSelectedTimeSlot(null);
-    setContactInfo({
-      fullName: "",
-      email: "",
-      phone: "",
-      countryCode: "+91",
-    });
+    setPhoneError(null);
     onClose();
   };
 
@@ -86,8 +148,26 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
   const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
   const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
 
-  const handleSelectSlot = (time: string) => {
+  // Final Slot Selection & Firebase Completed Sync
+  const handleSelectSlot = async (time: string) => {
     setSelectedTimeSlot(time);
+
+    const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");
+    const formattedDay = selectedDay.toString().padStart(2, "0");
+    const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
+
+    const completedPayload: LeadData = {
+      fullName: contactInfo.fullName,
+      email: contactInfo.email,
+      phone: contactInfo.phone.replace(/\D/g, ""),
+      countryCode: contactInfo.countryCode,
+      appointmentDate: appointmentDateStr,
+      appointmentTime: time,
+      status: "completed",
+      survey: qAnswers,
+    };
+
+    await saveOrUpdateLead(completedPayload, firebaseLeadId, "firstoptionagency");
     setStep(4);
   };
 
@@ -167,6 +247,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               Complete the form below and move to the next step to provide some basic information about your business
             </h3>
 
+            {/* Full Name */}
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
                 Full Name
@@ -181,6 +262,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               />
             </div>
 
+            {/* Email */}
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
                 Email
@@ -195,9 +277,10 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               />
             </div>
 
+            {/* 10-digit Phone Number with Mobile Numeric Keypad */}
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
-                Phone Number
+                Phone Number (10 Digits)
               </label>
               <div className="flex items-center bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500">
                 <div className="flex items-center space-x-1 px-3 py-2.5 sm:py-3 bg-slate-50 border-r border-slate-200 text-xs sm:text-sm font-medium text-slate-700">
@@ -206,18 +289,29 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
                 </div>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
                   required
-                  placeholder="90962-94110"
+                  placeholder="9096294110"
                   value={contactInfo.phone}
-                  onChange={(e) => setContactInfo({ ...contactInfo, phone: e.target.value })}
-                  className="w-full px-3 py-2.5 sm:py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none"
+                  onChange={(e) => {
+                    const onlyNums = e.target.value.replace(/\D/g, "");
+                    setContactInfo({ ...contactInfo, phone: onlyNums });
+                    if (phoneError) setPhoneError(null);
+                  }}
+                  className="w-full px-3 py-2.5 sm:py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none font-mono"
                 />
               </div>
+              {phoneError && (
+                <p className="text-red-600 font-bold text-xs mt-1 animate-pulse">
+                  ⚠ {phoneError}
+                </p>
+              )}
             </div>
 
             <button
-              type="button"
-              onClick={() => setStep(2)}
+              type="submit"
               className="w-full bg-gradient-to-b from-[#ffd369] via-[#f7b731] to-[#eb9d14] border border-amber-600/80 rounded-xl p-3.5 sm:p-4 text-center cursor-pointer shadow-md hover:brightness-105 active:scale-[0.99] transition-all mt-3"
             >
               <div className="text-sm sm:text-lg font-bold text-slate-950 flex items-center justify-center space-x-1.5 leading-snug">
@@ -342,8 +436,6 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
       {/* Step 3: Interactive Calendar Appointment Booking with Month Switcher */}
       {step === 3 && (
         <div className="bg-[#0b0b0e] text-white border border-zinc-800 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans space-y-3 my-auto">
-          
-          {/* Header Bar */}
           <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
             <p className="text-xs sm:text-sm font-bold text-slate-300">
               Select date & time for your Growth Strategy Call
@@ -386,8 +478,6 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
 
             {/* Interactive Month Switcher Calendar Card */}
             <div className="border border-zinc-800 rounded-xl sm:rounded-2xl p-3 bg-zinc-950 space-y-3">
-              
-              {/* Month Navigation Control Header */}
               <div className="flex items-center justify-between text-xs font-extrabold text-white px-1">
                 <button
                   onClick={handlePrevMonth}
@@ -423,12 +513,10 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
 
               {/* Accurate Calendar Day Grid */}
               <div className="grid grid-cols-7 gap-1 text-center text-xs font-mono font-bold">
-                {/* Empty offset cells before day 1 */}
                 {[...Array(firstDayOfWeek)].map((_, emptyIdx) => (
                   <div key={`empty-${emptyIdx}`} className="p-1 sm:p-1.5" />
                 ))}
 
-                {/* Days of Month */}
                 {[...Array(daysInMonth)].map((_, i) => {
                   const dayNum = i + 1;
                   const isSelected = selectedDay === dayNum;

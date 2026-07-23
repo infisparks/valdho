@@ -38,6 +38,15 @@ interface StepConfig {
   template: string;
 }
 
+interface GoogleMeetAccount {
+  id: string;
+  name: string;
+  email: string;
+  meetingUrl: string;
+  status: "active" | "inactive";
+  createdAt: string;
+}
+
 interface WhatsappWorkflowConfig {
   selectedInstanceName: string;
   defaultMeetingUrl: string;
@@ -98,6 +107,29 @@ export default function WhatsappManagerPage() {
 
   // Logs State
   const [messageLogs, setMessageLogs] = useState<MessageLog[]>([]);
+
+  // Google Meet Integration State
+  const [meetAccounts, setMeetAccounts] = useState<GoogleMeetAccount[]>([]);
+  const [isConnectMeetModalOpen, setIsConnectMeetModalOpen] = useState(false);
+  const [newMeetName, setNewMeetName] = useState("");
+  const [newMeetEmail, setNewMeetEmail] = useState("");
+  const [newMeetUrl, setNewMeetUrl] = useState("");
+  const [isConnectingMeet, setIsConnectingMeet] = useState(false);
+
+  // Sync Google Meet Connected Accounts from Firebase RTDB `/google_meet_integrations/firstoptionagency`
+  useEffect(() => {
+    const meetRef = ref(db, "google_meet_integrations/firstoptionagency");
+    const unsubscribe = onValue(meetRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const list = Object.values(snapshot.val()) as GoogleMeetAccount[];
+        setMeetAccounts(list);
+      } else {
+        setMeetAccounts([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Authenticate Admin
   useEffect(() => {
@@ -343,6 +375,69 @@ export default function WhatsappManagerPage() {
       }
     } catch (err: any) {
       console.error("Delete Error:", err);
+    }
+  };
+
+  // Handle Connect Google Meet Account
+  const handleConnectMeetAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMeetName.trim() || !newMeetEmail.trim()) {
+      alert("Please enter both Account Name and Email.");
+      return;
+    }
+
+    setIsConnectingMeet(true);
+    try {
+      const accId = `meet_${Date.now()}`;
+      const url = newMeetUrl.trim() || "https://meet.google.com/firstoption-strategy-call";
+
+      const payload: GoogleMeetAccount = {
+        id: accId,
+        name: newMeetName.trim(),
+        email: newMeetEmail.trim(),
+        meetingUrl: url,
+        status: "active",
+        createdAt: new Date().toISOString(),
+      };
+
+      const dbUrl = (process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://firstoption-8da25-default-rtdb.firebaseio.com").replace(/\/$/, "");
+
+      // Save to Firebase RTDB
+      await fetch(`${dbUrl}/google_meet_integrations/firstoptionagency/${accId}.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      // Also update default meeting URL in config
+      setConfig((prev) => ({ ...prev, defaultMeetingUrl: url }));
+      await fetch(`${dbUrl}/whatsapp_configuration/firstoptionagency/defaultMeetingUrl.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(url),
+      });
+
+      setIsConnectMeetModalOpen(false);
+      setNewMeetName("");
+      setNewMeetEmail("");
+      setNewMeetUrl("");
+    } catch (err: any) {
+      alert(`Failed to connect Google Meet account: ${err.message}`);
+    } finally {
+      setIsConnectingMeet(false);
+    }
+  };
+
+  // Handle Delete Google Meet Account
+  const handleDeleteMeetAccount = async (accId: string) => {
+    if (!confirm("Are you sure you want to remove this Google Meet account integration?")) return;
+    try {
+      const dbUrl = (process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://firstoption-8da25-default-rtdb.firebaseio.com").replace(/\/$/, "");
+      await fetch(`${dbUrl}/google_meet_integrations/firstoptionagency/${accId}.json`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.error("Delete Meet error:", err);
     }
   };
 
@@ -730,6 +825,84 @@ export default function WhatsappManagerPage() {
           </div>
         </div>
 
+        {/* GOOGLE MEET INTEGRATION CARD & ACCOUNTS LIST */}
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 font-sans">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start space-x-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 p-2 flex items-center justify-center flex-shrink-0">
+                <svg className="w-8 h-8" viewBox="0 0 48 48">
+                  <path fill="#4CAF50" d="M12 12h14v24H12z"/>
+                  <path fill="#2196F3" d="M26 12l10 8v8l-10 8z"/>
+                  <path fill="#FFC107" d="M36 20l6-4.5v17L36 28z"/>
+                  <path fill="#F44336" d="M12 12l14 12L12 36z"/>
+                </svg>
+              </div>
+
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900">Google Meet</h2>
+                  <span className="text-[10px] font-extrabold font-mono bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md uppercase border border-emerald-200">
+                    ACTIVE
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Connect your Google Meet account for seamless meeting integration & automated WhatsApp video links.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <span className="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-slate-200">
+                {meetAccounts.length} Active
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsConnectMeetModalOpen(true)}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-800 w-9 h-9 rounded-xl font-bold flex items-center justify-center text-lg shadow-2xs transition-all cursor-pointer"
+                title="Connect New Google Meet Account"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Connected Accounts Grid */}
+          {meetAccounts.length === 0 ? (
+            <div className="border border-dashed border-slate-200 rounded-2xl p-5 text-center space-y-1 bg-slate-50/50">
+              <span className="text-xs font-bold text-slate-600 block">No Google Meet accounts connected yet.</span>
+              <p className="text-[11px] text-slate-400">
+                Click the <strong className="text-indigo-600">+</strong> button above to connect your account name and video call URL!
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {meetAccounts.map((acc) => (
+                <div
+                  key={acc.id}
+                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
+                >
+                  <div className="space-y-0.5 min-w-0 pr-2">
+                    <h4 className="text-xs font-extrabold text-slate-900 truncate">{acc.name}</h4>
+                    <p className="text-[11px] text-slate-500 font-mono truncate">{acc.email}</p>
+                    <span className="text-[10px] text-indigo-600 font-mono truncate block font-bold">
+                      🔗 {acc.meetingUrl}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMeetAccount(acc.id)}
+                    className="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                    title="Delete Account Integration"
+                  >
+                    <i className="fa-solid fa-trash-can text-xs"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Instances Grid */}
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
@@ -1033,6 +1206,85 @@ export default function WhatsappManagerPage() {
           )}
         </div>
       </main>
+      {/* CONNECT GOOGLE MEET ACCOUNT MODAL */}
+      {isConnectMeetModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
+          <div className="fixed inset-0" onClick={() => setIsConnectMeetModalOpen(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-5 border border-slate-200 z-10 animate-in fade-in zoom-in duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900">Connect Your Account</h3>
+              <button
+                onClick={() => setIsConnectMeetModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 font-bold flex items-center justify-center text-xs transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleConnectMeetAccount} className="space-y-4">
+              {/* Name */}
+              <div className="space-y-1">
+                <label className="text-xs font-extrabold text-slate-800 flex items-center space-x-1">
+                  <span>Name</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Account Name (e.g. First Option Agency)"
+                  value={newMeetName}
+                  onChange={(e) => setNewMeetName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  required
+                />
+              </div>
+
+              {/* Email */}
+              <div className="space-y-1">
+                <label className="text-xs font-extrabold text-slate-800 flex items-center space-x-1">
+                  <span>Email</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="Account Email (e.g. contact@firstoption.com)"
+                  value={newMeetEmail}
+                  onChange={(e) => setNewMeetEmail(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  required
+                />
+              </div>
+
+              {/* Google Meet Room URL */}
+              <div className="space-y-1">
+                <label className="text-xs font-extrabold text-slate-800 flex items-center space-x-1">
+                  <span>Google Meet Link / Video Room URL</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://meet.google.com/xyz-abc-123"
+                  value={newMeetUrl}
+                  onChange={(e) => setNewMeetUrl(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-indigo-700 font-mono focus:outline-none focus:border-indigo-600"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end">
+                <button
+                  type="submit"
+                  disabled={isConnectingMeet}
+                  className="bg-indigo-950 hover:bg-indigo-900 text-white text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {isConnectingMeet ? "Connecting..." : "Connect Account"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

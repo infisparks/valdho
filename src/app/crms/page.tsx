@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   auth,
   getLeadsForDate,
@@ -8,7 +9,6 @@ import {
   LeadData,
 } from "@/lib/firebase";
 import {
-  signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   User,
@@ -16,14 +16,9 @@ import {
 import { CAMPAIGNS } from "@/config/campaigns";
 
 export default function CRMPage() {
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  // Login Form State
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // CRM Dashboard State
   const todayStr = new Date().toISOString().split("T")[0];
@@ -41,14 +36,18 @@ export default function CRMPage() {
   // Mobile Sidebar State
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Check Auth State on mount
+  // Check Auth State on mount; redirect to /login if not authenticated
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
+      if (!user) {
+        router.replace("/login?redirect=/crms");
+      } else {
+        setCurrentUser(user);
+        setAuthLoading(false);
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   // Fetch Dashboard Data
   const fetchData = useCallback(async () => {
@@ -74,30 +73,11 @@ export default function CRMPage() {
     }
   }, [currentUser, fetchData]);
 
-  // Handle Admin Login
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
-    setIsLoggingIn(true);
-
-    try {
-      await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
-    } catch (err: any) {
-      console.error("Admin Login Error:", err);
-      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
-        setLoginError("Invalid email or password. Please try again.");
-      } else {
-        setLoginError(err.message || "Failed to log in to Admin CRM.");
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
   // Handle Logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      router.replace("/login");
     } catch (err) {
       console.error("Logout Error:", err);
     }
@@ -124,105 +104,25 @@ export default function CRMPage() {
   const todayMeetingsScheduled = meetingsList.length;
 
   // Funnel Percentages
-  const partialPct = totalLeadsCount > 0 ? 100 : 0;
   const surveyPct = totalLeadsCount > 0 ? Math.round((surveyCompletedCount / totalLeadsCount) * 100) : 0;
   const bookedPct = totalLeadsCount > 0 ? Math.round((bookedMeetingsCount / totalLeadsCount) * 100) : 0;
 
-  if (authLoading) {
+  if (authLoading || !currentUser) {
     return (
       <div className="min-h-screen bg-[#F5F6F8] flex items-center justify-center font-sans">
         <div className="flex items-center space-x-3 text-indigo-600 font-bold text-sm">
-          <i className="fa-solid fa-[#6366F1] fa-spin text-2xl"></i>
-          <span>Authenticating Admin CRM...</span>
+          <i className="fa-solid fa-circle-notch fa-spin text-2xl"></i>
+          <span>Redirecting to Admin Login...</span>
         </div>
       </div>
     );
   }
 
   // -------------------------------------------------------------
-  // 1. LOGIN SCREEN (If not authenticated)
-  // -------------------------------------------------------------
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-[#F5F6F8] flex items-center justify-center p-4 font-sans text-slate-900">
-        <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black mx-auto shadow-md">
-              FO
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-              Admin CRM Login
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500">
-              Enter your Firebase Admin credentials to access lead & meeting management
-            </p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Admin Email *
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="admin@firstoptionagency.in"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Password *
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
-              />
-            </div>
-
-            {loginError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-medium p-3 rounded-xl flex items-center space-x-2">
-                <i className="fa-solid fa-circle-exclamation flex-shrink-0"></i>
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md active:scale-[0.99] flex items-center justify-center space-x-2 disabled:opacity-50"
-            >
-              {isLoggingIn ? (
-                <>
-                  <i className="fa-solid fa-spinner fa-spin text-sm"></i>
-                  <span>Signing In...</span>
-                </>
-              ) : (
-                <span>Sign In to CRM Dashboard →</span>
-              )}
-            </button>
-          </form>
-
-          <p className="text-[11px] text-slate-400 text-center">
-            First Option Agency • Enterprise CRM System
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------------
-  // 2. MAIN CRM DASHBOARD (If authenticated)
+  // MAIN CRM DASHBOARD (When authenticated)
   // -------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#F5F6F8] text-slate-900 font-sans flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#F5F6F8] text-slate-900 font-sans flex flex-col md:flex-row antialiased">
       {/* Mobile Drawer Overlay */}
       {isMobileSidebarOpen && (
         <div
@@ -390,7 +290,7 @@ export default function CRMPage() {
         </header>
 
         {/* Dashboard Body */}
-        <main className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto w-full">
+        <main className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto w-full">
           {/* 1. KEY METRICS CARDS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Total Leads */}

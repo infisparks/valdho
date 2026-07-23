@@ -473,7 +473,7 @@ export default function CRMPage() {
                       <tr>
                         <th className="px-4 py-3">Lead Info</th>
                         <th className="px-4 py-3">Mobile Number</th>
-                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Step Progress Pipeline</th>
                         <th className="px-4 py-3">Survey Responses</th>
                         <th className="px-4 py-3">Time</th>
                         <th className="px-4 py-3 text-right">Quick Action</th>
@@ -489,6 +489,10 @@ export default function CRMPage() {
                           }`
                         )}`;
 
+                        const isSurveyDone =
+                          lead.status === "survey_completed" || lead.status === "completed";
+                        const isMeetingDone = lead.status === "completed";
+
                         return (
                           <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="px-4 py-3">
@@ -500,22 +504,40 @@ export default function CRMPage() {
                               {lead.countryCode} {lead.phone}
                             </td>
 
+                            {/* 3-Step Progress Pipeline */}
                             <td className="px-4 py-3">
-                              {lead.status === "partial" && (
-                                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-200">
-                                  Partial (Need Survey)
+                              <div className="flex items-center space-x-1 text-[11px] font-bold">
+                                {/* Step 1: Fill Detail (Always Green since user filled popup) */}
+                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                  <span>✓ Fill Detail</span>
                                 </span>
-                              )}
-                              {lead.status === "survey_completed" && (
-                                <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-[10px] font-bold border border-blue-200">
-                                  Survey Done
-                                </span>
-                              )}
-                              {lead.status === "completed" && (
-                                <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-200">
-                                  Meeting Booked
-                                </span>
-                              )}
+
+                                <span className="text-slate-300 font-mono">›</span>
+
+                                {/* Step 2: Fill Survey */}
+                                {isSurveyDone ? (
+                                  <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                    <span>✓ Fill Survey</span>
+                                  </span>
+                                ) : (
+                                  <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                    <span>✗ Fill Survey</span>
+                                  </span>
+                                )}
+
+                                <span className="text-slate-300 font-mono">›</span>
+
+                                {/* Step 3: Booked Meeting */}
+                                {isMeetingDone ? (
+                                  <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                    <span>✓ Booked Meeting</span>
+                                  </span>
+                                ) : (
+                                  <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                                    <span>✗ Booked Meeting</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             <td className="px-4 py-3 max-w-xs">

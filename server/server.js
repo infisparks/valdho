@@ -14,9 +14,12 @@ app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Mount WhatsApp Evolution API Routes
+// Mount WhatsApp Evolution API Routes & Stage Automations Worker
 const whatsappRoutes = require("./whatsapp");
+const whatsappStageAutomationsRoutes = require("./whatsapp_pipeline_stage_configuration");
+
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/whatsapp", whatsappStageAutomationsRoutes);
 app.use("/api/evolution/webhook", whatsappRoutes); // Alias for Webhook URL
 
 // Coolify & Server Health Check Endpoints

@@ -61,6 +61,20 @@ export interface PipelineStageConfig {
   isDeleted?: boolean;
 }
 
+export interface StageAutomationRule {
+  id: string;
+  stageId: string;
+  title: string;
+  triggerBase: "meeting" | "created";
+  offsetType: "before" | "after" | "recurring";
+  offsetValue: number;
+  offsetUnit: "minutes" | "hours" | "days";
+  template: string;
+  isEnabled: boolean;
+}
+
+const SERVER_URL = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+
 // Pipeline Stages Config
 const DEFAULT_PIPELINE_STAGES: PipelineStageConfig[] = [
   { id: "raw", name: "Leads", color: "#6366f1", bgTag: "bg-indigo-50 text-indigo-700 border-indigo-200", isCompulsory: true, isDeleted: false },
@@ -330,6 +344,102 @@ export default function CRMPage() {
     await savePipelineStagesToFirebase(updated);
     setEditingStageId(null);
     setEditingStageName("");
+  };
+
+  // STAGE AUTOMATION RULES STATE & REALTIME LISTENER
+  const [stageAutomationsMap, setStageAutomationsMap] = useState<Record<string, StageAutomationRule[]>>({});
+  const [activeAutomationStage, setActiveAutomationStage] = useState<PipelineStageConfig | null>(null);
+  const [isStageAutomationModalOpen, setIsStageAutomationModalOpen] = useState(false);
+
+  const [ruleTitle, setRuleTitle] = useState("");
+  const [ruleTriggerBase, setRuleTriggerBase] = useState<"meeting" | "created">("meeting");
+  const [ruleOffsetType, setRuleOffsetType] = useState<"before" | "after" | "recurring">("before");
+  const [ruleOffsetValue, setRuleOffsetValue] = useState<number>(10);
+  const [ruleOffsetUnit, setRuleOffsetUnit] = useState<"minutes" | "hours" | "days">("minutes");
+  const [ruleTemplate, setRuleTemplate] = useState("Hello {{name}}, reminder for your strategy session at {{time}} on {{date}}!");
+  const [isSavingRule, setIsSavingRule] = useState(false);
+
+  // Realtime Sync Stage Automations from Firebase RTDB `whatsapp_stage_automations/firstoptionagency`
+  useEffect(() => {
+    const automationsRef = ref(db, "whatsapp_stage_automations/firstoptionagency");
+    const unsubscribe = onValue(automationsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const map: Record<string, StageAutomationRule[]> = {};
+        for (const [sId, rulesObj] of Object.entries(data)) {
+          if (rulesObj) {
+            map[sId] = Object.values(rulesObj as Record<string, StageAutomationRule>);
+          }
+        }
+        setStageAutomationsMap(map);
+      } else {
+        setStageAutomationsMap({});
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleOpenStageAutomationModal = (stage: PipelineStageConfig) => {
+    setActiveAutomationStage(stage);
+    setIsStageAutomationModalOpen(true);
+    setRuleTitle("");
+    setRuleTriggerBase(stage.id === "meeting_booked" ? "meeting" : "created");
+    setRuleOffsetType("before");
+    setRuleOffsetValue(10);
+    setRuleOffsetUnit("minutes");
+    setRuleTemplate(`Hello {{name}}, reminder for your session in stage "${stage.name}" at {{time}} on {{date}}!`);
+  };
+
+  const handleSaveStageRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeAutomationStage || !ruleTitle.trim()) return;
+
+    setIsSavingRule(true);
+    try {
+      const ruleId = `rule_${Date.now()}`;
+      const payload = {
+        stageId: activeAutomationStage.id,
+        rule: {
+          id: ruleId,
+          title: ruleTitle.trim(),
+          triggerBase: ruleTriggerBase,
+          offsetType: ruleOffsetType,
+          offsetValue: ruleOffsetValue,
+          offsetUnit: ruleOffsetUnit,
+          template: ruleTemplate,
+          isEnabled: true,
+        },
+      };
+
+      const res = await fetch(`${SERVER_URL}/api/whatsapp/stage-automations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setRuleTitle("");
+      } else {
+        alert(`Error saving automation rule: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error("Save Rule Error:", err);
+    } finally {
+      setIsSavingRule(false);
+    }
+  };
+
+  const handleDeleteStageRule = async (stageId: string, ruleId: string) => {
+    if (!confirm("Are you sure you want to delete this stage automation rule?")) return;
+    try {
+      await fetch(`${SERVER_URL}/api/whatsapp/stage-automations/${stageId}/${ruleId}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.error("Delete Rule Error:", err);
+    }
   };
 
   // Scheduled Meetings Tab Date Filter State
@@ -2192,9 +2302,19 @@ export default function CRMPage() {
                           </span>
                         </div>
 
-                        <span className="text-[11px] font-mono font-extrabold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                          ₹{totalStageValue.toLocaleString("en-IN")}
-                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={() => handleOpenStageAutomationModal(stage)}
+                            className="text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md transition-colors flex items-center space-x-1 cursor-pointer"
+                            title="Configure Stage WhatsApp Automations"
+                          >
+                            <span>⚡ Auto</span>
+                          </button>
+
+                          <span className="text-[11px] font-mono font-extrabold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                            ₹{totalStageValue.toLocaleString("en-IN")}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[720px] pr-0.5">
@@ -2206,6 +2326,10 @@ export default function CRMPage() {
                           stageLeads.map((lead) => {
                             const leadIdKey = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : "l_" + Math.random());
 
+                            const stageAutomations = stageAutomationsMap[stage.id] || [];
+                            const hasMeetingRequirement = stageAutomations.some((a) => a.isEnabled && a.triggerBase === "meeting");
+                            const isMissingMeetingInfo = hasMeetingRequirement && (!lead.meeting?.meetingDate || !lead.meeting?.meetingTime);
+
                             return (
                               <div
                                 key={leadIdKey}
@@ -2216,6 +2340,11 @@ export default function CRMPage() {
                                 onClick={() => handleOpenDrawer(lead)}
                                 className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group hover:border-indigo-300"
                               >
+                                {isMissingMeetingInfo && (
+                                  <div className="bg-rose-50 border border-rose-200 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
+                                    <span>⚠️ Meeting Date missing - WhatsApp reminder skipped</span>
+                                  </div>
+                                )}
                                 <div className="flex items-start justify-between gap-1">
                                   <div className="truncate">
                                     <h5 className="text-xs font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
@@ -4531,6 +4660,196 @@ export default function CRMPage() {
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-5 py-2 rounded-xl transition-colors cursor-pointer"
               >
                 Close Manager
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STAGE AUTOMATION CONFIGURATION MODAL */}
+      {isStageAutomationModalOpen && activeAutomationStage && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
+          <div className="fixed inset-0" onClick={() => setIsStageAutomationModalOpen(false)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 border border-slate-200 z-10 animate-in fade-in zoom-in duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3">
+                <span
+                  className="w-4 h-4 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: activeAutomationStage.color || "#6366f1" }}
+                />
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900 flex items-center space-x-2">
+                    <span>Stage Automations: {activeAutomationStage.name} ⚡</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Configure automated WhatsApp messages sent relative to meeting date or lead creation date for leads in this stage.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsStageAutomationModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 font-bold flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Create New Stage Automation Form */}
+            <form onSubmit={handleSaveStageRule} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+              <h4 className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider flex items-center space-x-1.5">
+                <i className="fa-solid fa-bolt text-xs"></i>
+                <span>Add Automation Rule for "{activeAutomationStage.name}"</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Rule Title */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[11px] font-extrabold text-slate-700">Automation Rule Title:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 10 Min Before Meeting Reminder or 1 Day After Entry"
+                    value={ruleTitle}
+                    onChange={(e) => setRuleTitle(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    required
+                  />
+                </div>
+
+                {/* Reference Target Base */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Reference Target Base:</label>
+                  <select
+                    value={ruleTriggerBase}
+                    onChange={(e) => setRuleTriggerBase(e.target.value as any)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="meeting">📅 Meeting Booked Date & Time</option>
+                    <option value="created">📝 Lead Creation Date & Time</option>
+                  </select>
+                </div>
+
+                {/* Timing Offset Direction */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Timing Direction:</label>
+                  <select
+                    value={ruleOffsetType}
+                    onChange={(e) => setRuleOffsetType(e.target.value as any)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="before">⏳ Before Event Target</option>
+                    <option value="after">⏩ After Event Entry</option>
+                    <option value="recurring">🔄 Recurring Interval</option>
+                  </select>
+                </div>
+
+                {/* Offset Value */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Offset Amount:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={ruleOffsetValue}
+                    onChange={(e) => setRuleOffsetValue(Number(e.target.value))}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    required
+                  />
+                </div>
+
+                {/* Offset Unit */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Time Unit:</label>
+                  <select
+                    value={ruleOffsetUnit}
+                    onChange={(e) => setRuleOffsetUnit(e.target.value as any)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="minutes">Minutes (m)</option>
+                    <option value="hours">Hours (h)</option>
+                    <option value="days">Days (d)</option>
+                  </select>
+                </div>
+
+                {/* Message Template */}
+                <div className="space-y-1 sm:col-span-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <label className="font-extrabold text-slate-700">WhatsApp Message Template:</label>
+                    <span className="font-mono text-slate-500">Tags: {"{{name}}"}, {"{{date}}"}, {"{{time}}"}</span>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={ruleTemplate}
+                    onChange={(e) => setRuleTemplate(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                    placeholder="Enter WhatsApp message..."
+                    required
+                  ></textarea>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingRule}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
+              >
+                {isSavingRule ? (
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                ) : (
+                  <i className="fa-solid fa-bolt text-xs"></i>
+                )}
+                <span>Save Stage Automation Rule ⚡</span>
+              </button>
+            </form>
+
+            {/* List of Configured Stage Rules */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                Configured Rules for {activeAutomationStage.name} ({(stageAutomationsMap[activeAutomationStage.id] || []).length})
+              </h4>
+
+              {(stageAutomationsMap[activeAutomationStage.id] || []).length === 0 ? (
+                <div className="p-6 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                  <span className="text-xs font-bold text-slate-500">No automation rules configured for this stage yet.</span>
+                  <p className="text-[11px] text-slate-400">Use the form above to add your first WhatsApp automation rule!</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                  {(stageAutomationsMap[activeAutomationStage.id] || []).map((rule) => (
+                    <div
+                      key={rule.id}
+                      className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                          <span className="text-xs font-extrabold text-slate-900">{rule.title}</span>
+                          <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 uppercase">
+                            {rule.offsetValue} {rule.offsetUnit} {rule.offsetType} ({rule.triggerBase})
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 italic truncate font-mono">
+                          "{rule.template}"
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteStageRule(activeAutomationStage.id, rule.id)}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                      >
+                        Delete 🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+              <button
+                onClick={() => setIsStageAutomationModalOpen(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-5 py-2 rounded-xl transition-colors cursor-pointer"
+              >
+                Close Automation Settings
               </button>
             </div>
           </div>

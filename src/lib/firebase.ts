@@ -67,6 +67,42 @@ export function sanitizeEmailToId(email: string): string {
 }
 
 /**
+ * Helper: Convert time string like "09:00 AM" to Firebase key "09_00_AM"
+ */
+export function sanitizeSlotKey(time: string): string {
+  return time.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+/**
+ * Fetch booked slots for a specific date under path:
+ * slots/[campaignName]/[appointmentDate]
+ */
+export async function getBookedSlotsForDate(
+  appointmentDate: string,
+  campaignName: string = "firstoptionagency"
+): Promise<Record<string, boolean>> {
+  try {
+    const slotsRef = ref(db, `slots/${campaignName}/${appointmentDate}`);
+    const snapshot = await get(slotsRef);
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      const bookedMap: Record<string, boolean> = {};
+      Object.keys(data).forEach((key) => {
+        if (data[key] && data[key].booked) {
+          // Store original formatted time or key
+          bookedMap[key] = true;
+        }
+      });
+      return bookedMap;
+    }
+    return {};
+  } catch (error) {
+    console.error("Firebase getBookedSlotsForDate Error:", error);
+    return {};
+  }
+}
+
+/**
  * Fetch lead profile from Firebase by leadId & createdDate
  */
 export async function getLeadById(
@@ -92,6 +128,7 @@ export async function getLeadById(
  * - Partial (Step 1): ONLY contact info saved (NO survey, NO links).
  * - Survey Completed (Step 2): Adds survey answers + ONLY surveyUrl link (NO meetingUrl).
  * - Completed (Step 3): Adds meeting date & time + meetingUrl link to master lead & meeting index.
+ * - Realtime Slot Booking: Atomic write to slots/[campaignName]/[appointmentDate]/[slotKey]
  */
 export async function saveOrUpdateLead(
   lead: LeadData,
@@ -156,9 +193,12 @@ export async function saveOrUpdateLead(
     // Set Master Lead Path
     updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}`] = leadPayload;
 
-    // High-Performance Meeting Index Path (For CRM "Today's Meetings" View)
-    if (lead.meeting && lead.meeting.meetingDate) {
+    // High-Performance Meeting Index & Atomic Slot Booking
+    if (lead.meeting && lead.meeting.meetingDate && lead.meeting.meetingTime) {
       const mDate = lead.meeting.meetingDate;
+      const mTime = lead.meeting.meetingTime;
+      const slotKey = sanitizeSlotKey(mTime);
+
       const meetingIndexPayload = {
         leadId: leadId,
         fullName: lead.fullName,
@@ -166,14 +206,24 @@ export async function saveOrUpdateLead(
         phone: lead.phone,
         countryCode: lead.countryCode || "+91",
         meetingDate: mDate,
-        meetingTime: lead.meeting.meetingTime || "",
+        meetingTime: mTime,
         status: "booked",
         createdDate: createdDate,
         bookedAt: lead.meeting.bookedAt || timestamp,
         survey: lead.survey || {},
       };
 
+      // 1. Meeting Index Node
       updates[`campaigns/${campaignName}/meetings/${mDate}/${leadId}`] = meetingIndexPayload;
+
+      // 2. Realtime Dedicated Slot Booking Node under slots/[campaignName]/[appointmentDate]/[slotKey]
+      updates[`slots/${campaignName}/${mDate}/${slotKey}`] = {
+        booked: true,
+        leadId: leadId,
+        fullName: lead.fullName,
+        phone: lead.phone,
+        bookedAt: timestamp,
+      };
     }
 
     // Perform Atomic Write to Firebase

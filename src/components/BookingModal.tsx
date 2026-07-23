@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { saveOrUpdateLead, getLeadById, sanitizeEmailToId, LeadData } from "@/lib/firebase";
+import {
+  saveOrUpdateLead,
+  getLeadById,
+  sanitizeEmailToId,
+  getBookedSlotsForDate,
+  sanitizeSlotKey,
+  LeadData,
+} from "@/lib/firebase";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -14,6 +21,18 @@ interface BookingModalProps {
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
+];
+
+// Exact 8 daily time slots matching user request
+const DAILY_TIME_SLOTS = [
+  "09:00 AM",
+  "10:00 AM",
+  "11:00 AM",
+  "12:00 PM",
+  "02:00 PM",
+  "03:00 PM",
+  "07:00 PM",
+  "09:00 PM",
 ];
 
 export function BookingModal({
@@ -54,11 +73,20 @@ export function BookingModal({
   // Qualification Question Index (0 to 3)
   const [activeQIndex, setActiveQIndex] = useState<number>(0);
 
+  // Get current real-world date for past date prevention
+  const today = new Date();
+  const realTodayYear = today.getFullYear();
+  const realTodayMonth = today.getMonth(); // 0-based
+  const realTodayDay = today.getDate();
+
   // Dynamic Interactive Calendar State
-  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(6); // 6 = July
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [selectedDay, setSelectedDay] = useState<number>(23);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(realTodayMonth);
+  const [currentYear, setCurrentYear] = useState<number>(realTodayYear);
+  const [selectedDay, setSelectedDay] = useState<number>(realTodayDay);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
+
+  // Real-time booked slots map for the selected date
+  const [bookedSlotsMap, setBookedSlotsMap] = useState<Record<string, boolean>>({});
 
   // Synchronize initialStep when modal opens or URL parameters change
   useEffect(() => {
@@ -157,6 +185,22 @@ export function BookingModal({
     restoreLead();
   }, [isOpen, initialStep, initialLeadId, initialCreatedDate]);
 
+  // Realtime Booked Slots Listener whenever selected date changes
+  useEffect(() => {
+    async function fetchSlots() {
+      if (!isOpen || step !== 3) return;
+
+      const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");
+      const formattedDay = selectedDay.toString().padStart(2, "0");
+      const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
+
+      const bookedMap = await getBookedSlotsForDate(appointmentDateStr, "firstoptionagency");
+      setBookedSlotsMap(bookedMap);
+    }
+
+    fetchSlots();
+  }, [isOpen, step, selectedDay, currentMonthIndex, currentYear]);
+
   if (!isOpen) return null;
 
   // Step 1 Submit: Save ONLY Contact details to Firebase (status: "partial")
@@ -234,8 +278,14 @@ export function BookingModal({
     onClose();
   };
 
-  // Month Switching Handlers
+  // Month Switching Handlers with Prev Month Prevention
+  const isPrevMonthDisabled =
+    currentYear < realTodayYear ||
+    (currentYear === realTodayYear && currentMonthIndex <= realTodayMonth);
+
   const handlePrevMonth = () => {
+    if (isPrevMonthDisabled) return;
+
     if (currentMonthIndex > 0) {
       setCurrentMonthIndex(currentMonthIndex - 1);
     } else {
@@ -257,8 +307,25 @@ export function BookingModal({
   const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
   const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
 
-  // Step 3 Submit: Update Meeting details inside SAME Firebase Lead Node (status: "completed")
+  // Helper to check if a specific day is in the past
+  const isPastDay = (dayNum: number) => {
+    if (currentYear < realTodayYear) return true;
+    if (currentYear === realTodayYear && currentMonthIndex < realTodayMonth) return true;
+    if (
+      currentYear === realTodayYear &&
+      currentMonthIndex === realTodayMonth &&
+      dayNum < realTodayDay
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  // Step 3 Submit: Update Meeting details & Slot Booking in Firebase (status: "completed")
   const handleSelectSlot = async (time: string) => {
+    const slotKey = sanitizeSlotKey(time);
+    if (bookedSlotsMap[slotKey]) return; // Block booking already booked slot
+
     setSelectedTimeSlot(time);
 
     const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
@@ -593,8 +660,10 @@ export function BookingModal({
             <div className="border border-zinc-800 rounded-xl sm:rounded-2xl p-3 bg-zinc-950 space-y-3">
               <div className="flex items-center justify-between text-xs font-extrabold text-white px-1">
                 <button
+                  type="button"
+                  disabled={isPrevMonthDisabled}
                   onClick={handlePrevMonth}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors disabled:opacity-30 disabled:pointer-events-none"
                 >
                   <i className="fa-solid fa-chevron-left text-[10px]"></i>
                   <span>Prev</span>
@@ -605,6 +674,7 @@ export function BookingModal({
                 </span>
 
                 <button
+                  type="button"
                   onClick={handleNextMonth}
                   className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors"
                 >
@@ -624,7 +694,7 @@ export function BookingModal({
                 <span>SAT</span>
               </div>
 
-              {/* Accurate Calendar Day Grid */}
+              {/* Accurate Calendar Day Grid with Past Date Prevention */}
               <div className="grid grid-cols-7 gap-1 text-center text-xs font-mono font-bold">
                 {[...Array(firstDayOfWeek)].map((_, emptyIdx) => (
                   <div key={`empty-${emptyIdx}`} className="p-1 sm:p-1.5" />
@@ -633,12 +703,17 @@ export function BookingModal({
                 {[...Array(daysInMonth)].map((_, i) => {
                   const dayNum = i + 1;
                   const isSelected = selectedDay === dayNum;
+                  const isPast = isPastDay(dayNum);
+
                   return (
                     <button
                       key={dayNum}
+                      disabled={isPast}
                       onClick={() => setSelectedDay(dayNum)}
                       className={`p-1.5 sm:p-2 rounded-xl transition-all text-xs font-bold ${
-                        isSelected
+                        isPast
+                          ? "text-zinc-700 bg-zinc-900/30 cursor-not-allowed opacity-30 pointer-events-none line-through"
+                          : isSelected
                           ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_15px_rgba(245,166,35,0.4)] scale-105"
                           : "text-slate-200 hover:bg-zinc-800 hover:text-amber-400"
                       }`}
@@ -650,40 +725,51 @@ export function BookingModal({
               </div>
             </div>
 
-            {/* Time Slot Picker for Selected Date */}
+            {/* Time Slot Picker for Selected Date with Real-time Disabling */}
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between text-xs font-bold text-slate-200">
                 <span>📅 {formattedBookingDate}</span>
                 <span className="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {["10:00 AM", "02:00 PM", "05:00 PM", "07:30 PM", "09:00 PM"].map((time) => (
-                  <button
-                    key={time}
-                    onClick={() => handleSelectSlot(time)}
-                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-slate-950 font-extrabold p-2.5 sm:p-3 rounded-xl text-xs hover:brightness-110 shadow-md transition-all active:scale-[0.98] flex items-center justify-center space-x-1.5"
-                  >
-                    <i className="fa-regular fa-clock"></i>
-                    <span>{time}</span>
-                  </button>
-                ))}
+              {/* Daily Time Slots Grid matching user image */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                {DAILY_TIME_SLOTS.map((time) => {
+                  const slotKey = sanitizeSlotKey(time);
+                  const isBooked = bookedSlotsMap[slotKey] === true;
+
+                  return (
+                    <button
+                      key={time}
+                      disabled={isBooked}
+                      onClick={() => handleSelectSlot(time)}
+                      className={`w-full p-2.5 rounded-xl text-xs font-bold transition-all shadow ${
+                        isBooked
+                          ? "bg-zinc-800/80 border border-zinc-700 text-zinc-500 cursor-not-allowed line-through flex items-center justify-center space-x-1 opacity-60"
+                          : "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1"
+                      }`}
+                    >
+                      <i className="fa-regular fa-clock text-[11px]"></i>
+                      <span>{isBooked ? `${time} (Booked)` : time}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 4: Final Success Confirmation & WhatsApp Action */}
+      {/* Step 4: Final Success Confirmation & Back to Home Page */}
       {step === 4 && (
-        <div className="bg-[#0c0c0f] text-white border border-emerald-500/40 w-full max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative text-center space-y-4 font-sans my-auto">
+        <div className="bg-[#0c0c0f] text-white border border-emerald-500/40 w-full max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative text-center space-y-4 font-sans my-auto animate-toast-in">
           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center text-2xl sm:text-3xl mx-auto shadow-lg">
             ✓
           </div>
 
           <div>
             <h4 className="text-lg sm:text-xl font-black text-white">
-              Appointment Locked! 🎉
+              Appointment Slot Booked Successfully! 🎉
             </h4>
             <p className="text-xs text-amber-400 font-bold mt-1">
               {formattedBookingDate} at {selectedTimeSlot}
@@ -694,24 +780,25 @@ export function BookingModal({
             <div><span className="text-slate-500">Name:</span> {contactInfo.fullName || "User"}</div>
             <div><span className="text-slate-500">Phone:</span> {contactInfo.countryCode} {contactInfo.phone || "N/A"}</div>
             <div><span className="text-slate-500">Industry:</span> {qAnswers.industry}</div>
-            <div><span className="text-slate-500">Slot:</span> {formattedBookingDate} ({selectedTimeSlot})</div>
+            <div><span className="text-slate-500">Booked Slot:</span> {formattedBookingDate} ({selectedTimeSlot})</div>
           </div>
 
           <a
             href={whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={handleReset}
             className="block w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm uppercase tracking-wide shadow-xl transition-transform active:scale-98"
           >
             <i className="fa-brands fa-whatsapp mr-2 text-base"></i>
-            Confirm Slot On WhatsApp Instantly
+            Confirm Slot On WhatsApp & Go Home
           </a>
 
           <button
             onClick={handleReset}
-            className="text-xs text-slate-500 underline hover:text-slate-300 pt-1 block mx-auto"
+            className="w-full bg-zinc-800 hover:bg-zinc-700 text-slate-200 font-bold py-2.5 px-4 rounded-xl text-xs transition-colors block"
           >
-            Close Window
+            Back to Home Page
           </button>
         </div>
       )}

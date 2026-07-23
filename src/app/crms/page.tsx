@@ -2391,7 +2391,9 @@ export default function CRMPage() {
 
                             // Calculate Next Scheduled WhatsApp Countdown
                             let nextCountdownStr: string | null = null;
+                            let isCompletedRule = false;
                             const activeRules = stageAutomations.filter((r) => r.isEnabled);
+
                             if (activeRules.length > 0) {
                               let earliestMs: number | null = null;
                               for (const rule of activeRules) {
@@ -2402,7 +2404,7 @@ export default function CRMPage() {
                                   }
                                 } else {
                                   const rawCreated = lead.createdAt || lead.createdDate || (lead as any).timestamp || lead.meeting?.bookedAt;
-                                  refDate = rawCreated ? new Date(rawCreated) : null;
+                                  refDate = rawCreated ? new Date(rawCreated) : new Date();
                                 }
 
                                 if (refDate && !isNaN(refDate.getTime())) {
@@ -2413,7 +2415,7 @@ export default function CRMPage() {
 
                                   let targetMs = 0;
                                   if (rule.offsetType === "recurring") {
-                                    const elapsedMs = nowTick - refDate.getTime();
+                                    const elapsedMs = Math.max(0, nowTick - refDate.getTime());
                                     let intervalIndex = Math.floor(elapsedMs / offsetMs) + 1;
                                     if (intervalIndex < 1) intervalIndex = 1;
                                     targetMs = refDate.getTime() + (intervalIndex * offsetMs);
@@ -2432,7 +2434,9 @@ export default function CRMPage() {
                               if (earliestMs !== null) {
                                 const diffMs = earliestMs - nowTick;
                                 if (diffMs <= 0) {
-                                  nextCountdownStr = "⚡ Sending Due...";
+                                  // Non-recurring target passed or executed
+                                  isCompletedRule = true;
+                                  nextCountdownStr = "✅ Automation Dispatched";
                                 } else {
                                   const diffSec = Math.floor(diffMs / 1000);
                                   const days = Math.floor(diffSec / 86400);
@@ -2441,7 +2445,7 @@ export default function CRMPage() {
                                   const secs = diffSec % 60;
 
                                   if (days > 0) nextCountdownStr = `${days}d ${hours}h ${mins}m`;
-                                  else if (hours > 0) nextCountdownStr = `${hours}h ${mins}m ${secs}s`;
+                                  else if (hours > 0) nextCountdownStr = `${hours}h ${mins}m ${secs.toString().padStart(2, "0")}s`;
                                   else if (mins > 0) nextCountdownStr = `${mins}m ${secs.toString().padStart(2, "0")}s`;
                                   else nextCountdownStr = `${secs}s`;
                                 }
@@ -2463,13 +2467,29 @@ export default function CRMPage() {
                                     <span>⚠️ Meeting Date missing - WhatsApp reminder skipped</span>
                                   </div>
                                 ) : nextCountdownStr ? (
-                                  <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 text-[10px] font-extrabold px-2.5 py-1 rounded-lg flex items-center justify-between shadow-2xs">
+                                  <div
+                                    className={`${
+                                      isCompletedRule
+                                        ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                                        : "bg-indigo-50 border-indigo-200 text-indigo-900"
+                                    } border text-[10px] font-extrabold px-2.5 py-1 rounded-lg flex items-center justify-between shadow-2xs`}
+                                  >
                                     <span className="flex items-center space-x-1">
-                                      <i className="fa-solid fa-clock-rotate-left text-indigo-600 fa-spin"></i>
+                                      <i
+                                        className={`fa-solid ${
+                                          isCompletedRule ? "fa-circle-check text-emerald-600" : "fa-clock-rotate-left text-indigo-600 fa-spin"
+                                        }`}
+                                      ></i>
                                       <span>Next WhatsApp:</span>
                                     </span>
-                                    <span className="font-mono text-indigo-700 bg-white px-1.5 py-0.5 rounded border border-indigo-200 shadow-2xs">
-                                      ⏱️ {nextCountdownStr}
+                                    <span
+                                      className={`font-mono ${
+                                        isCompletedRule
+                                          ? "text-emerald-700 bg-white border-emerald-200"
+                                          : "text-indigo-700 bg-white border-indigo-200"
+                                      } px-1.5 py-0.5 rounded border shadow-2xs`}
+                                    >
+                                      {isCompletedRule ? "✅ Dispatched" : `⏱️ ${nextCountdownStr}`}
                                     </span>
                                   </div>
                                 ) : null}

@@ -7,10 +7,15 @@ interface BookingModalProps {
   onClose: () => void;
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 export function BookingModal({ isOpen, onClose }: BookingModalProps) {
   // Step 1: Initial Form
   // Step 2: Qualification Typeform (Q2: Industry, Q3: Role, Q4: Revenue, Q5: Investment)
-  // Step 3: Calendar Booking (Date & Slot Selection)
+  // Step 3: Interactive Calendar Booking (Month, Date & Slot Selection)
   // Step 4: Final Success Confirmation & WhatsApp redirect
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -29,11 +34,13 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
     investmentReady: "Yes",
   });
 
-  // Current question inside Step 2 qualification questionnaire (0 to 3)
+  // Qualification Question Index (0 to 3)
   const [activeQIndex, setActiveQIndex] = useState<number>(0);
 
-  // Calendar State
-  const [selectedDate, setSelectedDate] = useState<number>(23);
+  // Dynamic Interactive Calendar State
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(6); // 6 = July
+  const [currentYear, setCurrentYear] = useState<number>(2026);
+  const [selectedDay, setSelectedDay] = useState<number>(23);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -56,13 +63,38 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
     onClose();
   };
 
+  // Month Switching Handlers
+  const handlePrevMonth = () => {
+    if (currentMonthIndex > 0) {
+      setCurrentMonthIndex(currentMonthIndex - 1);
+    } else {
+      setCurrentMonthIndex(11);
+      setCurrentYear(currentYear - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonthIndex < 11) {
+      setCurrentMonthIndex(currentMonthIndex + 1);
+    } else {
+      setCurrentMonthIndex(0);
+      setCurrentYear(currentYear + 1);
+    }
+  };
+
+  // Calculate calendar grid metrics for active month & year
+  const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
+  const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
+
   const handleSelectSlot = (time: string) => {
     setSelectedTimeSlot(time);
     setStep(4);
   };
 
+  const formattedBookingDate = `${selectedDay} ${MONTH_NAMES[currentMonthIndex]} ${currentYear}`;
+
   const whatsappUrl = `https://api.whatsapp.com/send?phone=919876543210&text=${encodeURIComponent(
-    `Hi First Option Agency, I just booked a Growth Consultation Call.\nName: ${contactInfo.fullName || "User"}\nEmail: ${contactInfo.email || "N/A"}\nPhone: ${contactInfo.countryCode} ${contactInfo.phone || "N/A"}\nIndustry: ${qAnswers.industry}\nRole: ${qAnswers.role}\nMonthly Revenue: ${qAnswers.revenue}\nBooked Slot: ${selectedDate} July 2026 at ${selectedTimeSlot || "02:00 PM"}`
+    `Hi First Option Agency, I just booked a Growth Consultation Call.\nName: ${contactInfo.fullName || "User"}\nEmail: ${contactInfo.email || "N/A"}\nPhone: ${contactInfo.countryCode} ${contactInfo.phone || "N/A"}\nIndustry: ${qAnswers.industry}\nRole: ${qAnswers.role}\nMonthly Revenue: ${qAnswers.revenue}\nBooked Slot: ${formattedBookingDate} at ${selectedTimeSlot || "02:00 PM"}`
   )}`;
 
   const qualificationQuestions = [
@@ -203,8 +235,6 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
       {/* Step 2: Qualification Questionnaire (Typeform Dark Aesthetic) */}
       {step === 2 && (
         <div className="bg-[#0f0f13] text-white border border-zinc-800 w-full max-w-xl rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans flex flex-col justify-between my-auto">
-          
-          {/* Header */}
           <div>
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5 mb-3">
               <h3 className="text-xs sm:text-base font-bold text-white tracking-wide truncate">
@@ -261,7 +291,6 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
             })()}
           </div>
 
-          {/* Bottom Action Footer & Navigation Controls */}
           <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-between mt-5">
             <div className="flex items-center space-x-3">
               {activeQIndex === qualificationQuestions.length - 1 ? (
@@ -288,7 +317,6 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               </span>
             </div>
 
-            {/* Up / Down Navigation Arrows */}
             <div className="flex items-center space-x-1.5">
               <button
                 type="button"
@@ -311,59 +339,79 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
         </div>
       )}
 
-      {/* Step 3: Calendar Appointment Booking */}
+      {/* Step 3: Interactive Calendar Appointment Booking with Month Switcher */}
       {step === 3 && (
         <div className="bg-[#0b0b0e] text-white border border-zinc-800 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans space-y-3 my-auto">
-          <div className="text-center space-y-1">
-            <p className="text-[11px] text-slate-400">
-              Please choose a date and time that works best for you from the calendar below.
+          
+          {/* Header Bar */}
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+            <p className="text-xs sm:text-sm font-bold text-slate-300">
+              Select date & time for your Growth Strategy Call
             </p>
+            <button
+              onClick={handleReset}
+              className="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
           </div>
 
           <div className="bg-[#121217] border border-zinc-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-3.5 shadow-xl">
-            {/* Call Info Header */}
+            {/* Host Card Info */}
             <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
               <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-amber-400 shadow">
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 shadow">
                   <img src="/founder.png" alt="Faiz Ansari" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h4 className="text-xs sm:text-base font-bold text-white leading-tight">
                     Your Business Growth Call
                   </h4>
-                  <p className="text-[11px] text-slate-400">Faiz Ansari</p>
+                  <p className="text-[11px] text-amber-400 font-semibold">Faiz Ansari • Senior Strategist</p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full text-[10px] sm:text-xs text-slate-300 font-mono">
-                <i className="fa-regular fa-clock text-amber-400"></i>
+              <div className="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] sm:text-xs text-amber-400 font-mono font-bold">
+                <i className="fa-regular fa-clock"></i>
                 <span>60 min</span>
               </div>
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <div className="flex items-center space-x-1.5">
+              <div className="flex items-center space-x-1.5 font-mono">
                 <i className="fa-solid fa-globe text-amber-400"></i>
-                <span>Asia/Calcutta (India)</span>
+                <span>Asia/Calcutta (GMT+5:30)</span>
               </div>
             </div>
 
-            {/* Interactive Calendar Month Header */}
-            <div className="border border-zinc-800 rounded-xl sm:rounded-2xl p-2.5 bg-zinc-950 space-y-2.5">
-              <div className="flex items-center justify-between text-xs font-extrabold text-white px-2">
-                <div className="flex space-x-2 text-slate-400">
-                  <button className="hover:text-white">«</button>
-                  <button className="hover:text-white">‹</button>
-                </div>
-                <span className="text-xs sm:text-sm font-bold text-amber-400">July 2026</span>
-                <div className="flex space-x-2 text-slate-400">
-                  <button className="hover:text-white">›</button>
-                  <button className="hover:text-white">»</button>
-                </div>
+            {/* Interactive Month Switcher Calendar Card */}
+            <div className="border border-zinc-800 rounded-xl sm:rounded-2xl p-3 bg-zinc-950 space-y-3">
+              
+              {/* Month Navigation Control Header */}
+              <div className="flex items-center justify-between text-xs font-extrabold text-white px-1">
+                <button
+                  onClick={handlePrevMonth}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors"
+                >
+                  <i className="fa-solid fa-chevron-left text-[10px]"></i>
+                  <span>Prev</span>
+                </button>
+
+                <span className="text-sm font-black text-white tracking-wide bg-zinc-900/90 px-3 py-1 rounded-lg border border-zinc-800">
+                  {MONTH_NAMES[currentMonthIndex]} {currentYear}
+                </span>
+
+                <button
+                  onClick={handleNextMonth}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors"
+                >
+                  <span>Next</span>
+                  <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
               </div>
 
-              {/* Days Header */}
-              <div className="grid grid-cols-7 text-center text-[9px] sm:text-[10px] font-bold text-slate-500 border-b border-zinc-800/60 pb-1">
+              {/* Day Labels */}
+              <div className="grid grid-cols-7 text-center text-[9px] sm:text-[10px] font-bold text-slate-500 border-b border-zinc-800/80 pb-1">
                 <span>SUN</span>
                 <span>MON</span>
                 <span>TUE</span>
@@ -373,23 +421,25 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
                 <span>SAT</span>
               </div>
 
-              {/* Calendar Grid (Days 1 to 31) */}
+              {/* Accurate Calendar Day Grid */}
               <div className="grid grid-cols-7 gap-1 text-center text-xs font-mono font-bold">
-                {[...Array(31)].map((_, i) => {
+                {/* Empty offset cells before day 1 */}
+                {[...Array(firstDayOfWeek)].map((_, emptyIdx) => (
+                  <div key={`empty-${emptyIdx}`} className="p-1 sm:p-1.5" />
+                ))}
+
+                {/* Days of Month */}
+                {[...Array(daysInMonth)].map((_, i) => {
                   const dayNum = i + 1;
-                  const isPast = dayNum < 23;
-                  const isSelected = selectedDate === dayNum;
+                  const isSelected = selectedDay === dayNum;
                   return (
                     <button
                       key={dayNum}
-                      disabled={isPast}
-                      onClick={() => setSelectedDate(dayNum)}
-                      className={`p-1 sm:p-1.5 rounded-lg transition-all text-xs ${
+                      onClick={() => setSelectedDay(dayNum)}
+                      className={`p-1.5 sm:p-2 rounded-xl transition-all text-xs font-bold ${
                         isSelected
-                          ? "bg-amber-500 text-slate-950 font-black shadow-md scale-105"
-                          : isPast
-                          ? "text-zinc-600 opacity-40 cursor-not-allowed"
-                          : "text-slate-200 hover:bg-zinc-800 hover:text-white"
+                          ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_15px_rgba(245,166,35,0.4)] scale-105"
+                          : "text-slate-200 hover:bg-zinc-800 hover:text-amber-400"
                       }`}
                     >
                       {dayNum}
@@ -399,20 +449,21 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               </div>
             </div>
 
-            {/* Selected Date Time Slots */}
-            <div className="space-y-2 pt-0.5">
-              <p className="text-xs font-bold text-slate-300">
-                {selectedDate} July 2026 — Available Slots:
-              </p>
+            {/* Time Slot Picker for Selected Date */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-200">
+                <span>📅 {formattedBookingDate}</span>
+                <span className="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
+              </div>
 
-              <div className="space-y-2">
-                {["02:00 PM", "07:00 PM", "09:00 PM"].map((time) => (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {["10:00 AM", "02:00 PM", "05:00 PM", "07:30 PM", "09:00 PM"].map((time) => (
                   <button
                     key={time}
                     onClick={() => handleSelectSlot(time)}
-                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-slate-950 font-black p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm hover:brightness-105 shadow-md transition-all active:scale-[0.99] flex items-center justify-center space-x-2"
+                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-slate-950 font-extrabold p-2.5 sm:p-3 rounded-xl text-xs hover:brightness-110 shadow-md transition-all active:scale-[0.98] flex items-center justify-center space-x-1.5"
                   >
-                    <i className="fa-regular fa-calendar-check text-slate-950"></i>
+                    <i className="fa-regular fa-clock"></i>
                     <span>{time}</span>
                   </button>
                 ))}
@@ -434,7 +485,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               Appointment Locked! 🎉
             </h4>
             <p className="text-xs text-amber-400 font-bold mt-1">
-              {selectedDate} July 2026 at {selectedTimeSlot}
+              {formattedBookingDate} at {selectedTimeSlot}
             </p>
           </div>
 
@@ -442,7 +493,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
             <div><span className="text-slate-500">Name:</span> {contactInfo.fullName || "User"}</div>
             <div><span className="text-slate-500">Phone:</span> {contactInfo.countryCode} {contactInfo.phone || "N/A"}</div>
             <div><span className="text-slate-500">Industry:</span> {qAnswers.industry}</div>
-            <div><span className="text-slate-500">Revenue:</span> {qAnswers.revenue}</div>
+            <div><span className="text-slate-500">Slot:</span> {formattedBookingDate} ({selectedTimeSlot})</div>
           </div>
 
           <a

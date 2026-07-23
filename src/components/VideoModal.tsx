@@ -7,39 +7,50 @@ interface VideoModalProps {
   onClose: () => void;
   title: string;
   author: string;
+  embedId?: string;
   onBookClick: () => void;
 }
 
-export function VideoModal({ isOpen, onClose, title, author, onBookClick }: VideoModalProps) {
+export function VideoModal({ isOpen, onClose, title, author, embedId, onBookClick }: VideoModalProps) {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-toast-in">
-      <div className="bg-zinc-950 border border-amber-500/40 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl relative flex flex-col">
+      <div className="bg-zinc-950 border border-amber-500/40 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative flex flex-col">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center border border-white/20 transition-colors"
+          className="absolute top-3 right-3 z-30 w-9 h-9 rounded-full bg-black/80 hover:bg-black text-white flex items-center justify-center border border-white/20 transition-colors shadow-lg"
         >
           <i className="fa-solid fa-xmark text-lg"></i>
         </button>
 
-        {/* Video Player Simulation Container */}
+        {/* Video Player Container */}
         <div className="relative aspect-video w-full bg-black flex items-center justify-center">
-          <img
-            src="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=1200&q=80"
-            alt={title}
-            className="w-full h-full object-cover opacity-80"
-          />
-
-          {/* Play Overlay Simulation */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent flex flex-col items-center justify-center p-4 text-center">
-            <div className="w-16 h-16 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-2xl mb-3 animate-pulse cursor-pointer">
-              <i className="fa-solid fa-play text-2xl ml-1"></i>
+          {embedId ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${embedId}?autoplay=1`}
+              title={title}
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+          ) : (
+            <div className="relative aspect-video w-full bg-black flex items-center justify-center">
+              <img
+                src="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=1200&q=80"
+                alt={title}
+                className="w-full h-full object-cover opacity-80"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent flex flex-col items-center justify-center p-4 text-center">
+                <div className="w-16 h-16 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-2xl mb-3 animate-pulse cursor-pointer">
+                  <i className="fa-solid fa-play text-2xl ml-1"></i>
+                </div>
+                <p className="text-white font-black text-lg sm:text-xl drop-shadow">{title}</p>
+                <p className="text-amber-400 text-xs font-bold mt-1">{author} • Verified Case Study</p>
+              </div>
             </div>
-            <p className="text-white font-black text-lg sm:text-xl drop-shadow">{title}</p>
-            <p className="text-amber-400 text-xs font-bold mt-1">{author} • Verified Case Study</p>
-          </div>
+          )}
         </div>
 
         {/* Details & Action */}

@@ -24,20 +24,23 @@ export default function Home() {
     isOpen: boolean;
     title: string;
     author: string;
+    embedId?: string;
   }>({
     isOpen: false,
     title: "",
     author: "",
+    embedId: undefined,
   });
 
   const handleOpenBooking = () => setIsBookingOpen(true);
   const handleCloseBooking = () => setIsBookingOpen(false);
 
-  const handleOpenVideo = (title: string, author: string) => {
+  const handleOpenVideo = (title: string, author: string, embedId?: string) => {
     setVideoModal({
       isOpen: true,
       title,
       author,
+      embedId,
     });
   };
 
@@ -46,6 +49,7 @@ export default function Home() {
       isOpen: false,
       title: "",
       author: "",
+      embedId: undefined,
     });
   };
 
@@ -139,6 +143,7 @@ export default function Home() {
         onClose={handleCloseVideo}
         title={videoModal.title}
         author={videoModal.author}
+        embedId={videoModal.embedId}
         onBookClick={handleOpenBooking}
       />
 

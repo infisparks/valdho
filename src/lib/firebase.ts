@@ -54,6 +54,19 @@ export interface SaveLeadResult {
 }
 
 /**
+ * Sanitize email prefix (before @) to serve as deterministic Firebase Node ID.
+ * Example: mk@gmail.com -> "mk", testing1@gmail.com -> "testing1"
+ */
+export function sanitizeEmailToId(email: string): string {
+  if (!email || !email.includes("@")) {
+    return "lead_" + Date.now();
+  }
+  const prefix = email.split("@")[0].trim().toLowerCase();
+  const cleanId = prefix.replace(/[^a-z0-9_]/g, "_");
+  return cleanId || "lead_" + Date.now();
+}
+
+/**
  * Fetch lead profile from Firebase by leadId & createdDate
  */
 export async function getLeadById(
@@ -75,11 +88,11 @@ export async function getLeadById(
 }
 
 /**
- * High-Performance Dual-Index Architecture:
- * 1. Master Lead Record -> campaigns/[campaign]/leads/[createdDate]/[leadId]
- * 2. Instant Meeting Index -> campaigns/[campaign]/meetings/[meetingDate]/[leadId]
+ * High-Performance Deterministic Email-ID Architecture:
+ * 1. Master Lead Record -> campaigns/[campaign]/leads/[createdDate]/[emailPrefixId]
+ * 2. Instant Meeting Index -> campaigns/[campaign]/meetings/[meetingDate]/[emailPrefixId]
  *
- * Uses Atomic Multi-Location Updates with direct WhatsApp re-engagement links!
+ * Prevents duplicates when a user submits multiple times!
  */
 export async function saveOrUpdateLead(
   lead: LeadData,
@@ -92,16 +105,8 @@ export async function saveOrUpdateLead(
     const createdDate = existingCreatedDate || lead.createdDate || todayStr;
     const timestamp = new Date().toISOString();
 
-    let leadId = existingLeadId;
-
-    // Generate push ID under leads createdDate node if first time
-    if (!leadId) {
-      const dateRef = ref(db, `campaigns/${campaignName}/leads/${createdDate}`);
-      const newRef = push(dateRef);
-      leadId = newRef.key;
-    }
-
-    if (!leadId) return null;
+    // Use deterministic email prefix ID (e.g. "mk" or "testing1")
+    const leadId = existingLeadId || (lead.email ? sanitizeEmailToId(lead.email) : "lead_" + Date.now());
 
     const updates: Record<string, any> = {};
 
@@ -140,7 +145,7 @@ export async function saveOrUpdateLead(
       };
     }
 
-    // Set Master Lead Path
+    // Set Master Lead Path under email prefix ID
     updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}`] = leadPayload;
 
     // 2. High-Performance Meeting Index Path (For CRM "Today's Meetings" View)

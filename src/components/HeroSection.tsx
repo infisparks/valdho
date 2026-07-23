@@ -56,8 +56,12 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
 
           {/* Top YouTube Overlay Header */}
           <div className="absolute top-0 left-0 right-0 p-3 sm:p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center space-x-3 text-left">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-purple-700 flex items-center justify-center font-black text-white text-base sm:text-lg shadow-md">
-              F
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full overflow-hidden border-2 border-amber-400 shadow-md flex-shrink-0">
+              <img
+                src="/founder.png"
+                alt="Founder - First Option Agency"
+                className="w-full h-full object-cover"
+              />
             </div>
             <div>
               <p className="text-white font-bold text-sm sm:text-base md:text-lg leading-tight drop-shadow">

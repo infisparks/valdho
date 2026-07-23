@@ -8,6 +8,7 @@ import { CycleSection } from "@/components/CycleSection";
 import { ProblemSection } from "@/components/ProblemSection";
 import { SolutionSection } from "@/components/SolutionSection";
 import { WhyDifferentSection } from "@/components/WhyDifferentSection";
+import { FounderSection } from "@/components/FounderSection";
 import { ClientResultsSection } from "@/components/ClientResultsSection";
 import { GrowthCalculator } from "@/components/GrowthCalculator";
 import { HowItWorksSection } from "@/components/HowItWorksSection";
@@ -81,19 +82,22 @@ export default function Home() {
         {/* 5. Why We Are Different Section */}
         <WhyDifferentSection />
 
-        {/* 6. Client Results & Proof */}
+        {/* 6. Meet The Founder Section */}
+        <FounderSection onBookClick={handleOpenBooking} />
+
+        {/* 7. Client Results & Proof */}
         <ClientResultsSection onVideoClick={handleOpenVideo} />
 
-        {/* 7. Interactive Revenue Calculator Widget */}
+        {/* 8. Interactive Revenue Calculator Widget */}
         <GrowthCalculator onBookClick={handleOpenBooking} />
 
-        {/* 8. How It Works Step-by-Step */}
+        {/* 9. How It Works Step-by-Step */}
         <HowItWorksSection onBookClick={handleOpenBooking} />
 
-        {/* 9. Industries We Have Worked With Grid */}
+        {/* 10. Industries We Have Worked With Grid */}
         <IndustriesSection />
 
-        {/* 10. Frequently Asked Questions */}
+        {/* 11. Frequently Asked Questions */}
         <FAQSection />
 
         {/* Final Bottom High-Conversion CTA Banner */}

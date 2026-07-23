@@ -16,56 +16,73 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getDatabase(app);
 
+export interface SurveyData {
+  industry?: string;
+  role?: string;
+  revenue?: string;
+  investmentReady?: string;
+}
+
+export interface MeetingData {
+  meetingDate?: string;
+  meetingTime?: string;
+  bookedAt?: string;
+}
+
 export interface LeadData {
   id?: string;
   campaign?: string;
+  createdDate?: string;
   createdAt?: string;
   updatedAt?: string;
   fullName: string;
   email: string;
   phone: string;
   countryCode: string;
-  appointmentDate?: string;
-  appointmentTime?: string;
-  status: "partial" | "completed";
-  survey?: {
-    industry?: string;
-    role?: string;
-    revenue?: string;
-    investmentReady?: string;
-  };
+  status: "partial" | "survey_completed" | "completed";
+  survey?: SurveyData;
+  meeting?: MeetingData;
+}
+
+export interface SaveLeadResult {
+  leadId: string;
+  createdDate: string;
 }
 
 /**
  * Save or Update lead entry in Realtime Database under:
- * campaigns/[campaignName]/[appointmentDate]/[leadId]
+ * campaigns/[campaignName]/[createdDate]/[leadId]
+ *
+ * Ensures ONLY ONE single node per lead under its initial creation date.
  */
 export async function saveOrUpdateLead(
   lead: LeadData,
   existingLeadId?: string | null,
+  existingCreatedDate?: string | null,
   campaignName: string = "firstoptionagency"
-): Promise<string | null> {
+): Promise<SaveLeadResult | null> {
   try {
     const todayStr = new Date().toISOString().split("T")[0];
-    const targetDate = lead.appointmentDate || todayStr;
+    const createdDate = existingCreatedDate || lead.createdDate || todayStr;
     const timestamp = new Date().toISOString();
 
     let leadId = existingLeadId;
-    
-    // If no existing ID, generate a new unique push key under date ref
+
+    // If no existing ID, generate a new push key under initial creation date ref
     if (!leadId) {
-      const dateRef = ref(db, `campaigns/${campaignName}/${targetDate}`);
+      const dateRef = ref(db, `campaigns/${campaignName}/${createdDate}`);
       const newRef = push(dateRef);
       leadId = newRef.key;
     }
 
     if (!leadId) return null;
 
-    const leadRef = ref(db, `campaigns/${campaignName}/${targetDate}/${leadId}`);
+    const leadRef = ref(db, `campaigns/${campaignName}/${createdDate}/${leadId}`);
 
-    const payload = {
+    const payload: Record<string, any> = {
       id: leadId,
       campaign: campaignName,
+      createdDate: createdDate,
       createdAt: lead.createdAt || timestamp,
       updatedAt: timestamp,
       fullName: lead.fullName,
@@ -73,13 +90,27 @@ export async function saveOrUpdateLead(
       phone: lead.phone,
       countryCode: lead.countryCode || "+91",
       status: lead.status,
-      appointmentDate: targetDate,
-      appointmentTime: lead.appointmentTime || "",
-      survey: lead.survey || {},
     };
 
-    await set(leadRef, payload);
-    return leadId;
+    if (lead.survey) {
+      payload.survey = lead.survey;
+    }
+
+    if (lead.meeting) {
+      payload.meeting = {
+        meetingDate: lead.meeting.meetingDate || "",
+        meetingTime: lead.meeting.meetingTime || "",
+        bookedAt: lead.meeting.bookedAt || timestamp,
+      };
+    }
+
+    // Update node directly in Firebase
+    await update(leadRef, payload);
+
+    return {
+      leadId,
+      createdDate,
+    };
   } catch (error) {
     console.error("Firebase Database Save Error:", error);
     return null;

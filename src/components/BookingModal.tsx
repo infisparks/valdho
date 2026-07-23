@@ -14,14 +14,15 @@ const MONTH_NAMES = [
 ];
 
 export function BookingModal({ isOpen, onClose }: BookingModalProps) {
-  // Step 1: Initial Form
-  // Step 2: Qualification Typeform (Q2: Industry, Q3: Role, Q4: Revenue, Q5: Investment)
+  // Step 1: Initial Contact Form
+  // Step 2: Qualification Typeform Questionnaire
   // Step 3: Interactive Calendar Booking (Month, Date & Slot Selection)
   // Step 4: Final Success Confirmation & WhatsApp redirect
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
-  // Lead ID in Firebase & LocalStorage
+  // Lead ID & Creation Date in Firebase & LocalStorage
   const [firebaseLeadId, setFirebaseLeadId] = useState<string | null>(null);
+  const [createdDate, setCreatedDate] = useState<string | null>(null);
 
   // Form Contact State
   const [contactInfo, setContactInfo] = useState({
@@ -50,12 +51,14 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
   const [selectedDay, setSelectedDay] = useState<number>(23);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
-  // Pre-fill contact details from LocalStorage on mount/modal open
+  // Pre-fill contact details & lead info from LocalStorage on mount/modal open
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const savedContact = localStorage.getItem("firstoption_user_contact");
         const savedLeadId = localStorage.getItem("firstoption_lead_id");
+        const savedCreatedDate = localStorage.getItem("firstoption_created_date");
+
         if (savedContact) {
           const parsed = JSON.parse(savedContact);
           setContactInfo({
@@ -68,6 +71,9 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
         if (savedLeadId) {
           setFirebaseLeadId(savedLeadId);
         }
+        if (savedCreatedDate) {
+          setCreatedDate(savedCreatedDate);
+        }
       } catch (e) {
         console.error("LocalStorage restore error:", e);
       }
@@ -76,7 +82,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
 
   if (!isOpen) return null;
 
-  // Handle Step 1 Submit with 10-digit validation and Firebase sync
+  // Step 1 Submit: Save Contact details to Firebase (status: "partial")
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPhoneError(null);
@@ -87,7 +93,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
       return;
     }
 
-    // Persist to LocalStorage
+    // Persist contact to LocalStorage
     try {
       localStorage.setItem("firstoption_user_contact", JSON.stringify(contactInfo));
     } catch (err) {
@@ -104,17 +110,34 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
       survey: qAnswers,
     };
 
-    const newLeadId = await saveOrUpdateLead(leadPayload, firebaseLeadId, "firstoptionagency");
-    if (newLeadId) {
-      setFirebaseLeadId(newLeadId);
+    const res = await saveOrUpdateLead(leadPayload, firebaseLeadId, createdDate, "firstoptionagency");
+    if (res) {
+      setFirebaseLeadId(res.leadId);
+      setCreatedDate(res.createdDate);
       try {
-        localStorage.setItem("firstoption_lead_id", newLeadId);
+        localStorage.setItem("firstoption_lead_id", res.leadId);
+        localStorage.setItem("firstoption_created_date", res.createdDate);
       } catch (err) {
         console.error("LocalStorage leadId error:", err);
       }
     }
 
     setStep(2);
+  };
+
+  // Step 2 Submit: Save Survey Answers to SAME Firebase Lead Node (status: "survey_completed")
+  const handleStep2Submit = async () => {
+    const surveyPayload: LeadData = {
+      fullName: contactInfo.fullName,
+      email: contactInfo.email,
+      phone: contactInfo.phone.replace(/\D/g, ""),
+      countryCode: contactInfo.countryCode,
+      status: "survey_completed",
+      survey: qAnswers,
+    };
+
+    await saveOrUpdateLead(surveyPayload, firebaseLeadId, createdDate, "firstoptionagency");
+    setStep(3);
   };
 
   const handleReset = () => {
@@ -148,7 +171,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
   const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
   const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
 
-  // Final Slot Selection & Firebase Completed Sync
+  // Step 3 Submit: Update Meeting details inside SAME Firebase Lead Node (status: "completed")
   const handleSelectSlot = async (time: string) => {
     setSelectedTimeSlot(time);
 
@@ -161,13 +184,16 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
       email: contactInfo.email,
       phone: contactInfo.phone.replace(/\D/g, ""),
       countryCode: contactInfo.countryCode,
-      appointmentDate: appointmentDateStr,
-      appointmentTime: time,
       status: "completed",
       survey: qAnswers,
+      meeting: {
+        meetingDate: appointmentDateStr,
+        meetingTime: time,
+        bookedAt: new Date().toISOString(),
+      },
     };
 
-    await saveOrUpdateLead(completedPayload, firebaseLeadId, "firstoptionagency");
+    await saveOrUpdateLead(completedPayload, firebaseLeadId, createdDate, "firstoptionagency");
     setStep(4);
   };
 
@@ -390,7 +416,7 @@ export function BookingModal({ isOpen, onClose }: BookingModalProps) {
               {activeQIndex === qualificationQuestions.length - 1 ? (
                 <button
                   type="button"
-                  onClick={() => setStep(3)}
+                  onClick={handleStep2Submit}
                   className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs sm:text-sm uppercase tracking-wide flex items-center space-x-2 shadow-lg transition-transform active:scale-95"
                 >
                   <span>Submit</span>

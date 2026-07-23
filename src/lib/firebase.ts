@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getDatabase, ref, update, push, get } from "firebase/database";
+import { getDatabase, ref, update, get } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -88,11 +88,10 @@ export async function getLeadById(
 }
 
 /**
- * High-Performance Deterministic Email-ID Architecture:
- * 1. Master Lead Record -> campaigns/[campaign]/leads/[createdDate]/[emailPrefixId]
- * 2. Instant Meeting Index -> campaigns/[campaign]/meetings/[meetingDate]/[emailPrefixId]
- *
- * Prevents duplicates when a user submits multiple times!
+ * Clean Stage-Based Lead Database Writer:
+ * - Partial (Step 1): ONLY contact info is saved (NO dummy survey, NO links).
+ * - Survey Completed (Step 2): Adds survey answers + re-engagement links.
+ * - Completed (Step 3): Adds meeting date & time to master lead + meeting index.
  */
 export async function saveOrUpdateLead(
   lead: LeadData,
@@ -105,17 +104,12 @@ export async function saveOrUpdateLead(
     const createdDate = existingCreatedDate || lead.createdDate || todayStr;
     const timestamp = new Date().toISOString();
 
-    // Use deterministic email prefix ID (e.g. "mk" or "testing1")
+    // Deterministic lead ID from email prefix (e.g., "mudassirs472")
     const leadId = existingLeadId || (lead.email ? sanitizeEmailToId(lead.email) : "lead_" + Date.now());
 
     const updates: Record<string, any> = {};
 
-    // Get current window origin or fallback URL for link generation
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://firstoptionagency.in";
-    const surveyUrl = `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`;
-    const meetingUrl = `${origin}/?step=meeting&leadId=${leadId}&createdDate=${createdDate}`;
-
-    // 1. Master Lead Record Payload
+    // Base Master Lead Payload
     const leadPayload: Record<string, any> = {
       id: leadId,
       campaign: campaignName,
@@ -127,16 +121,22 @@ export async function saveOrUpdateLead(
       phone: lead.phone,
       countryCode: lead.countryCode || "+91",
       status: lead.status,
-      links: {
-        surveyUrl: surveyUrl,
-        meetingUrl: meetingUrl,
-      },
     };
 
-    if (lead.survey) {
-      leadPayload.survey = lead.survey;
+    // ONLY attach survey answers & links if user actually completed Step 2 (or beyond)
+    if (lead.status !== "partial") {
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://firstoptionagency.in";
+      leadPayload.links = {
+        surveyUrl: `${origin}/?step=survey&leadId=${leadId}&createdDate=${createdDate}`,
+        meetingUrl: `${origin}/?step=meeting&leadId=${leadId}&createdDate=${createdDate}`,
+      };
+
+      if (lead.survey) {
+        leadPayload.survey = lead.survey;
+      }
     }
 
+    // ONLY attach meeting details if user actually picked a time slot in Step 3
     if (lead.meeting) {
       leadPayload.meeting = {
         meetingDate: lead.meeting.meetingDate || "",
@@ -145,10 +145,10 @@ export async function saveOrUpdateLead(
       };
     }
 
-    // Set Master Lead Path under email prefix ID
+    // Set Master Lead Path
     updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}`] = leadPayload;
 
-    // 2. High-Performance Meeting Index Path (For CRM "Today's Meetings" View)
+    // High-Performance Meeting Index Path (For CRM "Today's Meetings" View)
     if (lead.meeting && lead.meeting.meetingDate) {
       const mDate = lead.meeting.meetingDate;
       const meetingIndexPayload = {
@@ -168,7 +168,7 @@ export async function saveOrUpdateLead(
       updates[`campaigns/${campaignName}/meetings/${mDate}/${leadId}`] = meetingIndexPayload;
     }
 
-    // Perform Atomic Multi-Path Write in 1 Request
+    // Perform Atomic Write to Firebase
     await update(ref(db), updates);
 
     return {

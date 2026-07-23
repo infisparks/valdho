@@ -148,7 +148,7 @@ export function BookingModal({
 
   if (!isOpen) return null;
 
-  // Step 1 Submit: Save Contact details to Firebase (status: "partial")
+  // Step 1 Submit: Save ONLY Contact details to Firebase (status: "partial")
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPhoneError(null);
@@ -170,14 +170,13 @@ export function BookingModal({
       console.error("LocalStorage save error:", err);
     }
 
-    // Sync to Firebase with status "partial"
+    // Sync to Firebase with status "partial" (DO NOT send survey or links yet)
     const leadPayload: LeadData = {
       fullName: contactInfo.fullName,
       email: contactInfo.email,
       phone: cleanPhone,
       countryCode: contactInfo.countryCode,
       status: "partial",
-      survey: qAnswers,
     };
 
     const res = await saveOrUpdateLead(leadPayload, emailPrefixId, createdDate, "firstoptionagency");

@@ -297,16 +297,30 @@ async function evaluateStageAutomations() {
     console.log(`[Pipeline Worker 🔍] Starting evaluation of ${activeRules.length} active rules across ${allLeads.length} leads at ${new Date().toLocaleTimeString()}...`);
 
     // 4. Evaluate each lead against matching stage rules
+    const normStage = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+
     for (const lead of allLeads) {
       const cleanNumber = lead._cleanPhone || sanitizePhoneNumber(lead.phone);
-      if (!cleanNumber || cleanNumber.length < 5) continue;
+      if (!cleanNumber || cleanNumber.length < 5) {
+        console.log(`[Pipeline Worker ⚠️] Lead '${lead.fullName || lead.leadId}' has no valid phone number (${lead.phone}). Skipping.`);
+        continue;
+      }
 
       const leadStage = lead.pipelineStage || lead.status || lead.stage || "raw";
-      const matchingRules = activeRules.filter((r) => r.stageId === leadStage);
+      const leadStgNorm = normStage(leadStage);
 
-      if (matchingRules.length === 0) continue;
+      const matchingRules = activeRules.filter((r) => {
+        const rStgNorm = normStage(r.stageId);
+        return rStgNorm === leadStgNorm || (rStgNorm && leadStgNorm && (rStgNorm.includes(leadStgNorm) || leadStgNorm.includes(rStgNorm)));
+      });
 
-      console.log(`[Pipeline Worker 👤] Checking Lead: ${lead.fullName || "Client"} (${cleanNumber}) | Stage: '${leadStage}' | Matching Rules: ${matchingRules.length}`);
+      console.log(`[Pipeline Worker 👤] Checking Lead: ${lead.fullName || "Client"} (${cleanNumber}) | Stage: '${leadStage}' (Norm: '${leadStgNorm}') | Matching Rules: ${matchingRules.length}`);
+
+      if (matchingRules.length === 0) {
+        const activeStageIds = [...new Set(activeRules.map((r) => r.stageId))].join(", ");
+        console.log(`[Pipeline Worker ℹ️] Lead '${lead.fullName || cleanNumber}' is currently in stage '${leadStage}'. No active rules configured for this stage (Rules exist for stages: [${activeStageIds}]).`);
+        continue;
+      }
 
       for (const rule of matchingRules) {
         const targetInstance = rule.instanceName || defaultInstanceName;

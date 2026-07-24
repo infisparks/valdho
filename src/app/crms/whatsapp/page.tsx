@@ -66,8 +66,28 @@ export default function WhatsappManagerPage() {
   // WhatsApp Instances & State
   const [instances, setInstances] = useState<WhatsappInstance[]>([]);
   const [newInstanceName, setNewInstanceName] = useState("");
+  const [newInstancePhone, setNewInstancePhone] = useState("");
   const [isCreatingInstance, setIsCreatingInstance] = useState(false);
   const [isSyncingStatus, setIsSyncingStatus] = useState(false);
+
+  // Live QR & Connection Modal State
+  const [connectModal, setConnectModal] = useState<{
+    isOpen: boolean;
+    instanceName: string;
+    phone: string;
+    status: string;
+    qrCode: string | null;
+    pairingCode: string | null;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    instanceName: "",
+    phone: "",
+    status: "connecting",
+    qrCode: null,
+    pairingCode: null,
+    isLoading: false,
+  });
 
   // Auto-Workflow Config State for 3 Steps
   const [config, setConfig] = useState<WhatsappWorkflowConfig>({
@@ -258,6 +278,38 @@ export default function WhatsappManagerPage() {
     fetchLiveStatusList();
   }, [fetchLiveStatusList]);
 
+  // Auto-poll QR & connection status while QR Modal is open
+  useEffect(() => {
+    if (!connectModal.isOpen || !connectModal.instanceName) return;
+
+    const pollStatus = async () => {
+      try {
+        const query = connectModal.phone ? `?number=${connectModal.phone}` : "";
+        const res = await fetch(`${SERVER_URL}/api/whatsapp/instance/connect/${connectModal.instanceName}${query}`);
+        const data = await res.json();
+        if (data.success) {
+          setConnectModal((prev) => ({
+            ...prev,
+            status: data.status,
+            qrCode: data.qrCode || prev.qrCode,
+            pairingCode: data.pairingCode || prev.pairingCode,
+            isLoading: false,
+          }));
+
+          if (data.status === "open" || data.status === "connected") {
+            fetchLiveStatusList();
+          }
+        }
+      } catch (err) {
+        console.error("Poll connect status error:", err);
+      }
+    };
+
+    pollStatus();
+    const interval = setInterval(pollStatus, 3500);
+    return () => clearInterval(interval);
+  }, [connectModal.isOpen, connectModal.instanceName, connectModal.phone, fetchLiveStatusList]);
+
   // Handle Save Configuration
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,25 +341,35 @@ export default function WhatsappManagerPage() {
     e.preventDefault();
     if (!newInstanceName.trim()) return;
 
+    const cleanName = newInstanceName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const cleanPhone = newInstancePhone.trim();
+
     setIsCreatingInstance(true);
     try {
       const res = await fetch(`${SERVER_URL}/api/whatsapp/instance/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceName: newInstanceName.trim() }),
+        body: JSON.stringify({ instanceName: cleanName, number: cleanPhone }),
       });
       const data = await res.json();
 
       if (data.success) {
         setNewInstanceName("");
-        const targetName = data.data?.instanceName || newInstanceName.trim();
-        const targetId = data.data?.instanceId || targetName;
-        setSelectedInstanceName(targetName);
+        setNewInstancePhone("");
+        setSelectedInstanceName(cleanName);
 
-        if (data.isAlreadyConfigured) {
-          alert(`Instance "${targetName}" is already created & configured! Connecting to fetch status/QR...`);
-        }
-        await handleConnectInstance(targetName, targetId);
+        // Open QR Code Modal immediately
+        setConnectModal({
+          isOpen: true,
+          instanceName: cleanName,
+          phone: cleanPhone,
+          status: "connecting",
+          qrCode: null,
+          pairingCode: null,
+          isLoading: true,
+        });
+
+        await handleConnectInstance(cleanName, cleanPhone);
       } else {
         alert(`Instance Status Notice: ${data.error || "Unable to create instance"}`);
       }
@@ -320,18 +382,25 @@ export default function WhatsappManagerPage() {
   };
 
   // Handle Connect / Generate QR Code
-  const handleConnectInstance = async (instanceName: string, instanceId: string) => {
+  const handleConnectInstance = async (instanceName: string, phoneStr: string = "") => {
     try {
-      const res = await fetch(`${SERVER_URL}/api/whatsapp/instance/connect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceName, instanceId }),
-      });
+      setConnectModal((prev) => ({ ...prev, isOpen: true, isLoading: true, instanceName }));
+      const query = phoneStr ? `?number=${phoneStr}` : "";
+      const res = await fetch(`${SERVER_URL}/api/whatsapp/instance/connect/${instanceName}${query}`);
       const data = await res.json();
-      if (!data.success) {
-        alert(`Connect Error: ${data.error}`);
-      } else {
+      if (data.success) {
+        setConnectModal({
+          isOpen: true,
+          instanceName,
+          phone: phoneStr || connectModal.phone || "",
+          status: data.status,
+          qrCode: data.qrCode || null,
+          pairingCode: data.pairingCode || null,
+          isLoading: false,
+        });
         await fetchLiveStatusList();
+      } else {
+        alert(`Connect Error: ${data.error}`);
       }
     } catch (err: any) {
       console.error("Connect Instance Error:", err);
@@ -825,34 +894,51 @@ export default function WhatsappManagerPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center space-x-2">
-                <span>Create New WhatsApp Instance</span>
+                <span>Create New WhatsApp Instance / Session</span>
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Enter an instance name (e.g. <strong className="text-indigo-600">customer1</strong>) to generate a QR code for WhatsApp login.
+                Enter session name (e.g. <strong className="text-indigo-600">mudassir</strong>) and phone number to create & scan QR code for WhatsApp connection.
               </p>
             </div>
 
-            <form onSubmit={handleCreateInstance} className="flex items-center space-x-2 w-full sm:w-auto">
-              <input
-                type="text"
-                placeholder="Instance Name (e.g. customer1)"
-                value={newInstanceName}
-                onChange={(e) => setNewInstanceName(e.target.value)}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 w-full sm:w-64"
-                required
-              />
-              <button
-                type="submit"
-                disabled={isCreatingInstance}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl shadow-md transition-all flex-shrink-0 flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
-              >
-                {isCreatingInstance ? (
-                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
-                ) : (
-                  <i className="fa-solid fa-plus text-xs"></i>
-                )}
-                <span>Create Instance</span>
-              </button>
+            <form onSubmit={handleCreateInstance} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+              <div className="space-y-1 w-full sm:w-44">
+                <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Session Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. mudassir"
+                  value={newInstanceName}
+                  onChange={(e) => setNewInstanceName(e.target.value)}
+                  className="bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 w-full"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1 w-full sm:w-44">
+                <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Phone Number *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 919958399157"
+                  value={newInstancePhone}
+                  onChange={(e) => setNewInstancePhone(e.target.value)}
+                  className="bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 w-full"
+                />
+              </div>
+
+              <div className="pt-2 sm:pt-4">
+                <button
+                  type="submit"
+                  disabled={isCreatingInstance}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer w-full sm:w-auto"
+                >
+                  {isCreatingInstance ? (
+                    <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                  ) : (
+                    <i className="fa-solid fa-qrcode text-xs"></i>
+                  )}
+                  <span>Create Session & Scan QR ⚡</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -1364,6 +1450,128 @@ export default function WhatsappManagerPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* QR CODE CONNECT & SCAN MODAL */}
+      {connectModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in font-sans">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 text-center relative overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+              <div className="text-left space-y-0.5">
+                <span className="text-[10px] font-extrabold tracking-widest text-indigo-600 uppercase bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                  WhatsApp Connection Setup
+                </span>
+                <h3 className="text-base font-black text-slate-900 truncate max-w-[220px]">
+                  Session: {connectModal.instanceName}
+                </h3>
+              </div>
+
+              <button
+                onClick={() => setConnectModal((prev) => ({ ...prev, isOpen: false }))}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 flex items-center justify-center text-sm font-bold transition-all cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            {/* Assigned Phone Number Badge */}
+            {connectModal.phone && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-500">Target Phone Number:</span>
+                <span className="font-mono text-indigo-700 font-extrabold">📞 +{connectModal.phone}</span>
+              </div>
+            )}
+
+            {/* Connection Status Indicator */}
+            {connectModal.status === "open" || connectModal.status === "connected" ? (
+              <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-6 space-y-3 text-emerald-900">
+                <div className="w-14 h-14 rounded-full bg-emerald-600 text-white mx-auto flex items-center justify-center text-2xl shadow-lg">
+                  <i className="fa-solid fa-circle-check"></i>
+                </div>
+                <h4 className="text-base font-black">WhatsApp Connected & Active! 🟢</h4>
+                <p className="text-xs font-medium text-emerald-800">
+                  Session &apos;{connectModal.instanceName}&apos; is fully paired and ready for automated messages.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-xs font-extrabold text-amber-700 bg-amber-50 px-3.5 py-1 rounded-full border border-amber-200 inline-flex items-center space-x-1.5 shadow-2xs">
+                    <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                    <span>Waiting for WhatsApp QR Scan...</span>
+                  </span>
+                </div>
+
+                {/* QR Code Container */}
+                <div className="relative w-64 h-64 mx-auto rounded-2xl border-2 border-amber-500/60 p-2 bg-white shadow-xl flex items-center justify-center">
+                  {connectModal.isLoading && !connectModal.qrCode ? (
+                    <div className="flex flex-col items-center space-y-2 text-indigo-600 font-bold text-xs">
+                      <i className="fa-solid fa-circle-notch fa-spin text-3xl"></i>
+                      <span>Generating Live QR Code...</span>
+                    </div>
+                  ) : connectModal.qrCode ? (
+                    /* eslint-disable-next-html-element-suppress */
+                    <img
+                      src={connectModal.qrCode}
+                      alt="WhatsApp QR Code"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <p className="text-xs text-slate-500 font-bold">QR Code loading...</p>
+                      <button
+                        onClick={() => handleConnectInstance(connectModal.instanceName, connectModal.phone)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer"
+                      >
+                        Reload QR 🔄
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left text-xs font-medium space-y-1 text-slate-700">
+                  <p className="font-bold text-slate-900">How to Scan:</p>
+                  <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-slate-600 font-medium">
+                    <li>Open <strong>WhatsApp</strong> on your mobile phone</li>
+                    <li>Tap <strong>Settings ⚙️ / Menu ⠇</strong> ➔ <strong>Linked Devices</strong></li>
+                    <li>Tap <strong>Link a Device</strong> and point camera at QR code</li>
+                  </ol>
+                </div>
+
+                {/* Pairing Code Fallback Option */}
+                {connectModal.pairingCode && (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-2.5 flex items-center justify-between text-xs font-bold">
+                    <span className="text-indigo-900">Pairing Code:</span>
+                    <span className="font-mono text-indigo-700 font-extrabold text-sm">{connectModal.pairingCode}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => handleConnectInstance(connectModal.instanceName, connectModal.phone)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold px-3.5 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer"
+              >
+                <i className="fa-solid fa-rotate"></i>
+                <span>Refresh QR 🔄</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConnectModal((prev) => ({ ...prev, isOpen: false }))}
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold px-5 py-2 rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

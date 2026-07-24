@@ -115,36 +115,45 @@ function sanitizePhoneNumber(number) {
    ========================================================================== */
 
 /**
- * 1. Create Instance (With Already Configured / 403 Graceful Handling)
+ * 1. Create Instance (With Already Configured / 403 Graceful Handling)/**
  * POST /api/whatsapp/instance/create
- * Body: { instanceName: "customer1" }
+ * Body: { instanceName: "customer1", number: "919876543210" }
  */
 router.post("/instance/create", async (req, res) => {
   try {
-    const { instanceName } = req.body;
+    const { instanceName, number, phone } = req.body;
     if (!instanceName || typeof instanceName !== "string" || !instanceName.trim()) {
       return res.status(400).json({ success: false, error: "Valid instanceName is required" });
     }
 
     const cleanInstanceName = instanceName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const cleanPhone = sanitizePhoneNumber(number || phone || "");
 
     // Check if instance record already exists in Firebase RTDB
     const existingFb = await firebaseDb(`whatsapp_unofficial_instances/${cleanInstanceName}`);
     if (existingFb && (existingFb.instanceId || existingFb.status)) {
+      if (cleanPhone && (!existingFb.number || existingFb.number !== cleanPhone)) {
+        await firebaseDb(`whatsapp_unofficial_instances/${cleanInstanceName}`, "PATCH", { number: cleanPhone });
+      }
       return res.status(200).json({
         success: true,
         isAlreadyConfigured: true,
         message: `Instance '${cleanInstanceName}' is already created & configured.`,
-        data: existingFb,
+        data: { ...existingFb, number: cleanPhone || existingFb.number },
       });
     }
 
     // Call Evolution API /instance/create
-    const evoRes = await evoApiCall("/instance/create", "POST", {
+    const evoPayload = {
       instanceName: cleanInstanceName,
       qrcode: true,
-      integration: "WHATSAPP-BAILEYS"
-    });
+      integration: "WHATSAPP-BAILEYS",
+    };
+    if (cleanPhone) {
+      evoPayload.number = cleanPhone;
+    }
+
+    const evoRes = await evoApiCall("/instance/create", "POST", evoPayload);
 
     // Handle Evolution API 403 / 400 / Already Exists responses gracefully
     if (!evoRes.ok) {
@@ -161,6 +170,7 @@ router.post("/instance/create", async (req, res) => {
         const instanceRecord = {
           instanceId,
           instanceName: cleanInstanceName,
+          number: cleanPhone || null,
           token: "",
           status: "created",
           qrCode: null,
@@ -190,6 +200,7 @@ router.post("/instance/create", async (req, res) => {
     const instanceRecord = {
       instanceId,
       instanceName: cleanInstanceName,
+      number: cleanPhone || null,
       token,
       status: "created",
       qrCode: null,
@@ -209,6 +220,60 @@ router.post("/instance/create", async (req, res) => {
     });
   } catch (err) {
     console.error("Create Instance Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/whatsapp/instance/connect/:instanceName
+ * OpenAPI GET /instance/connect/{instanceName}
+ */
+router.get("/instance/connect/:instanceName", async (req, res) => {
+  try {
+    const { instanceName } = req.params;
+    const { number, phone } = req.query;
+    const cleanInstanceName = instanceName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+
+    const queryParams = (number || phone) ? `?number=${sanitizePhoneNumber(number || phone)}` : "";
+    const evoRes = await evoApiCall(`/instance/connect/${cleanInstanceName}${queryParams}`, "GET");
+
+    let qrCodeBase64 = null;
+    let pairingCode = null;
+
+    if (evoRes.data) {
+      qrCodeBase64 =
+        evoRes.data.base64 ||
+        evoRes.data.qrcode ||
+        evoRes.data.data?.qrcode ||
+        evoRes.data.data?.base64 ||
+        evoRes.data.code ||
+        null;
+
+      pairingCode = evoRes.data.pairingCode || evoRes.data.data?.pairingCode || null;
+    }
+
+    const connState = normalizeInstanceStatus(evoRes.data);
+    const finalStatus = (connState === "open" || (!qrCodeBase64 && evoRes.ok)) ? "open" : "connecting";
+
+    const formattedQr = qrCodeBase64 ? (qrCodeBase64.startsWith("data:") ? qrCodeBase64 : `data:image/png;base64,${qrCodeBase64}`) : null;
+
+    await firebaseDb(`whatsapp_unofficial_instances/${cleanInstanceName}`, "PATCH", {
+      status: finalStatus,
+      qrCode: finalStatus === "open" ? null : formattedQr,
+      pairingCode: pairingCode || null,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return res.status(200).json({
+      success: true,
+      instanceName: cleanInstanceName,
+      status: finalStatus,
+      qrCode: formattedQr,
+      pairingCode: pairingCode || null,
+      data: evoRes.data,
+    });
+  } catch (err) {
+    console.error("GET Instance Connect Exception:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });

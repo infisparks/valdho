@@ -6,7 +6,7 @@ export function IndustriesSection() {
   const industries = [
     {
       title: "For Doctors & Clinics",
-      img: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=800&q=80",
+      img: "/firstoption/Doctors & Clinics.png",
       intro: "We bring:",
       points: [
         "Real patients seeking treatment",
@@ -16,19 +16,8 @@ export function IndustriesSection() {
       badge: "⭐ 100+ to 10,000+ patient consults delivered for dermatologists, dental, and specialty clinics.",
     },
     {
-      title: "For Manufacturers & Industrial B2B",
-      img: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80",
-      intro: "We bring:",
-      points: [
-        "Verified bulk buyers & distributors",
-        "Direct RFQ (Request for Quotation) leads",
-        "High-ticket B2B contract pipeline",
-      ],
-      badge: "🏭 High-value industrial orders for ceramics, machinery, textiles, and building materials.",
-    },
-    {
-      title: "For IT Companies & B2B Services",
-      img: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80",
+      title: "For IT & Service Companies",
+      img: "/firstoption/IT & Service Companies.png",
       intro: "We bring:",
       points: [
         "Decision-maker demo calls (CTOs, CEOs)",
@@ -38,37 +27,15 @@ export function IndustriesSection() {
       badge: "💻 Zero time-wasting leads. 100% pre-qualified decision maker meetings.",
     },
     {
-      title: "For Retail, Mobile & Tech Stores",
-      img: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+      title: "For Manufacturers & Wholesalers",
+      img: "/firstoption/Manufacturers & Wholesalers.png",
       intro: "We bring:",
       points: [
-        "Foot traffic to your physical store",
-        "Direct WhatsApp buyers asking for pricing",
-        "High margin product sale campaigns",
+        "Verified bulk buyers & distributors",
+        "Direct RFQ (Request for Quotation) leads",
+        "High-ticket B2B contract pipeline",
       ],
-      badge: "📱 Proven retail store foot-traffic campaigns with instant WhatsApp inquiries.",
-    },
-    {
-      title: "For Real Estate & Interior Designers",
-      img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
-      intro: "We bring:",
-      points: [
-        "Verified home buyers looking for site visits",
-        "High net worth interior design clients",
-        "Automated qualification funnels",
-      ],
-      badge: "🏠 Direct site-visit bookings for premium residential & commercial projects.",
-    },
-    {
-      title: "For Food Brands & FMCG",
-      img: "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80",
-      intro: "We bring:",
-      points: [
-        "Franchise inquiries & bulk distributors",
-        "Mass consumer brand awareness & order spikes",
-        "Local store walk-ins & viral social proof",
-      ],
-      badge: "🍔 Scaled local food brands into regional franchise powerhouses.",
+      badge: "🏭 High-value industrial orders for ceramics, machinery, textiles, and building materials.",
     },
   ];
 
@@ -78,7 +45,7 @@ export function IndustriesSection() {
         Industries we have worked with
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {industries.map((ind, idx) => (
           <div
             key={idx}
@@ -92,12 +59,12 @@ export function IndustriesSection() {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-950">{ind.title}</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-950">{ind.title}</h3>
 
               <div className="space-y-2 text-sm sm:text-base text-slate-800 font-bold">
                 <p className="text-slate-600 font-medium">{ind.intro}</p>
                 {ind.points.map((pt, pIdx) => (
-                  <p key={pIdx} className="text-base sm:text-lg md:text-xl font-black text-slate-950">
+                  <p key={pIdx} className="text-sm sm:text-base md:text-lg font-black text-slate-950">
                     {pt}
                   </p>
                 ))}
@@ -105,7 +72,7 @@ export function IndustriesSection() {
             </div>
 
             {/* Yellow Highlight Badge */}
-            <div className="yellow-callout-badge p-3.5 rounded-xl text-center text-xs sm:text-sm md:text-base tracking-wide leading-snug mt-2">
+            <div className="yellow-callout-badge p-3.5 rounded-xl text-center text-xs sm:text-sm tracking-wide leading-snug mt-2">
               {ind.badge}
             </div>
           </div>

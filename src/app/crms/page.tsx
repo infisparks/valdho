@@ -582,6 +582,64 @@ export default function CRMPage() {
     return () => unsubscribe();
   }, []);
 
+  // Realtime Sync Scheduled Date Messages State
+  const [scheduledMessagesList, setScheduledMessagesList] = useState<any[]>([]);
+  const [newSchDateTime, setNewSchDateTime] = useState<string>("");
+  const [newSchInstance, setNewSchInstance] = useState<string>("");
+  const [newSchText, setNewSchText] = useState<string>("");
+  const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
+
+  const handleAddScheduledMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead || !newSchDateTime || !newSchText.trim()) return;
+
+    const cleanPhoneNum = (selectedLead.phone || "").replace(/\D/g, "");
+    if (!cleanPhoneNum || cleanPhoneNum.length < 5) {
+      alert("This lead has no valid phone number.");
+      return;
+    }
+
+    setIsSubmittingSchedule(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/whatsapp/scheduled-message/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: cleanPhoneNum,
+          leadName: selectedLead.fullName || "Client",
+          scheduledAt: newSchDateTime,
+          instanceName: newSchInstance,
+          messageText: newSchText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewSchText("");
+        setNewSchDateTime("");
+      } else {
+        alert(`Scheduling Error: ${data.error}`);
+      }
+    } catch (err: any) {
+      alert(`Server Connection Error: ${err.message}`);
+    } finally {
+      setIsSubmittingSchedule(false);
+    }
+  };
+
+  const handleDeleteScheduledMessage = async (schId: string) => {
+    if (!selectedLead || !schId) return;
+    const cleanPhoneNum = (selectedLead.phone || "").replace(/\D/g, "");
+    try {
+      await fetch(`${SERVER_URL}/api/whatsapp/scheduled-message/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhoneNum, schId }),
+      });
+    } catch (err: any) {
+      console.error("Delete scheduled message error:", err);
+    }
+  };
+
   const handleOpenStageAutomationModal = (stage: PipelineStageConfig) => {
     setActiveAutomationStage(stage);
     setIsStageAutomationModalOpen(true);
@@ -659,6 +717,33 @@ export default function CRMPage() {
   // Right Drawer State
   const [selectedLead, setSelectedLead] = useState<LeadData | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!selectedLead || !selectedLead.phone) {
+      setScheduledMessagesList([]);
+      return;
+    }
+
+    const cleanNum = selectedLead.phone.replace(/\D/g, "");
+    if (cleanNum.length < 5) {
+      setScheduledMessagesList([]);
+      return;
+    }
+
+    const fullCleanNum = cleanNum.length === 10 ? "91" + cleanNum : cleanNum;
+    const schRef = ref(db, `lead_whatapp_send_by_date/${fullCleanNum}`);
+    const unsubscribe = onValue(schRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const list = Object.values(snapshot.val());
+        list.sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+        setScheduledMessagesList(list);
+      } else {
+        setScheduledMessagesList([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [selectedLead]);
   const [newNoteText, setNewNoteText] = useState("");
   const [followUpDateInput, setFollowUpDateInput] = useState("");
   const [dealValueInput, setDealValueInput] = useState<string>("");
@@ -5242,6 +5327,170 @@ export default function CRMPage() {
                     <span>WhatsApp</span>
                   </a>
                 </div>
+              </div>
+
+              {/* SCHEDULED DATE & TIME WHATSAPP BROADCASTS SECTION */}
+              <div className="bg-white border border-indigo-200 rounded-2xl p-3.5 sm:p-4 space-y-3.5 shadow-sm bg-indigo-50/20 font-sans">
+                <div className="flex items-center justify-between border-b border-indigo-100 pb-2.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                      📅
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-slate-900">
+                        Scheduled WhatsApp Broadcasts by Date & Time
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        Stored in <code className="font-mono text-indigo-700">/lead_whatapp_send_by_date</code> node (Auto retries if failed)
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-md border border-indigo-200">
+                    {scheduledMessagesList.length} Scheduled
+                  </span>
+                </div>
+
+                {/* Form to Add Scheduled Date Message */}
+                <form onSubmit={handleAddScheduledMessage} className="space-y-2.5 bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-600 block">
+                        Target Date & Time *
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={newSchDateTime}
+                        onChange={(e) => setNewSchDateTime(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-600 block">
+                        Sender Instance
+                      </label>
+                      <select
+                        value={newSchInstance}
+                        onChange={(e) => setNewSchInstance(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                      >
+                        <option value="">-- Use Default Active --</option>
+                        {whatsappInstancesList.map((inst: any) => (
+                          <option key={inst.instanceId} value={inst.instanceName}>
+                            🚀 {inst.instanceName} ({inst.status})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
+                      <span>Custom Message Text:</span>
+                      <div className="flex items-center space-x-1">
+                        <button type="button" onClick={() => setNewSchText((prev) => prev + " {{name}}")} className="bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded text-[9px] font-mono text-indigo-700 font-bold cursor-pointer">
+                          + {"{{name}}"}
+                        </button>
+                        <button type="button" onClick={() => setNewSchText((prev) => prev + " {{meeting_url}}")} className="bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded text-[9px] font-mono text-indigo-700 font-bold cursor-pointer">
+                          + {"{{meeting_url}}"}
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      rows={2}
+                      placeholder="Enter message (e.g. Hello {{name}}, reminder for our call!)..."
+                      value={newSchText}
+                      onChange={(e) => setNewSchText(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                      required
+                    ></textarea>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingSchedule}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold py-2 rounded-xl shadow-xs transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSubmittingSchedule ? (
+                      <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                    ) : (
+                      <i className="fa-solid fa-paper-plane text-xs"></i>
+                    )}
+                    <span>Schedule WhatsApp Broadcast 🚀</span>
+                  </button>
+                </form>
+
+                {/* Scheduled Messages List */}
+                {scheduledMessagesList.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    {scheduledMessagesList.map((sch) => {
+                      const targetMs = new Date(sch.scheduledAt).getTime();
+                      const diffMs = targetMs - nowTick;
+                      const diffSec = Math.floor(diffMs / 1000);
+                      const isPast = diffSec <= 0;
+
+                      let countdownBadge = "";
+                      if (sch.status === "sent") {
+                        countdownBadge = "🟢 Sent ✓";
+                      } else if (sch.status === "failed") {
+                        countdownBadge = "🔴 Failed (Retrying in 15s...)";
+                      } else if (isPast) {
+                        countdownBadge = "⚡ Dispatching now...";
+                      } else {
+                        const days = Math.floor(diffSec / 86400);
+                        const hours = Math.floor((diffSec % 86400) / 3600);
+                        const mins = Math.floor((diffSec % 3600) / 60);
+                        const secs = diffSec % 60;
+                        if (days > 0) countdownBadge = `⏳ ${days}d ${hours}h ${mins}m`;
+                        else if (hours > 0) countdownBadge = `⏳ ${hours}h ${mins}m ${secs}s`;
+                        else if (mins > 0) countdownBadge = `⏳ ${mins}m ${secs}s`;
+                        else countdownBadge = `⏳ ${secs}s remaining`;
+                      }
+
+                      return (
+                        <div key={sch.id} className="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5 shadow-2xs font-sans">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                              sch.status === "sent"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                : sch.status === "failed"
+                                ? "bg-rose-50 text-rose-800 border-rose-300 animate-pulse"
+                                : "bg-amber-50 text-amber-800 border-amber-300"
+                            }`}>
+                              {countdownBadge}
+                            </span>
+
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] font-mono text-slate-500 font-bold">
+                                {sch.scheduledAtIST || new Date(sch.scheduledAt).toLocaleString()}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteScheduledMessage(sch.id)}
+                                className="text-slate-400 hover:text-rose-600 transition-colors text-xs p-0.5 cursor-pointer"
+                                title="Cancel/Delete Scheduled Message"
+                              >
+                                <i className="fa-solid fa-trash-can"></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-800 font-medium bg-slate-50 p-2 rounded-lg border border-slate-100">
+                            "{sch.messageText}"
+                          </p>
+
+                          <div className="flex items-center justify-between text-[9px] font-mono text-slate-400">
+                            <span>Instance: {sch.instanceName || "Default Active"}</span>
+                            {sch.attempts ? <span>Attempts: {sch.attempts}</span> : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* STAFF FOLLOW-UP DATE SECTION */}

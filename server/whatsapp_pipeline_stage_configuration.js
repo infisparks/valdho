@@ -599,10 +599,110 @@ async function evaluateStageAutomations() {
   }
 }
 
-// Start Background Daemon Cron Worker Interval (runs every 15 seconds for instant 1m execution)
+/**
+ * 5. Evaluate Lead WhatsApp Messages Scheduled By Exact Date & Time
+ * Node: /lead_whatapp_send_by_date/${cleanNumber}/${scheduleId}
+ */
+async function evaluateScheduledDateMessages() {
+  try {
+    const allScheduledData = (await firebaseDb("lead_whatapp_send_by_date")) || {};
+    if (!allScheduledData || typeof allScheduledData !== "object" || Object.keys(allScheduledData).length === 0) return;
+
+    // Resolve Default Instance
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    let defaultInstanceName = config.selectedInstanceName;
+
+    if (!defaultInstanceName) {
+      const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
+      const instancesList = Object.values(fbInstances).filter(Boolean);
+      const openInst = instancesList.find((i) => i.status === "open") || instancesList[0];
+      if (openInst) defaultInstanceName = openInst.instanceName;
+    }
+
+    const nowMs = Date.now();
+
+    for (const [cleanNumber, scheduleGroup] of Object.entries(allScheduledData)) {
+      if (!scheduleGroup || typeof scheduleGroup !== "object") continue;
+
+      for (const [schId, item] of Object.entries(scheduleGroup)) {
+        if (!item || typeof item !== "object") continue;
+
+        // Skip if already successfully sent
+        if (item.status === "sent") continue;
+
+        // If previously failed, retry after 15 seconds cooldown
+        if (item.status === "failed" && item.lastAttemptAt) {
+          const lastFailDiff = nowMs - new Date(item.lastAttemptAt).getTime();
+          if (lastFailDiff < 15000) continue; // Wait 15s before retrying
+        }
+
+        const scheduledAtMs = new Date(item.scheduledAt).getTime();
+        if (isNaN(scheduledAtMs)) continue;
+
+        // Check if scheduled date/time has been reached
+        if (nowMs >= scheduledAtMs - 5000) {
+          const targetInstance = item.instanceName || defaultInstanceName;
+          if (!targetInstance) {
+            console.warn(`[Scheduled Worker ⚠️] No active WhatsApp instance available for scheduled message '${schId}'`);
+            continue;
+          }
+
+          console.log(`[Scheduled Worker ⚡ DISPATCHING] Sending Date-Scheduled Message '${schId}' via instance '${targetInstance}' to ${cleanNumber}`);
+
+          // Send Text Message via Evolution API
+          const evoRes = await evoApiCall(`/message/sendText/${targetInstance}`, "POST", {
+            number: cleanNumber,
+            text: item.messageText || "",
+          });
+
+          const isSuccess = evoRes.ok;
+          const attemptCount = (item.attempts || 0) + 1;
+          const updateRecord = {
+            ...item,
+            status: isSuccess ? "sent" : "failed",
+            sentAt: isSuccess ? new Date().toISOString() : null,
+            lastAttemptAt: new Date().toISOString(),
+            attempts: attemptCount,
+            error: isSuccess ? null : (evoRes.data?.error || `HTTP ${evoRes.status}`),
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Update Firebase RTDB under /lead_whatapp_send_by_date/${cleanNumber}/${schId}
+          await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${schId}`, "PUT", updateRecord);
+
+          // Log in WhatsApp Logs
+          const logId = `sch_log_${Date.now()}`;
+          const logData = {
+            id: logId,
+            ruleTitle: `Scheduled Date Broadcast (${item.scheduledAtIST || item.scheduledAt})`,
+            number: cleanNumber,
+            leadName: item.leadName || cleanNumber,
+            text: item.messageText,
+            instanceName: targetInstance,
+            status: isSuccess ? "sent" : "failed",
+            error: updateRecord.error,
+            timestamp: new Date().toISOString(),
+          };
+
+          await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", logData);
+          await firebaseDb(`whatsapp_lead_logs/${cleanNumber}/${logId}`, "PUT", logData);
+
+          console.log(`[Scheduled Worker ${isSuccess ? "✅ SUCCESS" : "❌ FAILED (Will retry in 15s)"}] Result for ${cleanNumber}: ${isSuccess ? "Sent successfully" : updateRecord.error}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[Scheduled Worker Exception]:", err);
+  }
+}
+
+// Start Background Daemon Cron Worker Interval (runs every 15 seconds)
 setInterval(() => {
   evaluateStageAutomations().catch((err) => {
     console.error("[Pipeline Worker Interval Catch Error]:", err);
+  });
+  evaluateScheduledDateMessages().catch((err) => {
+    console.error("[Scheduled Worker Interval Catch Error]:", err);
   });
 }, 15000);
 
@@ -611,7 +711,73 @@ setTimeout(() => {
   evaluateStageAutomations().catch((err) => {
     console.error("[Pipeline Worker Startup Catch Error]:", err);
   });
+  evaluateScheduledDateMessages().catch((err) => {
+    console.error("[Scheduled Worker Startup Catch Error]:", err);
+  });
 }, 2000);
+
+/**
+ * POST /api/whatsapp/scheduled-message/add
+ * Body: { phone: "919958399157", leadName: "mkmods", scheduledAt: "2026-07-25T13:00", instanceName: "mudassir", messageText: "..." }
+ */
+router.post("/scheduled-message/add", async (req, res) => {
+  try {
+    const { phone, leadName, scheduledAt, instanceName, messageText } = req.body;
+    if (!phone || !scheduledAt || !messageText) {
+      return res.status(400).json({ success: false, error: "phone, scheduledAt, and messageText are required" });
+    }
+
+    const cleanNumber = sanitizePhoneNumber(phone);
+    const schId = `sch_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const scheduledDateObj = new Date(scheduledAt);
+
+    const record = {
+      id: schId,
+      phone: cleanNumber,
+      leadName: leadName || cleanNumber,
+      scheduledAt: scheduledDateObj.toISOString(),
+      scheduledAtIST: scheduledDateObj.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+      instanceName: instanceName || "",
+      messageText,
+      status: "pending",
+      attempts: 0,
+      lastAttemptAt: null,
+      sentAt: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${schId}`, "PUT", record);
+
+    // Trigger immediate evaluation check
+    evaluateScheduledDateMessages().catch(() => {});
+
+    return res.status(200).json({ success: true, message: "WhatsApp message scheduled successfully", data: record });
+  } catch (err) {
+    console.error("Add Scheduled Message Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/scheduled-message/delete
+ * Body: { phone: "919958399157", schId: "sch_123" }
+ */
+router.post("/scheduled-message/delete", async (req, res) => {
+  try {
+    const { phone, schId } = req.body;
+    if (!phone || !schId) {
+      return res.status(400).json({ success: false, error: "phone and schId are required" });
+    }
+
+    const cleanNumber = sanitizePhoneNumber(phone);
+    await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${schId}`, "DELETE");
+
+    return res.status(200).json({ success: true, message: "Scheduled message deleted successfully" });
+  } catch (err) {
+    console.error("Delete Scheduled Message Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 /**
  * POST /api/whatsapp/evaluate-automations
@@ -620,6 +786,7 @@ setTimeout(() => {
 router.post("/evaluate-automations", async (req, res) => {
   try {
     evaluateStageAutomations();
+    evaluateScheduledDateMessages();
     return res.status(200).json({ success: true, message: "Stage automations evaluation triggered" });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });

@@ -868,15 +868,22 @@ export default function CRMPage() {
     if (!editingStaffUser) return;
     setIsSavingStaffEdit(true);
     const emailId = editingStaffUser.emailId || sanitizeEmailToId(editingStaffUser.email);
-    const targetRoleObj = rolesList.find((r) => r.id === editStaffRoleId) || { id: editingStaffUser.roleId, name: editingStaffUser.roleName };
+    const isEditingAdmin = editingStaffUser.email?.toLowerCase().startsWith("firstoption") || editingStaffUser.uid === MASTER_ADMIN_UID || editingStaffUser.roleId === "role_admin" || editingStaffUser.roleName?.toLowerCase() === "admin";
+
+    const targetRoleObj = isEditingAdmin
+      ? { id: "role_admin", name: "Admin" }
+      : rolesList.find((r) => r.id === editStaffRoleId) || { id: editingStaffUser.roleId, name: editingStaffUser.roleName };
 
     const updatedData: Partial<UserData> = {
       name: editStaffName.trim(),
       phone: editStaffPhone.trim(),
-      uid: editStaffUid.trim(),
       roleId: targetRoleObj.id,
       roleName: targetRoleObj.name,
     };
+
+    if (!isEditingAdmin) {
+      updatedData.uid = editStaffUid.trim();
+    }
 
     const res = await updateUserStaffDetails(emailId, updatedData);
     setIsSavingStaffEdit(false);
@@ -885,10 +892,10 @@ export default function CRMPage() {
       setUsersList((prev) =>
         prev.map((u) => (u.emailId === emailId || u.email === editingStaffUser.email ? { ...u, ...updatedData } : u))
       );
-      setRoleSuccessMessage(`Staff details for '${editStaffName || editingStaffUser.email}' saved!`);
+      setRoleSuccessMessage(`Details for '${editStaffName || editingStaffUser.email}' saved!`);
       setEditingStaffUser(null);
     } else {
-      setRoleErrorMessage(res.message || "Failed to update staff details.");
+      setRoleErrorMessage(res.message || "Failed to update user details.");
     }
   };
 
@@ -914,11 +921,16 @@ export default function CRMPage() {
         );
 
         for (const staff of matchingStaff) {
+          let cleanPhone = (staff.phone || "").trim().replace(/\D/g, "");
+          if (cleanPhone.length === 10) {
+            cleanPhone = "91" + cleanPhone;
+          }
+
           fetch(`${SERVER_URL}/api/whatsapp/notify-staff-flow`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              staffPhone: staff.phone,
+              staffPhone: cleanPhone,
               staffName: staff.name || staff.email,
               clientName,
               flowTitle,
@@ -2315,21 +2327,21 @@ export default function CRMPage() {
                               </td>
 
                               <td className="px-4 py-3 text-right">
-                                {isMaster ? (
-                                  <span className="text-[11px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl">
-                                    Permanent Admin
-                                  </span>
-                                ) : (
-                                  <div className="flex items-center justify-end space-x-2">
-                                    <button
-                                      onClick={() => handleOpenEditStaffModal(usr)}
-                                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-xl transition-colors inline-flex items-center space-x-1 cursor-pointer"
-                                      title="Edit Staff Name, Phone & Role"
-                                    >
-                                      <i className="fa-solid fa-pen-to-square text-[10px]"></i>
-                                      <span>Edit ✏️</span>
-                                    </button>
+                                <div className="flex items-center justify-end space-x-2">
+                                  <button
+                                    onClick={() => handleOpenEditStaffModal(usr)}
+                                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-xl transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                                    title="Edit Name & WhatsApp Phone"
+                                  >
+                                    <i className="fa-solid fa-pen-to-square text-[10px]"></i>
+                                    <span>Edit ✏️</span>
+                                  </button>
 
+                                  {isMaster ? (
+                                    <span className="text-[11px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl">
+                                      Permanent Admin
+                                    </span>
+                                  ) : (
                                     <select
                                       value={usr.roleId || "role_onboarding"}
                                       onChange={(e) => handleAssignUserRoleByEmail(usr.email, e.target.value)}
@@ -2343,8 +2355,8 @@ export default function CRMPage() {
                                           </option>
                                         ))}
                                     </select>
-                                  </div>
-                                )}
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2355,104 +2367,115 @@ export default function CRMPage() {
                 </div>
               </div>
 
-              {/* EDIT STAFF DETAILS MODAL */}
-              {editingStaffUser && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-                  <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <h3 className="text-base font-extrabold text-slate-900 flex items-center space-x-2">
-                        <i className="fa-solid fa-user-pen text-indigo-600"></i>
-                        <span>Edit Staff Details</span>
-                      </h3>
-                      <button
-                        onClick={() => setEditingStaffUser(null)}
-                        className="text-slate-400 hover:text-slate-600 font-bold p-1"
-                      >
-                        ✕
-                      </button>
-                    </div>
+              {/* EDIT STAFF / ADMIN DETAILS MODAL */}
+              {editingStaffUser && (() => {
+                const isEditingAdmin = editingStaffUser.email?.toLowerCase().startsWith("firstoption") || editingStaffUser.uid === MASTER_ADMIN_UID || editingStaffUser.roleId === "role_admin" || editingStaffUser.roleName?.toLowerCase() === "admin";
 
-                    <div className="space-y-3 text-xs font-bold text-slate-700">
-                      <div>
-                        <label className="block mb-1">User Email (Read-Only)</label>
-                        <input
-                          type="email"
-                          disabled
-                          value={editingStaffUser.email}
-                          className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-500 font-mono"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-1">Full Name</label>
-                        <input
-                          type="text"
-                          value={editStaffName}
-                          onChange={(e) => setEditStaffName(e.target.value)}
-                          placeholder="e.g. Rahul Sharma"
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-1">WhatsApp Phone Number *</label>
-                        <input
-                          type="tel"
-                          value={editStaffPhone}
-                          onChange={(e) => setEditStaffPhone(e.target.value)}
-                          placeholder="e.g. +919876543210"
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-1">Staff UID</label>
-                        <input
-                          type="text"
-                          value={editStaffUid}
-                          onChange={(e) => setEditStaffUid(e.target.value)}
-                          placeholder="e.g. usr_10293"
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-1">Assigned Role</label>
-                        <select
-                          value={editStaffRoleId}
-                          onChange={(e) => setEditStaffRoleId(e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                return (
+                  <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 className="text-base font-extrabold text-slate-900 flex items-center space-x-2">
+                          <i className="fa-solid fa-user-pen text-indigo-600"></i>
+                          <span>{isEditingAdmin ? "Edit Admin Profile (Name & Phone)" : "Edit Staff Details"}</span>
+                        </h3>
+                        <button
+                          onClick={() => setEditingStaffUser(null)}
+                          className="text-slate-400 hover:text-slate-600 font-bold p-1 cursor-pointer"
                         >
-                          {rolesList
-                            .filter((r) => r.id !== "role_admin" && r.name.toLowerCase() !== "admin")
-                            .map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.name}
-                              </option>
-                            ))}
-                        </select>
+                          ✕
+                        </button>
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
-                      <button
-                        onClick={() => setEditingStaffUser(null)}
-                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveStaffDetails}
-                        disabled={isSavingStaffEdit}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-sm transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        {isSavingStaffEdit && <i className="fa-solid fa-circle-notch fa-spin"></i>}
-                        <span>Save Changes 💾</span>
-                      </button>
+                      <div className="space-y-3 text-xs font-bold text-slate-700">
+                        <div>
+                          <label className="block mb-1">User Email (Read-Only)</label>
+                          <input
+                            type="email"
+                            disabled
+                            value={editingStaffUser.email}
+                            className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-500 font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block mb-1">Full Name *</label>
+                          <input
+                            type="text"
+                            value={editStaffName}
+                            onChange={(e) => setEditStaffName(e.target.value)}
+                            placeholder="e.g. Rahul Sharma"
+                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block mb-1">WhatsApp Phone Number *</label>
+                          <input
+                            type="tel"
+                            value={editStaffPhone}
+                            onChange={(e) => setEditStaffPhone(e.target.value)}
+                            placeholder="e.g. 9876543210"
+                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                          />
+                          <span className="text-[10px] text-slate-400 font-normal block mt-0.5">
+                            💡 Enter 10-digit number (e.g. 9876543210). Country code (+91) is automatically added when sending WhatsApp.
+                          </span>
+                        </div>
+
+                        {!isEditingAdmin && (
+                          <>
+                            <div>
+                              <label className="block mb-1">Staff UID</label>
+                              <input
+                                type="text"
+                                value={editStaffUid}
+                                onChange={(e) => setEditStaffUid(e.target.value)}
+                                placeholder="e.g. usr_10293"
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block mb-1">Assigned Role</label>
+                              <select
+                                value={editStaffRoleId}
+                                onChange={(e) => setEditStaffRoleId(e.target.value)}
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                              >
+                                {rolesList
+                                  .filter((r) => r.id !== "role_admin" && r.name.toLowerCase() !== "admin")
+                                  .map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                      {r.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                        <button
+                          onClick={() => setEditingStaffUser(null)}
+                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveStaffDetails}
+                          disabled={isSavingStaffEdit}
+                          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-sm transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {isSavingStaffEdit && <i className="fa-solid fa-circle-notch fa-spin"></i>}
+                          <span>Save Changes 💾</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* 4. ROLES MANAGEMENT DIRECTORY */}
               <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-5 shadow-sm space-y-4">

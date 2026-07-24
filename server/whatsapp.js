@@ -952,4 +952,79 @@ router.post("/webhook", async (req, res) => {
   }
 });
 
+/**
+ * 15. Send Staff Flow Notification
+ * POST /api/whatsapp/notify-staff-flow
+ */
+router.post("/notify-staff-flow", async (req, res) => {
+  try {
+    const { staffPhone, staffName, clientName, flowTitle, roleName, tasks, domain } = req.body;
+    if (!staffPhone) {
+      return res.status(400).json({ success: false, error: "Staff phone is required" });
+    }
+
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    const instanceName = await resolveActiveInstance(config.selectedInstanceName);
+    if (!instanceName) {
+      return res.status(400).json({ success: false, error: "No active WhatsApp instance available." });
+    }
+
+    const cleanNumber = sanitizePhoneNumber(staffPhone);
+    const hostDomain = domain || "firstoptionagency.com";
+    const managementUrl = `http://${hostDomain}/management`;
+
+    const taskLines = Array.isArray(tasks) && tasks.length > 0
+      ? tasks.map((t, idx) => `${idx + 1}. *${t.title || t.name || t}*`).join("\n")
+      : "• Execute assigned tasks for client onboarding flow";
+
+    const messageText = `📋 *New Flow & Task Assignment*
+
+Hello ${staffName || "Team Member"},
+You have new tasks assigned for onboarded client: *${clientName || "N/A"}*!
+
+🔄 *Flow:* ${flowTitle || "N/A"}
+👤 *Your Role:* ${roleName || "Staff"}
+
+📝 *Your Tasks:*
+${taskLines}
+
+🔗 *Access HMS Management Portal:*
+${managementUrl}
+
+Please log in to your dashboard to review and manage your tasks.`;
+
+    const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
+      number: cleanNumber,
+      text: messageText,
+    });
+
+    if (evoRes.ok) {
+      await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
+        status: "open",
+        qrCode: null,
+        updatedAt: new Date().toISOString(),
+      });
+      const logId = `staff_flow_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
+        id: logId,
+        type: "staff_flow_notification",
+        number: cleanNumber,
+        text: messageText,
+        status: "sent",
+        timestamp: new Date().toISOString(),
+      });
+      return res.status(200).json({ success: true, message: "Staff WhatsApp notification sent!" });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: evoRes.data.error || evoRes.data.message || "Failed to send staff WhatsApp message",
+      });
+    }
+  } catch (err) {
+    console.error("Notify Staff Flow Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
+

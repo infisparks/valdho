@@ -22,6 +22,7 @@ import {
   getAllUsers,
   setUserRoleByEmail,
   registerUserByEmail,
+  updateUserStaffDetails,
   getFlowTemplates,
   createFlowTemplate,
   deleteFlowTemplate,
@@ -213,6 +214,28 @@ export default function CRMPage() {
     }
   }, []);
 
+  // Pipeline board scroll ref & helper for easy mobile scrolling
+  const pipelineBoardRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollPipeline = (direction: "left" | "right") => {
+    if (pipelineBoardRef.current) {
+      const scrollAmount = 320;
+      pipelineBoardRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const scrollToStageColumn = (stageId: string) => {
+    if (pipelineBoardRef.current) {
+      const colElement = pipelineBoardRef.current.querySelector(`#stage-col-${stageId}`);
+      if (colElement) {
+        colElement.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+      }
+    }
+  };
+
   // Data State
   const [leadsList, setLeadsList] = useState<LeadData[]>([]);
   const [allLeadsList, setAllLeadsList] = useState<LeadData[]>([]);
@@ -235,9 +258,20 @@ export default function CRMPage() {
   const [roleSuccessMessage, setRoleSuccessMessage] = useState<string | null>(null);
 
   // MANUAL EMAIL USER REGISTRATION STATE
+  const [newRegisterName, setNewRegisterName] = useState("");
   const [newRegisterEmail, setNewRegisterEmail] = useState("");
+  const [newRegisterPhone, setNewRegisterPhone] = useState("");
+  const [newRegisterUid, setNewRegisterUid] = useState("");
   const [newRegisterRoleId, setNewRegisterRoleId] = useState("role_onboarding");
   const [isRegisteringUser, setIsRegisteringUser] = useState(false);
+
+  // EDIT STAFF USER MODAL STATE
+  const [editingStaffUser, setEditingStaffUser] = useState<UserData | null>(null);
+  const [editStaffName, setEditStaffName] = useState("");
+  const [editStaffPhone, setEditStaffPhone] = useState("");
+  const [editStaffUid, setEditStaffUid] = useState("");
+  const [editStaffRoleId, setEditStaffRoleId] = useState("");
+  const [isSavingStaffEdit, setIsSavingStaffEdit] = useState(false);
 
   // WORKFLOW TEMPLATE BUILDER STATE
   const [newFlowName, setNewFlowName] = useState("");
@@ -671,11 +705,48 @@ export default function CRMPage() {
     }
   };
 
-  // Open & Close Drawer Handlers
-  const handleOpenDrawer = (lead: LeadData | any) => {
-    setSelectedLead(lead);
-    setFollowUpDateInput(lead.followUpDate || "");
-    setDealValueInput(lead.dealValue ? lead.dealValue.toString() : "");
+  // Open & Close Drawer Handlers (Normalized across Leads, Pipeline, Meetings, and Calendar)
+  const handleOpenDrawer = (item: LeadData | any) => {
+    if (!item) return;
+
+    // Look up full master lead from allLeadsList to ensure survey, notes, and status are preserved
+    const masterLead = allLeadsList.find((l) =>
+      (item.id && l.id === item.id) ||
+      (item.email && l.email && l.email.toLowerCase() === item.email.toLowerCase())
+    );
+
+    // Normalize meeting object whether clicked from Lead record or Meeting index record
+    const rawMeetingUrl = item.meeting?.meetingUrl || item.meetingUrl || item.links?.meetingUrl || masterLead?.meeting?.meetingUrl || masterLead?.links?.meetingUrl || null;
+    const rawMeetingDate = item.meeting?.meetingDate || item.meetingDate || masterLead?.meeting?.meetingDate || null;
+    const rawMeetingTime = item.meeting?.meetingTime || item.meetingTime || masterLead?.meeting?.meetingTime || null;
+
+    const normalizedMeeting = rawMeetingDate && rawMeetingTime ? {
+      meetingDate: rawMeetingDate,
+      meetingTime: rawMeetingTime,
+      meetingUrl: rawMeetingUrl,
+      bookedAt: item.meeting?.bookedAt || item.bookedAt || masterLead?.meeting?.bookedAt || null,
+      rescheduledAt: item.meeting?.rescheduledAt || masterLead?.meeting?.rescheduledAt || null,
+    } : (item.meeting || masterLead?.meeting || null);
+
+    const fullLeadData: LeadData = {
+      ...(masterLead || {}),
+      ...item,
+      id: item.id || masterLead?.id || (item.email ? sanitizeEmailToId(item.email) : "lead_" + Date.now()),
+      fullName: item.fullName || masterLead?.fullName || "Client",
+      email: item.email || masterLead?.email || "",
+      phone: item.phone || masterLead?.phone || "",
+      meeting: normalizedMeeting,
+      survey: item.survey && Object.keys(item.survey).length > 0 ? item.survey : masterLead?.survey,
+      notes: item.notes || masterLead?.notes || [],
+      followUpDate: item.followUpDate || masterLead?.followUpDate,
+      dealValue: item.dealValue !== undefined ? item.dealValue : masterLead?.dealValue,
+      pipelineStage: item.pipelineStage || masterLead?.pipelineStage || "raw",
+      status: item.status || masterLead?.status || (normalizedMeeting ? "completed" : "partial"),
+    };
+
+    setSelectedLead(fullLeadData);
+    setFollowUpDateInput(fullLeadData.followUpDate || "");
+    setDealValueInput(fullLeadData.dealValue ? fullLeadData.dealValue.toString() : "");
     setNewNoteText("");
     setIsDrawerOpen(true);
   };
@@ -757,7 +828,14 @@ export default function CRMPage() {
     }
 
     setIsRegisteringUser(true);
-    const res = await registerUserByEmail(cleanEmail, targetRoleObj.id, targetRoleObj.name);
+    const res = await registerUserByEmail(
+      cleanEmail,
+      targetRoleObj.id,
+      targetRoleObj.name,
+      newRegisterName,
+      newRegisterPhone,
+      newRegisterUid
+    );
     setIsRegisteringUser(false);
 
     if (res.success && res.user) {
@@ -768,10 +846,91 @@ export default function CRMPage() {
         }
         return [...prev, res.user!];
       });
+      setNewRegisterName("");
       setNewRegisterEmail("");
-      setRoleSuccessMessage(`User '${cleanEmail}' added and assigned '${targetRoleObj.name}' role!`);
+      setNewRegisterPhone("");
+      setNewRegisterUid("");
+      setRoleSuccessMessage(`Staff member '${res.user.name || cleanEmail}' registered successfully with '${targetRoleObj.name}' role!`);
     } else {
-      setRoleErrorMessage(res.message || "Failed to add user email.");
+      setRoleErrorMessage(res.message || "Failed to add staff member.");
+    }
+  };
+
+  const handleOpenEditStaffModal = (user: UserData) => {
+    setEditingStaffUser(user);
+    setEditStaffName(user.name || "");
+    setEditStaffPhone(user.phone || "");
+    setEditStaffUid(user.uid || "");
+    setEditStaffRoleId(user.roleId || "role_onboarding");
+  };
+
+  const handleSaveStaffDetails = async () => {
+    if (!editingStaffUser) return;
+    setIsSavingStaffEdit(true);
+    const emailId = editingStaffUser.emailId || sanitizeEmailToId(editingStaffUser.email);
+    const targetRoleObj = rolesList.find((r) => r.id === editStaffRoleId) || { id: editingStaffUser.roleId, name: editingStaffUser.roleName };
+
+    const updatedData: Partial<UserData> = {
+      name: editStaffName.trim(),
+      phone: editStaffPhone.trim(),
+      uid: editStaffUid.trim(),
+      roleId: targetRoleObj.id,
+      roleName: targetRoleObj.name,
+    };
+
+    const res = await updateUserStaffDetails(emailId, updatedData);
+    setIsSavingStaffEdit(false);
+
+    if (res.success) {
+      setUsersList((prev) =>
+        prev.map((u) => (u.emailId === emailId || u.email === editingStaffUser.email ? { ...u, ...updatedData } : u))
+      );
+      setRoleSuccessMessage(`Staff details for '${editStaffName || editingStaffUser.email}' saved!`);
+      setEditingStaffUser(null);
+    } else {
+      setRoleErrorMessage(res.message || "Failed to update staff details.");
+    }
+  };
+
+  // Dispatch WhatsApp Flow Task Notifications to Assigned Staff Members
+  const dispatchStaffFlowWhatsAppNotifications = async (
+    clientName: string,
+    flowTitle: string,
+    flowTasks: any[]
+  ) => {
+    try {
+      const tasksByRole: Record<string, { title: string }[]> = {};
+      flowTasks.forEach((t) => {
+        if (!tasksByRole[t.roleId]) tasksByRole[t.roleId] = [];
+        tasksByRole[t.roleId].push({ title: t.title });
+      });
+
+      const domain = typeof window !== "undefined" ? window.location.host : "firstoptionagency.com";
+
+      for (const [roleId, tasks] of Object.entries(tasksByRole)) {
+        const matchingStaff = usersList.filter(
+          (u) => (u.roleId === roleId || (roleId === "role_onboarding" && u.roleName?.toLowerCase().includes("onboarding"))) &&
+                 u.phone && u.phone.trim().replace(/\D/g, "").length >= 5
+        );
+
+        for (const staff of matchingStaff) {
+          fetch(`${SERVER_URL}/api/whatsapp/notify-staff-flow`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              staffPhone: staff.phone,
+              staffName: staff.name || staff.email,
+              clientName,
+              flowTitle,
+              roleName: staff.roleName,
+              tasks,
+              domain,
+            }),
+          }).catch((err) => console.error("Error dispatching staff WhatsApp notification:", err));
+        }
+      }
+    } catch (err) {
+      console.error("dispatchStaffFlowWhatsAppNotifications Error:", err);
     }
   };
 
@@ -883,7 +1042,14 @@ export default function CRMPage() {
 
     if (res.success && res.instance) {
       setClientFlowInstancesList((prev) => [...prev, res.instance!]);
-      setRoleSuccessMessage(`Flow '${res.instance.flowName}' assigned to client ${assignFlowModalClient.fullName}!`);
+      setRoleSuccessMessage(`Flow '${res.instance.flowName}' assigned to client ${assignFlowModalClient.fullName}! Dispatched WhatsApp notifications to assigned staff.`);
+      
+      // Dispatch WhatsApp notifications to assigned staff members
+      await dispatchStaffFlowWhatsAppNotifications(
+        assignFlowModalClient.fullName,
+        res.instance.flowName,
+        res.instance.tasks
+      );
     }
     setIsAssigningFlow(false);
     setAssignFlowModalClient(null);
@@ -1979,7 +2145,7 @@ export default function CRMPage() {
                       <span>Staff Directory & Assigned Roles ({usersList.length})</span>
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Enter user email address to assign them a role in <code className="font-mono">/users</code> node
+                      Register staff with Name, Email, WhatsApp Phone & Role to enable automated flow task notifications.
                     </p>
                   </div>
                   <span className="text-xs font-mono font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl border border-indigo-200">
@@ -1987,49 +2153,89 @@ export default function CRMPage() {
                   </span>
                 </div>
 
-                {/* Form to add User Email */}
-                <form onSubmit={handleManualRegisterUserByEmail} className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">User Email Address *</label>
-                    <input
-                      type="email"
-                      placeholder="e.g. staff@firstoptionagency.com"
-                      value={newRegisterEmail}
-                      onChange={(e) => setNewRegisterEmail(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
-                    />
+                {/* Form to Register Staff Member */}
+                <form onSubmit={handleManualRegisterUserByEmail} className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Staff Member Name *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Rahul Sharma"
+                        value={newRegisterName}
+                        onChange={(e) => setNewRegisterName(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">User Email Address *</label>
+                      <input
+                        type="email"
+                        placeholder="e.g. staff@firstoptionagency.com"
+                        value={newRegisterEmail}
+                        onChange={(e) => setNewRegisterEmail(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">WhatsApp Number *</label>
+                      <input
+                        type="tel"
+                        placeholder="e.g. +919876543210"
+                        value={newRegisterPhone}
+                        onChange={(e) => setNewRegisterPhone(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Staff UID (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. usr_10293"
+                        value={newRegisterUid}
+                        onChange={(e) => setNewRegisterUid(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">Assign Staff Role</label>
-                    <select
-                      value={newRegisterRoleId}
-                      onChange={(e) => setNewRegisterRoleId(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
-                    >
-                      {rolesList
-                        .filter((r) => r.id !== "role_admin" && r.name.toLowerCase() !== "admin")
-                        .map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                    <div className="sm:w-1/2 space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Assign Staff Role *</label>
+                      <select
+                        value={newRegisterRoleId}
+                        onChange={(e) => setNewRegisterRoleId(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      >
+                        {rolesList
+                          .filter((r) => r.id !== "role_admin" && r.name.toLowerCase() !== "admin")
+                          .map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
 
-                  <div className="flex items-end">
-                    <button
-                      type="submit"
-                      disabled={isRegisteringUser || !newRegisterEmail.trim()}
-                      className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-xs font-extrabold py-2 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-                    >
-                      {isRegisteringUser ? (
-                        <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
-                      ) : (
-                        <i className="fa-solid fa-user-check text-xs"></i>
-                      )}
-                      <span>Add User & Assign Role 👤</span>
-                    </button>
+                    <div className="sm:w-1/2 flex items-end">
+                      <button
+                        type="submit"
+                        disabled={isRegisteringUser || !newRegisterEmail.trim()}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-xs font-extrabold py-2 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        {isRegisteringUser ? (
+                          <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                        ) : (
+                          <i className="fa-solid fa-user-check text-xs"></i>
+                        )}
+                        <span>Add Staff Member & Assign Role 👤</span>
+                      </button>
+                    </div>
                   </div>
                 </form>
 
@@ -2037,34 +2243,59 @@ export default function CRMPage() {
                   <table className="w-full text-left text-xs text-slate-700">
                     <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider">
                       <tr>
-                        <th className="px-4 py-3">User Email Address</th>
-                        <th className="px-4 py-3">Current Assigned Role</th>
+                        <th className="px-4 py-3">Staff Member</th>
+                        <th className="px-4 py-3">WhatsApp Number</th>
+                        <th className="px-4 py-3">Assigned Role</th>
                         <th className="px-4 py-3">Last Updated</th>
-                        <th className="px-4 py-3 text-right">Change Role</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
                       {usersList.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-400 italic">
+                          <td colSpan={5} className="p-6 text-center text-slate-400 italic">
                             No registered staff users found in Firebase /users node.
                           </td>
                         </tr>
                       ) : (
                         usersList.map((usr) => {
                           const isMaster = usr.email?.toLowerCase().startsWith("firstoption") || usr.uid === MASTER_ADMIN_UID;
+                          const cleanPhone = (usr.phone || "").trim();
 
                           return (
                             <tr key={usr.emailId || usr.email} className="hover:bg-slate-50/80 transition-colors">
                               <td className="px-4 py-3">
-                                <div className="font-extrabold text-slate-900 text-sm flex items-center space-x-2">
-                                  <span>{usr.email}</span>
-                                  {isMaster && (
-                                    <span className="bg-indigo-100 text-indigo-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-indigo-300">
-                                      👑 Master Admin
-                                    </span>
-                                  )}
+                                <div className="space-y-0.5">
+                                  <div className="font-extrabold text-slate-900 text-sm flex items-center space-x-2">
+                                    <span>{usr.name || usr.email.split("@")[0]}</span>
+                                    {isMaster && (
+                                      <span className="bg-indigo-100 text-indigo-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-indigo-300">
+                                        👑 Master Admin
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 font-medium flex items-center space-x-2">
+                                    <span>{usr.email}</span>
+                                    {usr.uid && (
+                                      <span className="bg-slate-100 text-slate-600 font-mono text-[9px] px-1.5 py-0.2 rounded border border-slate-200">
+                                        UID: {usr.uid}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
+                              </td>
+
+                              <td className="px-4 py-3">
+                                {cleanPhone ? (
+                                  <span className="inline-flex items-center space-x-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-xl text-xs font-mono font-bold">
+                                    <i className="fa-brands fa-whatsapp text-emerald-600 text-sm"></i>
+                                    <span>{cleanPhone}</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
+                                    ⚠️ Missing Phone
+                                  </span>
+                                )}
                               </td>
 
                               <td className="px-4 py-3">
@@ -2072,7 +2303,7 @@ export default function CRMPage() {
                                   className={`text-xs font-extrabold px-3 py-1 rounded-xl border ${
                                     usr.roleId === "role_admin" || usr.roleName?.toLowerCase() === "admin"
                                       ? "bg-indigo-100 text-indigo-900 border-indigo-300"
-                                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : "bg-indigo-50 text-indigo-800 border-indigo-200"
                                   }`}
                                 >
                                   {usr.roleName || "Onboarding Specialist"}
@@ -2089,19 +2320,30 @@ export default function CRMPage() {
                                     Permanent Admin
                                   </span>
                                 ) : (
-                                  <select
-                                    value={usr.roleId || "role_onboarding"}
-                                    onChange={(e) => handleAssignUserRoleByEmail(usr.email, e.target.value)}
-                                    className="bg-white border border-slate-300 rounded-xl px-3 py-1 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
-                                  >
-                                    {rolesList
-                                      .filter((r) => r.id !== "role_admin" && r.name.toLowerCase() !== "admin")
-                                      .map((r) => (
-                                        <option key={r.id} value={r.id}>
-                                          {r.name}
-                                        </option>
-                                      ))}
-                                  </select>
+                                  <div className="flex items-center justify-end space-x-2">
+                                    <button
+                                      onClick={() => handleOpenEditStaffModal(usr)}
+                                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-xl transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                                      title="Edit Staff Name, Phone & Role"
+                                    >
+                                      <i className="fa-solid fa-pen-to-square text-[10px]"></i>
+                                      <span>Edit ✏️</span>
+                                    </button>
+
+                                    <select
+                                      value={usr.roleId || "role_onboarding"}
+                                      onChange={(e) => handleAssignUserRoleByEmail(usr.email, e.target.value)}
+                                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                                    >
+                                      {rolesList
+                                        .filter((r) => r.id !== "role_admin" && r.name.toLowerCase() !== "admin")
+                                        .map((r) => (
+                                          <option key={r.id} value={r.id}>
+                                            {r.name}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
                                 )}
                               </td>
                             </tr>
@@ -2112,6 +2354,105 @@ export default function CRMPage() {
                   </table>
                 </div>
               </div>
+
+              {/* EDIT STAFF DETAILS MODAL */}
+              {editingStaffUser && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="text-base font-extrabold text-slate-900 flex items-center space-x-2">
+                        <i className="fa-solid fa-user-pen text-indigo-600"></i>
+                        <span>Edit Staff Details</span>
+                      </h3>
+                      <button
+                        onClick={() => setEditingStaffUser(null)}
+                        className="text-slate-400 hover:text-slate-600 font-bold p-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 text-xs font-bold text-slate-700">
+                      <div>
+                        <label className="block mb-1">User Email (Read-Only)</label>
+                        <input
+                          type="email"
+                          disabled
+                          value={editingStaffUser.email}
+                          className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-500 font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block mb-1">Full Name</label>
+                        <input
+                          type="text"
+                          value={editStaffName}
+                          onChange={(e) => setEditStaffName(e.target.value)}
+                          placeholder="e.g. Rahul Sharma"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block mb-1">WhatsApp Phone Number *</label>
+                        <input
+                          type="tel"
+                          value={editStaffPhone}
+                          onChange={(e) => setEditStaffPhone(e.target.value)}
+                          placeholder="e.g. +919876543210"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block mb-1">Staff UID</label>
+                        <input
+                          type="text"
+                          value={editStaffUid}
+                          onChange={(e) => setEditStaffUid(e.target.value)}
+                          placeholder="e.g. usr_10293"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block mb-1">Assigned Role</label>
+                        <select
+                          value={editStaffRoleId}
+                          onChange={(e) => setEditStaffRoleId(e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-600"
+                        >
+                          {rolesList
+                            .filter((r) => r.id !== "role_admin" && r.name.toLowerCase() !== "admin")
+                            .map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => setEditingStaffUser(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveStaffDetails}
+                        disabled={isSavingStaffEdit}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-sm transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingStaffEdit && <i className="fa-solid fa-circle-notch fa-spin"></i>}
+                        <span>Save Changes 💾</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 4. ROLES MANAGEMENT DIRECTORY */}
               <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-5 shadow-sm space-y-4">
@@ -2494,48 +2835,105 @@ export default function CRMPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2 text-xs font-bold text-slate-500 overflow-x-auto pt-1">
+                <div className="flex items-center space-x-2 text-xs font-bold text-slate-500 overflow-x-auto pt-1 scrollbar-thin scroll-smooth touch-pan-x">
                   <button
                     onClick={() => changeTab("leads")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
                   >
                     All Leads List
                   </button>
                   <button
                     onClick={() => changeTab("pipeline")}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-2xs"
+                    className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-2xs whitespace-nowrap font-extrabold"
                   >
                     Pipeline Board
                   </button>
                   <button
                     onClick={() => changeTab("onboarded")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-emerald-700 font-extrabold"
+                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-emerald-700 font-extrabold whitespace-nowrap"
                   >
                     Onboarded Directory ({allOnboardedList.length})
                   </button>
                   <button
                     onClick={() => changeTab("roles")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-indigo-700 font-extrabold"
+                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-indigo-700 font-extrabold whitespace-nowrap"
                   >
                     Roles & Flows ({flowTemplatesList.length})
                   </button>
                   <button
                     onClick={() => changeTab("meetings")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
                   >
                     Scheduled Meetings
                   </button>
                   <button
                     onClick={() => changeTab("calendar")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
                   >
                     Meetings Calendar
                   </button>
                 </div>
               </div>
 
+              {/* STAGE QUICK-SCROLL NAVIGATION BAR FOR EASY MOBILE & TOUCH SCROLLING */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="flex items-center justify-between space-x-2 flex-shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <span className="bg-indigo-50 text-indigo-700 text-xs px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-indigo-100">
+                      <i className="fa-solid fa-arrows-left-right text-[10px]"></i>
+                      Quick Jump
+                    </span>
+                    <span className="text-xs font-bold text-slate-500 hidden md:inline">Stage Navigation:</span>
+                  </div>
+
+                  {/* Left & Right Scroll Buttons */}
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => scrollPipeline("left")}
+                      className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 active:scale-95 flex items-center justify-center transition-all border border-slate-200/80 shadow-2xs cursor-pointer"
+                      title="Scroll Pipeline Left"
+                      type="button"
+                    >
+                      <i className="fa-solid fa-chevron-left text-[11px]"></i>
+                    </button>
+                    <button
+                      onClick={() => scrollPipeline("right")}
+                      className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 active:scale-95 flex items-center justify-center transition-all border border-slate-200/80 shadow-2xs cursor-pointer"
+                      title="Scroll Pipeline Right"
+                      type="button"
+                    >
+                      <i className="fa-solid fa-chevron-right text-[11px]"></i>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stage Pills Navigation Strip */}
+                <div className="flex items-center space-x-2 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden scroll-smooth touch-pan-x flex-1 max-w-full">
+                  {activePipelineStages.map((st) => {
+                    const count = filteredPipelineLeads.filter((l) => getLeadEffectiveStage(l) === st.id).length;
+                    return (
+                      <button
+                        key={`quick-nav-${st.id}`}
+                        onClick={() => scrollToStageColumn(st.id)}
+                        type="button"
+                        className="flex-shrink-0 flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-indigo-50/80 hover:border-indigo-200 active:scale-95 text-xs font-bold text-slate-700 hover:text-indigo-700 transition-all border border-slate-200/80 cursor-pointer group shadow-2xs"
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: st.color }} />
+                        <span className="whitespace-nowrap">{st.name}</span>
+                        <span className="bg-slate-200/70 group-hover:bg-indigo-100 text-slate-700 group-hover:text-indigo-800 px-1.5 py-0.2 text-[10px] rounded-md font-mono font-bold">
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* DRAG-AND-DROP KANBAN PIPELINE COLUMNS */}
-              <div className="flex items-start space-x-3.5 overflow-x-auto pb-6 pt-1 min-h-[620px] scrollbar-thin">
+              <div
+                ref={pipelineBoardRef}
+                className="flex items-start space-x-3.5 overflow-x-auto pb-6 pt-1 min-h-[620px] scrollbar-thin scroll-smooth touch-pan-x"
+              >
                 {activePipelineStages.map((stage) => {
                   const stageLeads = filteredPipelineLeads.filter((l) => getLeadEffectiveStage(l) === stage.id);
                   const totalStageValue = stageLeads.reduce((acc, l) => acc + (l.dealValue || 0), 0);
@@ -2543,6 +2941,7 @@ export default function CRMPage() {
                   return (
                     <div
                       key={stage.id}
+                      id={`stage-col-${stage.id}`}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();

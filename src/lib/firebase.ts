@@ -31,6 +31,7 @@ export interface MeetingData {
   meetingDate?: string;
   meetingTime?: string;
   bookedAt?: string;
+  rescheduledAt?: string;
   meetingUrl?: string;
 }
 
@@ -828,6 +829,8 @@ export interface UserData {
   emailId: string;
   roleId: string;
   roleName: string;
+  name?: string;
+  phone?: string;
   uid?: string;
   updatedAt?: string;
 }
@@ -1036,12 +1039,15 @@ export async function setUserRoleByEmail(
 }
 
 /**
- * Register a user entry by Email ONLY into Firebase /users node so Admin can assign their role. No UID needed!
+ * Register a user entry by Email into Firebase /users node along with staff name, phone number, and UID so Admin can assign their role and system can dispatch WhatsApp notifications.
  */
 export async function registerUserByEmail(
   email: string,
   roleId: string = "role_onboarding",
-  roleName: string = "Onboarding Specialist"
+  roleName: string = "Onboarding Specialist",
+  name?: string,
+  phone?: string,
+  uid?: string
 ): Promise<{ success: boolean; message?: string; user?: UserData }> {
   try {
     const cleanEmail = email.trim();
@@ -1061,6 +1067,9 @@ export async function registerUserByEmail(
     const userEntry: UserData = {
       email: cleanEmail,
       emailId,
+      name: name?.trim() || cleanEmail.split("@")[0],
+      phone: phone?.trim() || "",
+      uid: uid?.trim() || "",
       roleId: isMaster ? "role_admin" : roleId,
       roleName: isMaster ? "Admin" : roleName,
       updatedAt: timestamp,
@@ -1071,6 +1080,26 @@ export async function registerUserByEmail(
   } catch (err) {
     console.error("Firebase registerUserByEmail Error:", err);
     return { success: false, message: "Failed to register user in Firebase." };
+  }
+}
+
+/**
+ * Update existing staff user details (Name, Phone, UID, Role) in Firebase /users node.
+ */
+export async function updateUserStaffDetails(
+  emailId: string,
+  data: Partial<UserData>
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const timestamp = new Date().toISOString();
+    await update(ref(db, `users/${emailId}`), {
+      ...data,
+      updatedAt: timestamp,
+    });
+    return { success: true };
+  } catch (err) {
+    console.error("Firebase updateUserStaffDetails Error:", err);
+    return { success: false, message: "Failed to update staff user details." };
   }
 }
 

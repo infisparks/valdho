@@ -464,14 +464,14 @@ export default function CreateFlowPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-800">Flow Description</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Complete client video shoot & ads verification"
+                  <label className="text-xs font-bold text-slate-800">Flow Description (Paragraph Format)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Complete client video shoot, script review & ads verification..."
                     value={flowDescription}
                     onChange={(e) => setFlowDescription(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
-                  />
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600 leading-relaxed font-sans"
+                  ></textarea>
                 </div>
               </div>
 
@@ -480,7 +480,7 @@ export default function CreateFlowPage() {
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                   <h3 className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
                     <i className="fa-solid fa-tasks text-indigo-600"></i>
-                    <span>Step 2: Add & Edit Role Task Steps</span>
+                    <span>Step 2: Add & Edit Role Task Steps (Paragraph Format Supported)</span>
                   </h3>
                   <span className="text-[10px] font-mono text-slate-500">
                     Draft Steps: {draftTasks.length}
@@ -489,20 +489,16 @@ export default function CreateFlowPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-600">Task Title / Work Description *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Edit client reel & sync background music"
+                    <label className="text-[10px] font-bold text-slate-600">
+                      Task Title / Work Description (Paragraph Format) *
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Write multi-line instructions, script points, or video guidelines for the editor..."
                       value={taskTitle}
                       onChange={(e) => setTaskTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddTaskStep();
-                        }
-                      }}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:outline-none focus:border-indigo-600"
-                    />
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600 leading-relaxed font-sans"
+                    ></textarea>
                   </div>
 
                   <div className="space-y-1">
@@ -635,7 +631,7 @@ export default function CreateFlowPage() {
                                           #{globalIdx + 1}
                                         </span>
                                         <div>
-                                          <p className="font-extrabold text-slate-900 text-xs">{t.title}</p>
+                                          <p className="font-extrabold text-slate-900 text-xs whitespace-pre-wrap leading-relaxed break-words">{t.title}</p>
                                           <span className="text-[9px] font-mono text-slate-500">
                                             Input: {t.type}
                                           </span>
@@ -682,7 +678,7 @@ export default function CreateFlowPage() {
                                 {idx + 1}
                               </span>
                               <div>
-                                <p className="font-extrabold text-slate-900 text-sm">{t.title}</p>
+                                <p className="font-extrabold text-slate-900 text-sm whitespace-pre-wrap leading-relaxed break-words">{t.title}</p>
                                 <div className="flex items-center space-x-2 mt-0.5">
                                   <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2 py-0.5 rounded text-[10px]">
                                     Role: {t.roleName}
@@ -869,13 +865,13 @@ export default function CreateFlowPage() {
 
             <div className="space-y-3">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-800">Task Title / Work Description *</label>
-                <input
-                  type="text"
+                <label className="text-xs font-bold text-slate-800">Task Title / Work Description (Paragraph Format) *</label>
+                <textarea
+                  rows={4}
                   value={editTaskTitle}
                   onChange={(e) => setEditTaskTitle(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:outline-none focus:border-indigo-600"
-                />
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600 leading-relaxed font-sans"
+                ></textarea>
               </div>
 
               <div className="grid grid-cols-2 gap-2">

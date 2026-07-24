@@ -638,7 +638,7 @@ function ViewFlowCanvasContent() {
                                 <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
                                   #{originalStepIdx}
                                 </span>
-                                <h4 className="text-xs font-extrabold text-slate-100 leading-snug">
+                                <h4 className="text-xs font-extrabold text-slate-100 leading-snug whitespace-pre-wrap leading-relaxed break-words">
                                   {task.title}
                                 </h4>
                               </div>

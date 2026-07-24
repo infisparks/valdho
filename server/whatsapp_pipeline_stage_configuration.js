@@ -361,7 +361,7 @@ async function evaluateStageAutomations() {
           const intervalIndex = Math.floor(elapsedMs / offsetMs);
 
           scheduledTriggerTimeMs = referenceDate.getTime() + (intervalIndex * offsetMs);
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_seq_${intervalIndex}`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_stg_${meetingKey || "init"}_seq_${intervalIndex}`;
         } else if (rule.offsetType === "before") {
           scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
           triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_m_${meetingKey || "bef"}`;

@@ -248,13 +248,15 @@ export function BookingModal({
       console.error("LocalStorage save error:", err);
     }
 
-    // Sync to Firebase with status "partial" (preserves existing survey/meeting if already completed)
+    // Sync to Firebase with status "partial" and pipelineStage "in_progress"
     const leadPayload: LeadData = {
       fullName: contactInfo.fullName,
       email: contactInfo.email,
       phone: cleanPhone,
       countryCode: contactInfo.countryCode,
       status: "partial",
+      pipelineStage: "in_progress",
+      stageMovedAt: new Date().toISOString(),
     };
 
     const res = await saveOrUpdateLead(leadPayload, emailPrefixId, createdDate, activeCampaign.id);
@@ -296,6 +298,8 @@ export function BookingModal({
       phone: contactInfo.phone.replace(/\D/g, ""),
       countryCode: contactInfo.countryCode,
       status: "survey_completed",
+      pipelineStage: "survey_completed",
+      stageMovedAt: new Date().toISOString(),
       survey: qAnswers,
     };
 
@@ -389,6 +393,8 @@ export function BookingModal({
       phone: contactInfo.phone.replace(/\D/g, ""),
       countryCode: contactInfo.countryCode,
       status: "completed",
+      pipelineStage: "meeting_booked",
+      stageMovedAt: new Date().toISOString(),
       survey: qAnswers,
       meeting: {
         meetingDate: appointmentDateStr,

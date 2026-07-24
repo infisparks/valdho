@@ -54,6 +54,7 @@ export interface LeadData {
   countryCode: string;
   status: "partial" | "survey_completed" | "completed";
   pipelineStage?: string; // "raw" | "in_progress" | "survey_completed" | "meeting_booked" | "proposal_sent" | "won" | "not_qualified"
+  stageMovedAt?: string;
   dealValue?: number; // e.g. 50000 (represented in ₹)
   survey?: SurveyData;
   meeting?: MeetingData;

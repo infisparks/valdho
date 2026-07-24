@@ -266,11 +266,17 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
           className="relative max-w-lg mx-auto h-56 sm:h-72 md:h-80 my-4 cursor-pointer group flex items-center justify-center"
         >
           <div className="relative w-44 sm:w-60 md:w-72 h-44 sm:h-56 md:h-64 flex items-center justify-center">
-            {resultImages.slice(0, 5).map((item, idx) => {
+            {[
+              resultImages[2], // 13.jpg.jpeg (-rotate-12)
+              resultImages[1], // 12.jpg.jpeg (-rotate-6)
+              resultImages[0], // 11.jpg.jpeg (rotate-0 FRONT CENTER)
+              resultImages[3], // 14.jpg.jpeg (rotate-6)
+              resultImages[4], // 15.jpg.jpeg (rotate-12)
+            ].map((item, idx) => {
               const rotationClasses = [
                 "-rotate-12 -translate-x-10 sm:-translate-x-16 translate-y-2 z-0",
                 "-rotate-6 -translate-x-5 sm:-translate-x-8 translate-y-1 z-10",
-                "rotate-0 translate-y-0 z-30 scale-105 shadow-[0_0_30px_rgba(245,166,35,0.4)]",
+                "rotate-0 translate-y-0 z-30 scale-105 shadow-[0_0_30px_rgba(245,166,35,0.5)] border-amber-400",
                 "rotate-6 translate-x-5 sm:translate-x-8 translate-y-1 z-20",
                 "rotate-12 translate-x-10 sm:translate-x-16 translate-y-2 z-0",
               ][idx];
@@ -278,7 +284,9 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
               return (
                 <div
                   key={idx}
-                  className={`absolute inset-0 rounded-2xl overflow-hidden border-2 border-amber-500/70 shadow-[0_10px_25px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 ${rotationClasses}`}
+                  className={`absolute inset-0 rounded-2xl overflow-hidden border-2 shadow-[0_10px_25px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 ${
+                    idx === 2 ? "border-amber-400 shadow-[0_0_30px_rgba(245,166,35,0.5)]" : "border-amber-500/60"
+                  } ${rotationClasses}`}
                 >
                   <img
                     src={item.src}

@@ -743,13 +743,67 @@ router.post("/auto-send-meeting", async (req, res) => {
     const cleanNumber = sanitizePhoneNumber(phone);
     const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
 
-    // Save resolved meeting URL on lead object in Firebase RTDB so stage automations & CRM display it
-    if (email) {
-      const cleanEmailId = email.toLowerCase().replace(/[^a-z0-9]/g, "_");
-      await firebaseDb(`leads/${cleanEmailId}/meeting`, "PATCH", { meetingUrl: resolvedMeetingUrl });
-      const campaigns = (await firebaseDb("campaigns")) || {};
-      for (const cKey of Object.keys(campaigns)) {
-        await firebaseDb(`campaigns/${cKey}/leads/${cleanEmailId}/meeting`, "PATCH", { meetingUrl: resolvedMeetingUrl });
+    // Save resolved meeting URL on actual lead & meeting objects in Firebase RTDB
+    if (email || phone) {
+      const cleanPhoneNum = sanitizePhoneNumber(phone);
+      const cleanEmailStr = email ? email.toLowerCase().trim() : "";
+      const emailPrefix = cleanEmailStr ? cleanEmailStr.replace(/[^a-z0-9]/g, "_") : "";
+
+      const campaignsObj = (await firebaseDb("campaigns")) || {};
+      for (const [cKey, campaignData] of Object.entries(campaignsObj)) {
+        if (!campaignData || typeof campaignData !== "object") continue;
+        const leadsNode = campaignData.leads || {};
+
+        for (const [dKey, leadsDateGroup] of Object.entries(leadsNode)) {
+          if (!leadsDateGroup || typeof leadsDateGroup !== "object") continue;
+
+          // Clean up orphan node if created directly under leads (e.g. mudassirs472_gmail_com)
+          if (emailPrefix && dKey === emailPrefix) {
+            await firebaseDb(`campaigns/${cKey}/leads/${dKey}`, "DELETE");
+            continue;
+          }
+
+          // Search date container for the real lead object
+          for (const [lId, leadObj] of Object.entries(leadsDateGroup)) {
+            if (leadObj && typeof leadObj === "object") {
+              const lEmail = (leadObj.email || "").toLowerCase().trim();
+              const lPhone = sanitizePhoneNumber(leadObj.phone);
+              if (
+                (cleanEmailStr && lEmail === cleanEmailStr) ||
+                (cleanPhoneNum && lPhone === cleanPhoneNum) ||
+                (emailPrefix && lId.includes(emailPrefix))
+              ) {
+                await firebaseDb(
+                  `campaigns/${cKey}/leads/${dKey}/${lId}/meeting`,
+                  "PATCH",
+                  { meetingUrl: resolvedMeetingUrl }
+                );
+              }
+            }
+          }
+        }
+
+        // Update meeting index node if present
+        if (date && campaignData.meetings && campaignData.meetings[date]) {
+          const meetingsDateGroup = campaignData.meetings[date];
+          for (const [lId, mObj] of Object.entries(meetingsDateGroup)) {
+            if (mObj && typeof mObj === "object") {
+              const mEmail = (mObj.email || "").toLowerCase().trim();
+              const mPhone = sanitizePhoneNumber(mObj.phone);
+              if (
+                (cleanEmailStr && mEmail === cleanEmailStr) ||
+                (cleanPhoneNum && mPhone === cleanPhoneNum) ||
+                (emailPrefix && lId.includes(emailPrefix))
+              ) {
+                await firebaseDb(
+                  `campaigns/${cKey}/meetings/${date}/${lId}`,
+                  "PATCH",
+                  { meetingUrl: resolvedMeetingUrl }
+                );
+              }
+            }
+          }
+        }
       }
     }
 

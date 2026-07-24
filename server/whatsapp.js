@@ -1105,7 +1105,7 @@ router.post("/notify-admin-ticket", async (req, res) => {
 ${description}
 
 📅 *Submitted:* ${new Date().toLocaleString()}
-🔗 *View in CRM:* ${crmUrl}`;
+🔗 *View in CRM:* ${crmUrl}?tab=tickets`;
 
     for (const phone of Array.from(adminPhones)) {
       await evoApiCall(`/message/sendText/${instanceName}`, "POST", {

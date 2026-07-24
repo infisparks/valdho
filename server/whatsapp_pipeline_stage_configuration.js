@@ -296,8 +296,18 @@ async function evaluateStageAutomations() {
 
     console.log(`[Pipeline Worker 🔍] Starting evaluation of ${activeRules.length} active rules across ${allLeads.length} leads at ${new Date().toLocaleTimeString()}...`);
 
-    // 4. Evaluate each lead against matching stage rules
+    // 4. Evaluate each lead against matching stage rules (With Smart Stage Alias Mapping & Fallback Funnel Engine)
     const normStage = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+
+    const stageEquivalents = {
+      surveycompleted: ["surveycompleted", "survey", "step2", "qualificationsurvey"],
+      inprogress: ["inprogress", "1stconnection", "firstconnection", "step1", "connection"],
+      meetingbooked: ["meetingbooked", "meeting", "step3", "booking"],
+      raw: ["raw", "leads", "newlead"],
+      proposalsent: ["proposalsent", "proposal"],
+      won: ["won", "closedwon"],
+      notqualified: ["notqualified", "disqualified"],
+    };
 
     for (const lead of allLeads) {
       const cleanNumber = lead._cleanPhone || sanitizePhoneNumber(lead.phone);
@@ -308,19 +318,59 @@ async function evaluateStageAutomations() {
 
       const leadStage = lead.pipelineStage || lead.status || lead.stage || "raw";
       const leadStgNorm = normStage(leadStage);
+      const leadEquivs = stageEquivalents[leadStgNorm] || [leadStgNorm];
 
-      const matchingRules = activeRules.filter((r) => {
+      let matchingRules = activeRules.filter((r) => {
         const rStgNorm = normStage(r.stageId);
-        return rStgNorm === leadStgNorm || (rStgNorm && leadStgNorm && (rStgNorm.includes(leadStgNorm) || leadStgNorm.includes(rStgNorm)));
+        const rEquivs = stageEquivalents[rStgNorm] || [rStgNorm];
+        return rEquivs.some((eq) => leadEquivs.includes(eq)) || (rStgNorm && leadStgNorm && (rStgNorm.includes(leadStgNorm) || leadStgNorm.includes(rStgNorm)));
       });
 
-      console.log(`[Pipeline Worker 👤] Checking Lead: ${lead.fullName || "Client"} (${cleanNumber}) | Stage: '${leadStage}' (Norm: '${leadStgNorm}') | Matching Rules: ${matchingRules.length}`);
-
+      // Smart Fallback Engine: If no custom stage rule exists, check Global 3-Step Funnel Config
       if (matchingRules.length === 0) {
-        const activeStageIds = [...new Set(activeRules.map((r) => r.stageId))].join(", ");
-        console.log(`[Pipeline Worker ℹ️] Lead '${lead.fullName || cleanNumber}' is currently in stage '${leadStage}'. No active rules configured for this stage (Rules exist for stages: [${activeStageIds}]).`);
-        continue;
+        if (leadEquivs.includes("surveycompleted")) {
+          const tpl = config.step2Survey?.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.";
+          matchingRules.push({
+            id: "fallback_step2_survey",
+            stageId: leadStage,
+            title: "Auto Funnel: Step 2 Survey Completed",
+            triggerBase: "created",
+            offsetType: "after",
+            offsetValue: 0,
+            offsetUnit: "minutes",
+            template: tpl,
+            isEnabled: true,
+          });
+        } else if (leadEquivs.includes("inprogress") || leadEquivs.includes("raw")) {
+          const tpl = config.step1Welcome?.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details. Our team will get back to you shortly.";
+          matchingRules.push({
+            id: "fallback_step1_welcome",
+            stageId: leadStage,
+            title: "Auto Funnel: Step 1 Contact Welcome",
+            triggerBase: "created",
+            offsetType: "after",
+            offsetValue: 0,
+            offsetUnit: "minutes",
+            template: tpl,
+            isEnabled: true,
+          });
+        } else if (leadEquivs.includes("meetingbooked")) {
+          const tpl = config.step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Join video call: {{meeting_url}}";
+          matchingRules.push({
+            id: "fallback_step3_meeting",
+            stageId: leadStage,
+            title: "Auto Funnel: Step 3 Meeting Confirmed",
+            triggerBase: "meeting",
+            offsetType: "before",
+            offsetValue: 10,
+            offsetUnit: "minutes",
+            template: tpl,
+            isEnabled: true,
+          });
+        }
       }
+
+      console.log(`[Pipeline Worker 👤] Checking Lead: ${lead.fullName || "Client"} (${cleanNumber}) | Stage: '${leadStage}' (Norm: '${leadStgNorm}') | Matching Rules: ${matchingRules.length}`);
 
       for (const rule of matchingRules) {
         const targetInstance = rule.instanceName || defaultInstanceName;

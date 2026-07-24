@@ -1929,7 +1929,10 @@ export default function CRMPage() {
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900 leading-tight">
-                First Option CRM
+                First Option Agency
+                <center>
+                CRM
+                </center>
               </h2>
               <span className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">
                 Executive Portal

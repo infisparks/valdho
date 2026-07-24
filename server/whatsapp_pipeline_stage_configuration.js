@@ -297,7 +297,7 @@ async function evaluateStageAutomations() {
       const cleanNumber = lead._cleanPhone || sanitizePhoneNumber(lead.phone);
       if (!cleanNumber || cleanNumber.length < 5) continue; // Skip leads without a valid phone number
 
-      const leadStage = lead.pipelineStage || "raw";
+      const leadStage = lead.pipelineStage || lead.status || lead.stage || "raw";
       const matchingRules = activeRules.filter((r) => r.stageId === leadStage);
 
       if (matchingRules.length === 0) continue;
@@ -350,6 +350,7 @@ async function evaluateStageAutomations() {
 
         let scheduledTriggerTimeMs = 0;
         let triggerKey = "";
+        const refStr = referenceDate.toISOString().split(":")[0];
 
         if (rule.offsetType === "recurring") {
           const elapsedMs = Math.max(0, nowMs - referenceDate.getTime());
@@ -359,11 +360,11 @@ async function evaluateStageAutomations() {
           triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_seq_${intervalIndex}`;
         } else if (rule.offsetType === "before") {
           scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_before`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_before_${refStr}`;
         } else {
           // after
           scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_after`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_after_${refStr}`;
         }
 
         // Window check: execute if current time has reached or passed scheduledTriggerTimeMs
@@ -379,12 +380,12 @@ async function evaluateStageAutomations() {
           continue;
         }
 
-        // Guard Check 2: Global 30-Second Cooldown per Phone Number to prevent burst duplicate messages
-        const cooldownKey = `cooldown_${cleanNumber}`;
+        // Guard Check 2: 15-Second Cooldown per rule and phone number
+        const cooldownKey = `cooldown_${rule.id}_${cleanNumber}`;
         const phoneCooldown = await firebaseDb(`whatsapp_sent_automations/${cooldownKey}`);
         if (phoneCooldown && phoneCooldown.lastSentAt) {
           const cooldownDiffMs = nowMs - new Date(phoneCooldown.lastSentAt).getTime();
-          if (cooldownDiffMs < 30000) {
+          if (cooldownDiffMs < 15000) {
             console.log(`[Pipeline Worker ⏳] Cooldown active for ${cleanNumber} (${Math.round(cooldownDiffMs / 1000)}s since last message). Skipping duplicate trigger.`);
             continue;
           }

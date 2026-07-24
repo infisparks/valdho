@@ -568,6 +568,7 @@ export async function updateLeadStaffFields(
     notes?: StaffNote[];
     followUpDate?: string;
     pipelineStage?: string;
+    stageMovedAt?: string;
     dealValue?: number;
   },
   campaignName: string = "firstoptionagency"

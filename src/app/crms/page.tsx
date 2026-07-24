@@ -1112,9 +1112,11 @@ export default function CRMPage() {
     await updateLeadStaffFields(
       targetLeadId,
       targetCreatedDate,
-      { pipelineStage: newStage },
+      { pipelineStage: newStage, stageMovedAt: new Date().toISOString() },
       targetCampaign
     );
+
+    fetch(`${SERVER_URL}/api/whatsapp/evaluate-automations`, { method: "POST" }).catch(() => {});
   };
 
   // Trigger Onboard Confirmation Modal
@@ -3024,25 +3026,31 @@ export default function CRMPage() {
                             const hasMeetingRequirement = stageAutomations.some((a) => a.isEnabled && a.triggerBase === "meeting");
                             const isMissingMeetingInfo = hasMeetingRequirement && (!lead.meeting?.meetingDate || !lead.meeting?.meetingTime);
 
-                            // Calculate Next Scheduled WhatsApp Countdown (only if lead has a valid phone number!)
+                            // Calculate Next Scheduled WhatsApp Countdown
                             let nextCountdownStr: string | null = null;
                             let isCompletedRule = false;
                             const activeRules = stageAutomations.filter((r) => r.isEnabled);
 
                             if (hasPhone && !isMissingMeetingInfo && activeRules.length > 0) {
-                              let earliestMs: number | null = null;
+                              let futureTargetMs: number | null = null;
+                              let hasValidRules = false;
+                              let allRulesPast = true;
+
                               for (const rule of activeRules) {
                                 let refDate: Date | null = null;
                                 if (rule.triggerBase === "meeting") {
-                                  if (lead.meeting?.meetingDate) {
-                                    refDate = parseMeetingDateTime(lead.meeting.meetingDate, lead.meeting.meetingTime);
+                                  // Skip meeting reminder countdown for Won, Not Qualified or onboarded leads
+                                  if (lead.pipelineStage === "won" || lead.pipelineStage === "not_qualified" || lead.onboarded) {
+                                    continue;
                                   }
+                                  refDate = parseMeetingDateTime(lead.meeting?.meetingDate, lead.meeting?.meetingTime);
                                 } else {
                                   const rawCreated = lead.createdAt || lead.createdDate || (lead as any).timestamp || lead.meeting?.bookedAt;
                                   refDate = rawCreated ? new Date(rawCreated) : new Date();
                                 }
 
                                 if (refDate && !isNaN(refDate.getTime())) {
+                                  hasValidRules = true;
                                   let offsetMs = Number(rule.offsetValue) * 60 * 1000;
                                   if (rule.offsetUnit === "hours") offsetMs = Number(rule.offsetValue) * 3600 * 1000;
                                   if (rule.offsetUnit === "days") offsetMs = Number(rule.offsetValue) * 86400 * 1000;
@@ -3060,29 +3068,32 @@ export default function CRMPage() {
                                     targetMs = refDate.getTime() + offsetMs;
                                   }
 
-                                  if (earliestMs === null || targetMs < earliestMs) {
-                                    earliestMs = targetMs;
+                                  if (targetMs > nowTick) {
+                                    allRulesPast = false;
+                                    if (futureTargetMs === null || targetMs < futureTargetMs) {
+                                      futureTargetMs = targetMs;
+                                    }
                                   }
                                 }
                               }
 
-                              if (earliestMs !== null) {
-                                const diffMs = earliestMs - nowTick;
-                                if (diffMs <= 0) {
-                                  // Non-recurring target passed or executed
-                                  isCompletedRule = true;
-                                  nextCountdownStr = "✅ Automation Dispatched";
-                                } else {
+                              if (hasValidRules) {
+                                if (futureTargetMs !== null) {
+                                  const diffMs = futureTargetMs - nowTick;
                                   const diffSec = Math.floor(diffMs / 1000);
                                   const days = Math.floor(diffSec / 86400);
                                   const hours = Math.floor((diffSec % 86400) / 3600);
                                   const mins = Math.floor((diffSec % 3600) / 60);
                                   const secs = diffSec % 60;
 
+                                  isCompletedRule = false;
                                   if (days > 0) nextCountdownStr = `${days}d ${hours}h ${mins}m`;
                                   else if (hours > 0) nextCountdownStr = `${hours}h ${mins}m ${secs.toString().padStart(2, "0")}s`;
                                   else if (mins > 0) nextCountdownStr = `${mins}m ${secs.toString().padStart(2, "0")}s`;
                                   else nextCountdownStr = `${secs}s`;
+                                } else if (allRulesPast) {
+                                  isCompletedRule = true;
+                                  nextCountdownStr = "✅ Automation Dispatched";
                                 }
                               }
                             }

@@ -278,10 +278,24 @@ async function evaluateStageAutomations() {
         let referenceDate = null;
 
         if (rule.triggerBase === "meeting") {
+          // Do NOT send meeting reminders if lead has moved to Won, Not Qualified or is onboarded
+          if (leadStage === "won" || leadStage === "not_qualified" || lead.onboarded === true) {
+            console.log(`[Pipeline Worker ⏭️] Skipping meeting reminder for lead ${lead.fullName || cleanNumber} in stage '${leadStage}'`);
+            continue;
+          }
+
           if (!lead.meeting || !lead.meeting.meetingDate) {
             continue; // Skip if missing meeting details
           }
           referenceDate = parseMeetingDateTime(lead.meeting.meetingDate, lead.meeting.meetingTime);
+
+          if (!referenceDate || isNaN(referenceDate.getTime())) continue;
+
+          // Do NOT send meeting reminder if meeting was scheduled > 10 hours ago
+          if (nowMs - referenceDate.getTime() > 10 * 3600 * 1000) {
+            console.log(`[Pipeline Worker ⏭️] Skipping stale meeting reminder (>10h past) for ${lead.fullName || cleanNumber}`);
+            continue;
+          }
         } else {
           // Trigger relative to Stage Shift timestamp if available, else creation timestamp
           const rawReference = lead.stageMovedAt || lead.createdAt || lead.createdDate || lead.timestamp || lead.meeting?.bookedAt;
@@ -347,7 +361,23 @@ async function evaluateStageAutomations() {
         // Format Dynamic Message Template
         const formattedDate = lead.meeting?.meetingDate || "Upcoming Date";
         const formattedTime = lead.meeting?.meetingTime || "Scheduled Time";
-        const resolvedMeetingUrl = lead.meeting?.meetingUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
+        const resolvedMeetingUrl =
+          lead.meeting?.meetingUrl ||
+          lead.links?.meetingUrl ||
+          lead.meetingUrl ||
+          config.defaultMeetingUrl ||
+          "https://meet.google.com/firstoption-strategy-call";
+
+        const stageNameMap = {
+          raw: "Leads",
+          in_progress: "1st Connection",
+          survey_completed: "Survey Completed",
+          meeting_booked: "Meeting Booked",
+          proposal_sent: "Proposal Sent",
+          won: "Won",
+          not_qualified: "Not Qualified",
+        };
+        const leadStageName = stageNameMap[leadStage] || leadStage;
 
         const textMessage = rule.template
           .replace(/\{\{\s*name\s*\}\}/gi, lead.fullName || "Valued Client")
@@ -357,7 +387,10 @@ async function evaluateStageAutomations() {
           .replace(/\{\{\s*time\s*\}\}/gi, formattedTime)
           .replace(/\{\{\s*meeting_url\s*\}\}/gi, resolvedMeetingUrl)
           .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
-          .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl);
+          .replace(/\{\{\s*meetingUrl\s*\}\}/gi, resolvedMeetingUrl)
+          .replace(/\{\{\s*meetingLink\s*\}\}/gi, resolvedMeetingUrl)
+          .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl)
+          .replace(/\{\{\s*stage\s*\}\}/gi, leadStageName);
 
         console.log(`[Pipeline Worker ⚡] Triggering WhatsApp Rule "${rule.title}" via instance '${targetInstance}' to ${lead.fullName} (${cleanNumber})`);
 
@@ -427,4 +460,18 @@ setTimeout(() => {
   evaluateStageAutomations();
 }, 2000);
 
+/**
+ * POST /api/whatsapp/evaluate-automations
+ * Instant realtime trigger for automation evaluation
+ */
+router.post("/evaluate-automations", async (req, res) => {
+  try {
+    evaluateStageAutomations();
+    return res.status(200).json({ success: true, message: "Stage automations evaluation triggered" });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
+

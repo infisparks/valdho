@@ -8,6 +8,22 @@ interface ClientResultsSectionProps {
 
 export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps) {
   const [crmFilter, setCrmFilter] = useState<string>("all");
+  const [activeModalIndex, setActiveModalIndex] = useState<number | null>(null);
+
+  const resultImages = [
+    { src: "/firstoption/result/11.jpg.jpeg", title: "Live OPD Patient Bookings" },
+    { src: "/firstoption/result/12.jpg.jpeg", title: "Verified Ad Account ROI" },
+    { src: "/firstoption/result/13.jpg.jpeg", title: "High-Ticket Lead Pipeline" },
+    { src: "/firstoption/result/14.jpg.jpeg", title: "WhatsApp Direct Inquiries" },
+    { src: "/firstoption/result/15.jpg.jpeg", title: "Daily Appointment Calendar" },
+    { src: "/firstoption/result/16.jpg.jpeg", title: "Retail Store Walk-in Logs" },
+    { src: "/firstoption/result/17.jpg.jpeg", title: "Qualified Leads Dashboard" },
+    { src: "/firstoption/result/18.jpg.jpeg", title: "Strategy Call Registrations" },
+    { src: "/firstoption/result/19.jpg.jpeg", title: "Campaign Conversion Analytics" },
+    { src: "/firstoption/result/110.jpg.jpeg", title: "Monthly Growth Metrics" },
+    { src: "/firstoption/result/111.jpg.jpeg", title: "B2B Contract Inquiries" },
+    { src: "/firstoption/result/112.jpg.jpeg", title: "Verified Client Testimonial Proof" },
+  ];
 
   const videoCaseStudies = [
     {
@@ -229,45 +245,133 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
         </div>
       </div>
 
-      {/* Appointment Proof & Dashboard Calendar Screenshots Grid (5 cards: 5th card spans 2 cols on mobile for balanced layout) */}
-      <div className="pt-3 space-y-2.5">
-        <div className="text-center">
-          <h3 className="text-lg sm:text-xl font-black text-white">
-            Appointment Calendars & Live Dashboard Results
+      {/* Fanned Card Deck Results Presentation */}
+      <div className="pt-4 space-y-4">
+        <div className="text-center space-y-1">
+          <div className="inline-flex items-center space-x-2 text-amber-400 font-extrabold text-xs tracking-widest uppercase bg-amber-500/10 px-3.5 py-1 rounded-full border border-amber-500/30">
+            <i className="fa-solid fa-layer-group text-xs"></i>
+            <span>Verified Live Campaign Proof</span>
+          </div>
+          <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
+            Real Client Campaign Results
           </h3>
-          <p className="text-[11px] text-slate-400">Verified 5-campaign appointment reporting</p>
+          <p className="text-xs sm:text-sm text-slate-300 font-medium">
+            Click the card stack to view all 12 verified campaign result screenshots
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3.5">
-          {appointmentProofCards.map((proof, pIdx) => (
-            <div
-              key={pIdx}
-              className={`dark-gold-card rounded-2xl p-2 sm:p-3 text-center space-y-1.5 border border-amber-500/30 hover:border-amber-400 transition-colors shadow-md ${
-                pIdx === 4 ? "col-span-2 md:col-span-1 max-w-xs sm:max-w-none justify-self-center w-full" : ""
-              }`}
-            >
-              <h4 className="text-xs sm:text-sm font-black text-white truncate">
-                {proof.title}
-              </h4>
-              <p className="text-[9px] sm:text-xs text-amber-400 font-semibold truncate">
-                {proof.subtitle}
-              </p>
+        {/* Fanned Deck Interactive Trigger */}
+        <div 
+          onClick={() => setActiveModalIndex(0)}
+          className="relative max-w-lg mx-auto h-56 sm:h-72 md:h-80 my-4 cursor-pointer group flex items-center justify-center"
+        >
+          <div className="relative w-44 sm:w-60 md:w-72 h-44 sm:h-56 md:h-64 flex items-center justify-center">
+            {resultImages.slice(0, 5).map((item, idx) => {
+              const rotationClasses = [
+                "-rotate-12 -translate-x-10 sm:-translate-x-16 translate-y-2 z-0",
+                "-rotate-6 -translate-x-5 sm:-translate-x-8 translate-y-1 z-10",
+                "rotate-0 translate-y-0 z-30 scale-105 shadow-[0_0_30px_rgba(245,166,35,0.4)]",
+                "rotate-6 translate-x-5 sm:translate-x-8 translate-y-1 z-20",
+                "rotate-12 translate-x-10 sm:translate-x-16 translate-y-2 z-0",
+              ][idx];
 
-              <div className="rounded-lg overflow-hidden aspect-[4/3] w-full bg-slate-900 border border-zinc-800 shadow-inner group">
-                <img
-                  src={proof.imgPlaceholder}
-                  alt={proof.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                />
-              </div>
+              return (
+                <div
+                  key={idx}
+                  className={`absolute inset-0 rounded-2xl overflow-hidden border-2 border-amber-500/70 shadow-[0_10px_25px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 ${rotationClasses}`}
+                >
+                  <img
+                    src={item.src}
+                    alt={item.title}
+                    className="w-full h-full object-contain p-1 bg-zinc-950"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                </div>
+              );
+            })}
 
-              <div className="bg-black/60 border border-zinc-800 rounded p-1 text-[8px] sm:text-[10px] font-mono text-emerald-400 font-bold truncate">
-                ✓ {proof.tag}
-              </div>
+            {/* Glowing Callout Badge */}
+            <div className="absolute z-40 -bottom-2 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 text-xs sm:text-sm font-black px-4 py-2 rounded-full shadow-[0_0_25px_rgba(245,166,35,0.7)] border border-amber-200 flex items-center space-x-2 group-hover:scale-110 transition-transform">
+              <i className="fa-solid fa-images"></i>
+              <span>Click to View 12 Live Results</span>
             </div>
-          ))}
+          </div>
         </div>
       </div>
+
+      {/* Interactive Lightbox Gallery Modal */}
+      {activeModalIndex !== null && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col justify-between p-3 sm:p-6 animate-fade-in"
+          onClick={() => setActiveModalIndex(null)}
+        >
+          {/* Header Bar */}
+          <div className="flex items-center justify-between z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center space-x-3">
+              <div className="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-extrabold px-3 py-1 rounded-full">
+                {activeModalIndex + 1} / {resultImages.length}
+              </div>
+              <h4 className="text-white font-extrabold text-xs sm:text-base truncate max-w-[200px] sm:max-w-md">
+                {resultImages[activeModalIndex].title}
+              </h4>
+            </div>
+
+            <button
+              onClick={() => setActiveModalIndex(null)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-zinc-800 text-white hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center text-lg font-bold transition-all shadow-lg border border-zinc-700"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          {/* Main Image Display (Uncropped, Adjusts Height/Width with Gold Border) */}
+          <div className="relative flex-1 flex items-center justify-center my-2 sm:my-4" onClick={(e) => e.stopPropagation()}>
+            {/* Prev Button */}
+            <button
+              onClick={() => setActiveModalIndex((prev) => (prev === null || prev === 0 ? resultImages.length - 1 : prev - 1))}
+              className="absolute left-1 sm:left-4 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-zinc-900/90 text-amber-400 border border-amber-500/50 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center text-lg font-black transition-all shadow-xl backdrop-blur"
+            >
+              <i className="fa-solid fa-chevron-left"></i>
+            </button>
+
+            <div className="max-h-[65vh] sm:max-h-[75vh] max-w-full rounded-2xl overflow-hidden border-2 border-amber-500/60 shadow-[0_0_35px_rgba(245,166,35,0.3)] bg-zinc-950 p-1 flex items-center justify-center">
+              <img
+                src={resultImages[activeModalIndex].src}
+                alt={resultImages[activeModalIndex].title}
+                className="max-h-[63vh] sm:max-h-[73vh] w-auto max-w-full object-contain rounded-xl"
+              />
+            </div>
+
+            {/* Next Button */}
+            <button
+              onClick={() => setActiveModalIndex((prev) => (prev === null || prev === resultImages.length - 1 ? 0 : prev + 1))}
+              className="absolute right-1 sm:right-4 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-zinc-900/90 text-amber-400 border border-amber-500/50 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center text-lg font-black transition-all shadow-xl backdrop-blur"
+            >
+              <i className="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+
+          {/* Bottom Thumbnail Strip */}
+          <div 
+            className="flex items-center space-x-2 overflow-x-auto py-2 px-1 max-w-4xl mx-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {resultImages.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveModalIndex(idx)}
+                className={`relative flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                  activeModalIndex === idx
+                    ? "border-amber-400 scale-105 shadow-[0_0_15px_rgba(245,166,35,0.6)] bg-zinc-900 opacity-100"
+                    : "border-zinc-800 opacity-60 hover:opacity-100 bg-zinc-950"
+                }`}
+              >
+                <img src={img.src} alt={img.title} className="w-full h-full object-contain p-0.5" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

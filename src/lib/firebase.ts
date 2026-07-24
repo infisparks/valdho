@@ -527,6 +527,37 @@ export async function saveOrUpdateLead(
 }
 
 /**
+ * Permanently delete a lead record from Firebase RTDB
+ */
+export async function deleteLead(
+  leadId: string,
+  createdDate?: string | null,
+  campaignName: string = "firstoptionagency",
+  meetingDate?: string | null,
+  meetingTime?: string | null
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const targetCreatedDate = createdDate || todayStr;
+    const updates: Record<string, any> = {};
+
+    updates[`campaigns/${campaignName}/leads/${targetCreatedDate}/${leadId}`] = null;
+
+    if (meetingDate && meetingTime) {
+      const slotKey = sanitizeSlotKey(meetingTime);
+      updates[`campaigns/${campaignName}/meetings/${meetingDate}/${leadId}`] = null;
+      updates[`slots/${campaignName}/${meetingDate}/${slotKey}`] = null;
+    }
+
+    await update(ref(db), updates);
+    return { success: true };
+  } catch (err: any) {
+    console.error("deleteLead Error:", err);
+    return { success: false, message: err?.message || "Failed to delete lead." };
+  }
+}
+
+/**
  * Staff CRM Helper: Add/update staff notes and follow-up date for a lead
  */
 export async function updateLeadStaffFields(
@@ -558,6 +589,7 @@ export async function updateLeadStaffFields(
     }
     if (staffData.pipelineStage !== undefined) {
       updates[`${leadRefPath}/pipelineStage`] = staffData.pipelineStage;
+      updates[`${leadRefPath}/stageMovedAt`] = timestamp;
     }
     // If dealValue is updated, also update any onboard snapshot records for this lead
     if (staffData.dealValue !== undefined) {
@@ -594,6 +626,7 @@ export async function updateLeadStaffFields(
       }
       if (staffData.pipelineStage !== undefined) {
         updates[`${meetingRefPath}/pipelineStage`] = staffData.pipelineStage;
+        updates[`${meetingRefPath}/stageMovedAt`] = timestamp;
       }
       if (staffData.dealValue !== undefined) {
         updates[`${meetingRefPath}/dealValue`] = staffData.dealValue;

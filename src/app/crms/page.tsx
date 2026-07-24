@@ -8,6 +8,7 @@ import {
   getMeetingsForDate,
   getAllMeetings,
   getAllLeadsAcrossDates,
+  deleteLead,
   updateLeadStaffFields,
   onboardLeadClient,
   getAllOnboardedRecords,
@@ -263,11 +264,15 @@ export default function CRMPage() {
   const [pipelineTargetField, setPipelineTargetField] = useState<"meeting" | "created" | "followup">("created");
   const [pipelineDatePreset, setPipelineDatePreset] = useState<
     "specific_date" | "today" | "yesterday" | "last_7_days" | "upcoming_7_days" | "all_time" | "custom_range"
-  >("specific_date");
+  >("all_time");
 
   const [pipelineSingleDate, setPipelineSingleDate] = useState<string>(todayStr);
   const [pipelineStartDate, setPipelineStartDate] = useState<string>(sevenDaysAgoStr);
   const [pipelineEndDate, setPipelineEndDate] = useState<string>(todayStr);
+
+  // Pipeline Phone Filter Control ("all" | "has_phone" | "no_phone")
+  const [pipelinePhoneFilter, setPipelinePhoneFilter] = useState<"all" | "has_phone" | "no_phone">("all");
+  const [isDeletingLead, setIsDeletingLead] = useState(false);
 
   // Dashboard Leads Tab Date Filter State
   const [leadsDatePreset, setLeadsDatePreset] = useState<
@@ -411,6 +416,11 @@ export default function CRMPage() {
     setVisibleLogsCount(20); // Reset pagination count to default 20
 
     const cleanNum = lead.phone ? lead.phone.replace(/\D/g, "") : "";
+    if (cleanNum.length < 5) {
+      setIsLoadingLeadLogs(false);
+      setLeadLogsList([]);
+      return;
+    }
     const fullCleanNum = cleanNum.length === 10 ? "91" + cleanNum : cleanNum;
 
     // Sync WhatsApp Logs for this specific lead from Firebase RTDB `whatsapp_lead_logs/${fullCleanNum}`
@@ -903,7 +913,7 @@ export default function CRMPage() {
     const targetCreatedDate = lead.createdDate || selectedDate;
     const targetCampaign = lead.campaign || "firstoptionagency";
 
-    const updatedLead = { ...lead, pipelineStage: newStage };
+    const updatedLead = { ...lead, pipelineStage: newStage, stageMovedAt: new Date().toISOString() };
     setAllLeadsList((prev) =>
       prev.map((l) => (l.id === targetLeadId || l.email === lead.email ? updatedLead : l))
     );
@@ -972,6 +982,48 @@ export default function CRMPage() {
 
     setIsOnboarding(false);
     setOnboardConfirmModalLead(null);
+  };
+
+  // Permanently Delete Lead Record
+  const handleDeleteLead = async (leadToDelete: LeadData) => {
+    const targetLeadId = leadToDelete.id || (leadToDelete.email ? sanitizeEmailToId(leadToDelete.email) : "");
+    if (!targetLeadId) {
+      alert("Cannot delete lead: Lead ID not found.");
+      return;
+    }
+    const displayName = leadToDelete.fullName || "Anonymous Lead";
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete lead '${displayName}' from the database? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setIsDeletingLead(true);
+    try {
+      const res = await deleteLead(
+        targetLeadId,
+        leadToDelete.createdDate,
+        leadToDelete.campaign || selectedCampaign,
+        leadToDelete.meeting?.meetingDate,
+        leadToDelete.meeting?.meetingTime
+      );
+      if (res.success) {
+        setAllLeadsList((prev) => prev.filter((l) => l.id !== targetLeadId && l.id !== leadToDelete.id));
+        setLeadsList((prev) => prev.filter((l) => l.id !== targetLeadId && l.id !== leadToDelete.id));
+        if (selectedLead && (selectedLead.id === targetLeadId || selectedLead.id === leadToDelete.id)) {
+          setIsDrawerOpen(false);
+          setSelectedLead(null);
+        }
+      } else {
+        alert(res.message || "Failed to delete lead from database.");
+      }
+    } catch (err: any) {
+      console.error("handleDeleteLead Error:", err);
+      alert("An unexpected error occurred while deleting the lead.");
+    } finally {
+      setIsDeletingLead(false);
+    }
   };
 
   // Trigger Delete Onboard Confirmation Modal
@@ -1297,6 +1349,14 @@ export default function CRMPage() {
         const d7AheadStr = d7AheadObj.toISOString().split("T")[0];
         if (cleanTargetDate < todayStr || cleanTargetDate > d7AheadStr) return false;
       }
+    }
+
+    if (pipelinePhoneFilter === "has_phone") {
+      const cleanP = (lead.phone || "").replace(/\D/g, "");
+      if (cleanP.length < 5) return false;
+    } else if (pipelinePhoneFilter === "no_phone") {
+      const cleanP = (lead.phone || "").replace(/\D/g, "");
+      if (cleanP.length >= 5) return false;
     }
 
     if (searchQuery.trim()) {
@@ -2271,13 +2331,23 @@ export default function CRMPage() {
                       onChange={(e) => setPipelineDatePreset(e.target.value as any)}
                       className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
                     >
-                      <option value="specific_date">🎯 Specific Day (Default)</option>
+                      <option value="all_time">🌐 All Time (Default)</option>
+                      <option value="specific_date">🎯 Specific Day</option>
                       <option value="today">☀️ Today</option>
                       <option value="yesterday">⏪ Yesterday</option>
                       <option value="last_7_days">⚡ Last 7 Days</option>
                       <option value="upcoming_7_days">🔮 Upcoming 7 Days</option>
                       <option value="custom_range">📆 Custom Date Range</option>
-                      <option value="all_time">🌐 All Time (Entire Pipeline)</option>
+                    </select>
+
+                    <select
+                      value={pipelinePhoneFilter}
+                      onChange={(e) => setPipelinePhoneFilter(e.target.value as any)}
+                      className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
+                    >
+                      <option value="all">👥 All Phone Statuses</option>
+                      <option value="has_phone">📱 Valid Phone Only</option>
+                      <option value="no_phone">⚠️ Missing Phone / Anonymous</option>
                     </select>
 
                     {pipelineDatePreset === "specific_date" && (
@@ -2426,18 +2496,20 @@ export default function CRMPage() {
                           </div>
                         ) : (
                           stageLeads.map((lead) => {
-                            const leadIdKey = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : "l_" + Math.random());
+                            const cleanPhoneNum = (lead.phone || "").replace(/\D/g, "");
+                            const hasPhone = cleanPhoneNum.length >= 5;
+                            const isMissingPhone = !hasPhone;
 
                             const stageAutomations = stageAutomationsMap[stage.id] || [];
                             const hasMeetingRequirement = stageAutomations.some((a) => a.isEnabled && a.triggerBase === "meeting");
                             const isMissingMeetingInfo = hasMeetingRequirement && (!lead.meeting?.meetingDate || !lead.meeting?.meetingTime);
 
-                            // Calculate Next Scheduled WhatsApp Countdown
+                            // Calculate Next Scheduled WhatsApp Countdown (only if lead has a valid phone number!)
                             let nextCountdownStr: string | null = null;
                             let isCompletedRule = false;
                             const activeRules = stageAutomations.filter((r) => r.isEnabled);
 
-                            if (activeRules.length > 0) {
+                            if (hasPhone && !isMissingMeetingInfo && activeRules.length > 0) {
                               let earliestMs: number | null = null;
                               for (const rule of activeRules) {
                                 let refDate: Date | null = null;
@@ -2495,6 +2567,8 @@ export default function CRMPage() {
                               }
                             }
 
+                            const leadIdKey = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : "l_" + Math.random());
+
                             return (
                               <div
                                 key={leadIdKey}
@@ -2505,7 +2579,25 @@ export default function CRMPage() {
                                 onClick={() => handleOpenDrawer(lead)}
                                 className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group hover:border-indigo-300"
                               >
-                                {isMissingMeetingInfo ? (
+                                {isMissingPhone ? (
+                                  <div className="bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-bold px-2 py-1 rounded-lg flex items-center justify-between shadow-2xs">
+                                    <span className="flex items-center space-x-1 truncate">
+                                      <i className="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                                      <span>⚠️ Phone missing — WhatsApp skipped</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteLead(lead);
+                                      }}
+                                      className="text-rose-600 hover:text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-rose-100 transition-all flex-shrink-0"
+                                      title="Delete lead from database"
+                                    >
+                                      <i className="fa-solid fa-trash-can"></i>
+                                    </button>
+                                  </div>
+                                ) : isMissingMeetingInfo ? (
                                   <div className="bg-rose-50 border border-rose-200 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
                                     <span>⚠️ Meeting Date missing - WhatsApp reminder skipped</span>
                                   </div>
@@ -2541,42 +2633,57 @@ export default function CRMPage() {
                                     <h5 className="text-xs font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
                                       {lead.fullName || "Anonymous Lead"}
                                     </h5>
-                                    <p className="text-[10px] text-slate-400 truncate">{lead.email}</p>
+                                    <p className="text-[10px] text-slate-400 truncate">{lead.email || "No email"}</p>
                                   </div>
 
-                                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${stage.bgTag}`}>
-                                    {stage.name}
-                                  </span>
-                                </div>
-
-                                <div className="flex items-center justify-between text-[11px] font-mono pt-0.5">
-                                  <span className="text-slate-600 font-semibold">
-                                    📞 {lead.countryCode} {lead.phone}
-                                  </span>
-
-                                  <div className="flex items-center space-x-1.5">
+                                  <div className="flex items-center space-x-1 flex-shrink-0">
+                                    <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${stage.bgTag}`}>
+                                      {stage.name}
+                                    </span>
                                     <button
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleOpenLeadLogsModal(lead);
+                                        handleDeleteLead(lead);
                                       }}
-                                      className="text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1"
-                                      title="View WhatsApp Dispatch Logs for this Lead"
+                                      className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors text-xs opacity-0 group-hover:opacity-100"
+                                      title="Delete Lead"
                                     >
-                                      <span>📜 Logs</span>
+                                      <i className="fa-solid fa-trash-can"></i>
                                     </button>
-
-                                    <a
-                                      href={`https://api.whatsapp.com/send?phone=${lead.countryCode ? lead.countryCode.replace("+", "") : "91"}${lead.phone}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="text-emerald-600 hover:text-emerald-700 font-bold text-xs"
-                                    >
-                                      <i className="fa-brands fa-whatsapp text-sm"></i>
-                                    </a>
                                   </div>
+                                </div>
+
+                                <div className="flex items-center justify-between text-[11px] font-mono pt-0.5">
+                                  <span className={hasPhone ? "text-slate-600 font-semibold" : "text-amber-700 font-bold italic text-[10px]"}>
+                                    📞 {hasPhone ? `${lead.countryCode || "+91"} ${lead.phone}` : "No Phone Provided"}
+                                  </span>
+
+                                  {hasPhone && (
+                                    <div className="flex items-center space-x-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenLeadLogsModal(lead);
+                                        }}
+                                        className="text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1"
+                                        title="View WhatsApp Dispatch Logs for this Lead"
+                                      >
+                                        <span>📜 Logs</span>
+                                      </button>
+
+                                      <a
+                                        href={`https://api.whatsapp.com/send?phone=${lead.countryCode ? lead.countryCode.replace("+", "") : "91"}${lead.phone}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-emerald-600 hover:text-emerald-700 font-bold text-xs"
+                                      >
+                                        <i className="fa-brands fa-whatsapp text-sm"></i>
+                                      </a>
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100">
@@ -4111,15 +4218,38 @@ export default function CRMPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleCloseDrawer}
-                className="w-8 h-8 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 flex items-center justify-center text-sm transition-colors flex-shrink-0"
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteLead(selectedLead)}
+                  disabled={isDeletingLead}
+                  className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                  title="Delete this lead from database"
+                >
+                  <i className="fa-solid fa-trash-can"></i>
+                  <span>Delete Lead</span>
+                </button>
+                <button
+                  onClick={handleCloseDrawer}
+                  className="w-8 h-8 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 flex items-center justify-center text-sm transition-colors"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4 sm:space-y-5">
+              {(!selectedLead.phone || selectedLead.phone.trim().replace(/\D/g, "").length < 5) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-1 text-amber-900 shadow-2xs">
+                  <div className="flex items-center space-x-2">
+                    <i className="fa-solid fa-triangle-exclamation text-amber-600 text-sm"></i>
+                    <h4 className="text-xs font-extrabold">Incomplete Contact Details</h4>
+                  </div>
+                  <p className="text-[11px] text-amber-800">
+                    This lead has no valid phone number. Automated WhatsApp messaging and reminders are automatically disabled for this record.
+                  </p>
+                </div>
+              )}
               {/* ONBOARD CLIENT CARD & BUTTON IN DRAWER */}
               <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-3.5 sm:p-4 space-y-2.5 shadow-sm">
                 <div className="flex items-center justify-between">

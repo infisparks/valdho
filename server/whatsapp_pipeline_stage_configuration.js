@@ -202,7 +202,11 @@ router.delete("/stage-automations/:stageId/:ruleId", async (req, res) => {
    BACKGROUND AUTOMATION EVALUATOR & CRON WORKER DAEMON
    ========================================================================== */
 
+let isWorkerEvaluating = false;
+
 async function evaluateStageAutomations() {
+  if (isWorkerEvaluating) return;
+  isWorkerEvaluating = true;
   try {
     // 1. Fetch active stage automation rules
     const allStageRulesObj = (await firebaseDb("whatsapp_stage_automations/firstoptionagency")) || {};
@@ -238,12 +242,13 @@ async function evaluateStageAutomations() {
       ...extractLeadsFromFirebaseData(leadsData, [], "leads"),
     ];
 
-    // Deduplicate leads by phone number / email
+    // Deduplicate leads by normalized 12-digit phone number / email
     const uniqueLeadsMap = new Map();
     for (const l of rawLeadsList) {
-      const key = (l.phone || l.email || l.leadId).toString();
-      if (!uniqueLeadsMap.has(key)) {
-        uniqueLeadsMap.set(key, l);
+      const cleanPhone = sanitizePhoneNumber(l.phone);
+      const key = cleanPhone || (l.email ? l.email.toLowerCase().trim() : l.leadId);
+      if (key && !uniqueLeadsMap.has(key)) {
+        uniqueLeadsMap.set(key, { ...l, _cleanPhone: cleanPhone });
       }
     }
 
@@ -252,6 +257,9 @@ async function evaluateStageAutomations() {
 
     // 4. Evaluate each lead against matching stage rules
     for (const lead of allLeads) {
+      const cleanNumber = lead._cleanPhone || sanitizePhoneNumber(lead.phone);
+      if (!cleanNumber || cleanNumber.length < 5) continue; // Skip leads without a valid phone number
+
       const leadStage = lead.pipelineStage || "raw";
       const matchingRules = activeRules.filter((r) => r.stageId === leadStage);
 
@@ -273,9 +281,9 @@ async function evaluateStageAutomations() {
           }
           referenceDate = parseMeetingDateTime(lead.meeting.meetingDate, lead.meeting.meetingTime);
         } else {
-          // Fallbacks for creation timestamp
-          const rawCreated = lead.createdAt || lead.createdDate || lead.timestamp || lead.meeting?.bookedAt;
-          referenceDate = rawCreated ? new Date(rawCreated) : new Date();
+          // Trigger relative to Stage Shift timestamp if available, else creation timestamp
+          const rawReference = lead.stageMovedAt || lead.createdAt || lead.createdDate || lead.timestamp || lead.meeting?.bookedAt;
+          referenceDate = rawReference ? new Date(rawReference) : new Date();
         }
 
         if (!referenceDate || isNaN(referenceDate.getTime())) continue;
@@ -294,14 +302,14 @@ async function evaluateStageAutomations() {
           const intervalIndex = Math.floor(elapsedMs / offsetMs);
 
           scheduledTriggerTimeMs = referenceDate.getTime() + (intervalIndex * offsetMs);
-          triggerKey = `auto_${lead.leadId || lead.phone}_${rule.id}_seq_${intervalIndex}`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_seq_${intervalIndex}`;
         } else if (rule.offsetType === "before") {
           scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
-          triggerKey = `auto_${lead.leadId || lead.phone}_${rule.id}_before`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_before`;
         } else {
           // after
           scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
-          triggerKey = `auto_${lead.leadId || lead.phone}_${rule.id}_after`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_after`;
         }
 
         // Window check: execute if current time has reached or passed scheduledTriggerTimeMs
@@ -310,11 +318,22 @@ async function evaluateStageAutomations() {
 
         if (!isTimeReached) continue;
 
-        // Guard Check: Verify if this specific trigger key has already been executed successfully
+        // Guard Check 1: Verify if this specific trigger key has already been executed successfully
         const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
         if (alreadySent && alreadySent.status === "sent") {
           // Message was already sent successfully for this trigger key!
           continue;
+        }
+
+        // Guard Check 2: Global 30-Second Cooldown per Phone Number to prevent burst duplicate messages
+        const cooldownKey = `cooldown_${cleanNumber}`;
+        const phoneCooldown = await firebaseDb(`whatsapp_sent_automations/${cooldownKey}`);
+        if (phoneCooldown && phoneCooldown.lastSentAt) {
+          const cooldownDiffMs = nowMs - new Date(phoneCooldown.lastSentAt).getTime();
+          if (cooldownDiffMs < 30000) {
+            console.log(`[Pipeline Worker ⏳] Cooldown active for ${cleanNumber} (${Math.round(cooldownDiffMs / 1000)}s since last message). Skipping duplicate trigger.`);
+            continue;
+          }
         }
 
         // If previously failed less than 30s ago, wait before retrying to prevent spamming failed attempts
@@ -338,9 +357,14 @@ async function evaluateStageAutomations() {
           .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
           .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl);
 
-        const cleanNumber = sanitizePhoneNumber(lead.phone);
-
         console.log(`[Pipeline Worker ⚡] Triggering WhatsApp Rule "${rule.title}" via instance '${targetInstance}' to ${lead.fullName} (${cleanNumber})`);
+
+        // Record immediate cooldown timestamp
+        await firebaseDb(`whatsapp_sent_automations/${cooldownKey}`, "PUT", {
+          lastSentAt: new Date().toISOString(),
+          ruleId: rule.id,
+          phone: cleanNumber,
+        });
 
         // Send Text Message via Evolution API
         const evoRes = await evoApiCall(`/message/sendText/${targetInstance}`, "POST", {
@@ -386,6 +410,8 @@ async function evaluateStageAutomations() {
     }
   } catch (err) {
     console.error("[Pipeline Worker Daemon Exception]:", err);
+  } finally {
+    isWorkerEvaluating = false;
   }
 }
 

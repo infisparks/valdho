@@ -292,18 +292,21 @@ async function evaluateStageAutomations() {
     const allLeads = Array.from(uniqueLeadsMap.values());
     const nowMs = Date.now();
 
+    console.log(`[Pipeline Worker 🔍] Starting evaluation of ${activeRules.length} active rules across ${allLeads.length} leads at ${new Date().toLocaleTimeString()}...`);
+
     // 4. Evaluate each lead against matching stage rules
     for (const lead of allLeads) {
       const cleanNumber = lead._cleanPhone || sanitizePhoneNumber(lead.phone);
-      if (!cleanNumber || cleanNumber.length < 5) continue; // Skip leads without a valid phone number
+      if (!cleanNumber || cleanNumber.length < 5) continue;
 
       const leadStage = lead.pipelineStage || lead.status || lead.stage || "raw";
       const matchingRules = activeRules.filter((r) => r.stageId === leadStage);
 
       if (matchingRules.length === 0) continue;
 
+      console.log(`[Pipeline Worker 👤] Checking Lead: ${lead.fullName || "Client"} (${cleanNumber}) | Stage: '${leadStage}' | Matching Rules: ${matchingRules.length}`);
+
       for (const rule of matchingRules) {
-        // Resolve Target Instance Name for this rule
         const targetInstance = rule.instanceName || defaultInstanceName;
         if (!targetInstance) {
           console.warn(`[Pipeline Worker ⚠️] No active WhatsApp instance available for rule "${rule.title}"`);
@@ -311,11 +314,11 @@ async function evaluateStageAutomations() {
         }
 
         let referenceDate = null;
+        let meetingKey = "";
 
         if (rule.triggerBase === "meeting") {
-          // Do NOT send meeting reminders if lead has moved to Won or Not Qualified
           if (leadStage === "won" || leadStage === "not_qualified") {
-            console.log(`[Pipeline Worker ⏭️] Skipping meeting reminder for lead ${lead.fullName || cleanNumber} in completed/disqualified stage '${leadStage}'`);
+            console.log(`[Pipeline Worker ⏭️] Skipping meeting reminder for ${lead.fullName || cleanNumber} in stage '${leadStage}'`);
             continue;
           }
 
@@ -323,34 +326,33 @@ async function evaluateStageAutomations() {
           const meetingTimeVal = lead.meeting?.meetingTime || lead.meetingTime || lead.time;
 
           if (!meetingDateVal) {
-            continue; // Skip if missing meeting details
+            console.log(`[Pipeline Worker ℹ️] Lead ${lead.fullName || cleanNumber} has no meeting date set. Skipping rule '${rule.title}'`);
+            continue;
           }
           referenceDate = parseMeetingDateTime(meetingDateVal, meetingTimeVal);
 
-          if (!referenceDate || isNaN(referenceDate.getTime())) continue;
-
-          // Do NOT send meeting reminder if meeting was scheduled > 10 hours ago
-          if (nowMs - referenceDate.getTime() > 10 * 3600 * 1000) {
-            console.log(`[Pipeline Worker ⏭️] Skipping stale meeting reminder (>10h past) for ${lead.fullName || cleanNumber}`);
+          if (!referenceDate || isNaN(referenceDate.getTime())) {
+            console.log(`[Pipeline Worker ⚠️] Failed to parse meeting date '${meetingDateVal}' '${meetingTimeVal}' for ${lead.fullName || cleanNumber}`);
             continue;
           }
+
+          meetingKey = (String(meetingDateVal) + "_" + String(meetingTimeVal || "")).replace(/\D/g, "");
         } else {
-          // Trigger relative to Stage Shift timestamp if available, else creation timestamp
           const rawReference = lead.stageMovedAt || lead.createdAt || lead.createdDate || lead.timestamp || lead.meeting?.bookedAt;
           referenceDate = rawReference ? new Date(rawReference) : new Date();
+          meetingKey = String(rawReference || "").replace(/\D/g, "").slice(0, 12) || "init";
         }
 
         if (!referenceDate || isNaN(referenceDate.getTime())) continue;
 
         // Calculate offset in milliseconds
-        let offsetMs = Number(rule.offsetValue) * 60 * 1000; // default minutes
+        let offsetMs = Number(rule.offsetValue) * 60 * 1000;
         if (rule.offsetUnit === "hours") offsetMs = Number(rule.offsetValue) * 3600 * 1000;
         if (rule.offsetUnit === "days") offsetMs = Number(rule.offsetValue) * 86400 * 1000;
-        if (offsetMs <= 0) offsetMs = 60000; // minimum 1 minute
+        if (offsetMs <= 0) offsetMs = 60000;
 
         let scheduledTriggerTimeMs = 0;
         let triggerKey = "";
-        const refStr = referenceDate.toISOString().split(":")[0];
 
         if (rule.offsetType === "recurring") {
           const elapsedMs = Math.max(0, nowMs - referenceDate.getTime());
@@ -360,23 +362,35 @@ async function evaluateStageAutomations() {
           triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_seq_${intervalIndex}`;
         } else if (rule.offsetType === "before") {
           scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_before_${refStr}`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_m_${meetingKey || "bef"}`;
         } else {
           // after
           scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_after_${refStr}`;
+          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_aft_${meetingKey || "aft"}`;
+        }
+
+        const diffMs = nowMs - scheduledTriggerTimeMs;
+
+        // For 'before' meeting rules, do not send if meeting has already passed by > 15 minutes
+        if (rule.triggerBase === "meeting" && rule.offsetType === "before") {
+          if (nowMs > referenceDate.getTime() + (15 * 60 * 1000)) {
+            console.log(`[Pipeline Worker ⏭️] Skipping 'before' rule '${rule.title}' for ${lead.fullName || cleanNumber} because meeting at ${referenceDate.toLocaleTimeString()} passed > 15m ago.`);
+            continue;
+          }
         }
 
         // Window check: execute if current time has reached or passed scheduledTriggerTimeMs
-        const diffMs = nowMs - scheduledTriggerTimeMs;
-        const isTimeReached = diffMs >= -30000; // within 30s before or anytime after target
+        const isTimeReached = diffMs >= -30000;
 
-        if (!isTimeReached) continue;
+        if (!isTimeReached) {
+          console.log(`[Pipeline Worker ⏳] Rule '${rule.title}' not reached yet for ${lead.fullName || cleanNumber}. (Target: ${new Date(scheduledTriggerTimeMs).toLocaleTimeString()}, Now: ${new Date(nowMs).toLocaleTimeString()}, ${Math.round(-diffMs / 1000)}s remaining)`);
+          continue;
+        }
 
         // Guard Check 1: Verify if this specific trigger key has already been executed successfully
         const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
         if (alreadySent && alreadySent.status === "sent") {
-          // Message was already sent successfully for this trigger key!
+          console.log(`[Pipeline Worker ⏩] Rule '${rule.title}' ALREADY EXECUTED for ${lead.fullName || cleanNumber} (Key: '${triggerKey}', Sent at: ${alreadySent.sentAt})`);
           continue;
         }
 
@@ -386,20 +400,23 @@ async function evaluateStageAutomations() {
         if (phoneCooldown && phoneCooldown.lastSentAt) {
           const cooldownDiffMs = nowMs - new Date(phoneCooldown.lastSentAt).getTime();
           if (cooldownDiffMs < 15000) {
-            console.log(`[Pipeline Worker ⏳] Cooldown active for ${cleanNumber} (${Math.round(cooldownDiffMs / 1000)}s since last message). Skipping duplicate trigger.`);
+            console.log(`[Pipeline Worker ⏳] Cooldown active for ${cleanNumber} on rule '${rule.title}' (${Math.round(cooldownDiffMs / 1000)}s since last message). Skipping.`);
             continue;
           }
         }
 
-        // If previously failed less than 30s ago, wait before retrying to prevent spamming failed attempts
+        // If previously failed less than 30s ago, wait before retrying
         if (alreadySent && alreadySent.status === "failed" && alreadySent.failedAt) {
           const failedDiffMs = nowMs - new Date(alreadySent.failedAt).getTime();
-          if (failedDiffMs < 30000) continue;
+          if (failedDiffMs < 30000) {
+            console.log(`[Pipeline Worker ⏳] Previous failed attempt < 30s ago for ${cleanNumber} on '${rule.title}'. Waiting before retry.`);
+            continue;
+          }
         }
 
         // Format Dynamic Message Template
-        const formattedDate = lead.meeting?.meetingDate || "Upcoming Date";
-        const formattedTime = lead.meeting?.meetingTime || "Scheduled Time";
+        const formattedDate = lead.meeting?.meetingDate || lead.meetingDate || "Upcoming Date";
+        const formattedTime = lead.meeting?.meetingTime || lead.meetingTime || "Scheduled Time";
         const resolvedMeetingUrl =
           lead.meeting?.meetingUrl ||
           lead.links?.meetingUrl ||
@@ -431,7 +448,7 @@ async function evaluateStageAutomations() {
           .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl)
           .replace(/\{\{\s*stage\s*\}\}/gi, leadStageName);
 
-        console.log(`[Pipeline Worker ⚡] Triggering WhatsApp Rule "${rule.title}" via instance '${targetInstance}' to ${lead.fullName} (${cleanNumber})`);
+        console.log(`[Pipeline Worker ⚡ DISPATCHING] Sending WhatsApp Rule "${rule.title}" via instance '${targetInstance}' to ${lead.fullName || "Client"} (${cleanNumber})`);
 
         // Record immediate cooldown timestamp
         await firebaseDb(`whatsapp_sent_automations/${cooldownKey}`, "PUT", {
@@ -445,6 +462,8 @@ async function evaluateStageAutomations() {
           number: cleanNumber,
           text: textMessage,
         });
+
+        console.log(`[Pipeline Worker ${evoRes.ok ? "✅ SUCCESS" : "❌ FAILED"}] Message dispatch for '${rule.title}' to ${cleanNumber}: ${evoRes.ok ? "Sent successfully" : evoRes.data?.error || evoRes.status}`);
 
         // Record Guard Flag status
         await firebaseDb(`whatsapp_sent_automations/${triggerKey}`, "PUT", {

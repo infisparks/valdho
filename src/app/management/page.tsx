@@ -434,58 +434,62 @@ export default function ManagementPage() {
   });
 
   return (
-    <div className="w-full min-h-screen bg-[#F5F6F8] text-slate-900 font-sans antialiased">
+    <div className="w-full min-h-screen bg-[#F5F6F8] text-slate-900 font-sans antialiased overflow-x-hidden">
       {/* Top Header Navigation */}
-      <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3.5 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-black text-lg flex items-center justify-center shadow-md">
+      <header className="bg-white border-b border-slate-200 px-3 sm:px-8 py-2.5 sm:py-3.5 sticky top-0 z-30 shadow-xs w-full max-w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-black text-sm sm:text-lg flex items-center justify-center shadow-md flex-shrink-0">
               FO
             </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
-                Team Workflow Canvas Matrix
+            <div className="min-w-0">
+              <h1 className="text-xs sm:text-lg font-extrabold text-slate-900 truncate leading-tight">
+                Team Workflow Canvas
               </h1>
-              <div className="flex items-center space-x-2">
-                <span className="text-[11px] font-bold text-slate-500">Your Role:</span>
-                <span className="bg-indigo-100 text-indigo-800 border border-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+              <div className="flex items-center space-x-1.5 sm:space-x-2 mt-0.5">
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 hidden sm:inline">Your Role:</span>
+                <span className="bg-indigo-100 text-indigo-800 border border-indigo-300 text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.2 rounded-full uppercase flex-shrink-0">
                   {userData?.roleName || "Staff Specialist"}
                 </span>
-                <span className="text-[11px] text-slate-400 font-mono">({currentUser?.email})</span>
+                <span className="text-[9px] sm:text-[11px] text-slate-400 font-mono truncate max-w-[90px] sm:max-w-none">
+                  ({currentUser?.email})
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1.5 sm:space-x-3 flex-shrink-0">
             <button
               onClick={() => setIsRaiseTicketModalOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl transition-colors shadow-sm flex items-center space-x-1.5 cursor-pointer"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] sm:text-xs font-extrabold px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all shadow-xs flex items-center space-x-1 sm:space-x-1.5 cursor-pointer whitespace-nowrap"
             >
-              <i className="fa-solid fa-ticket"></i>
-              <span>Raise Ticket 🎫</span>
+              <i className="fa-solid fa-ticket text-xs"></i>
+              <span className="hidden sm:inline">Raise Ticket 🎫</span>
+              <span className="sm:hidden">Raise Ticket</span>
             </button>
 
             {isAdmin && (
               <button
                 onClick={() => router.push("/crms")}
-                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold px-3.5 py-2 rounded-xl transition-colors shadow-2xs flex items-center space-x-1.5"
+                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] sm:text-xs font-extrabold px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-colors shadow-2xs flex items-center space-x-1 whitespace-nowrap"
               >
-                <i className="fa-solid fa-sliders"></i>
-                <span>Admin CRM Portal</span>
+                <i className="fa-solid fa-sliders text-xs"></i>
+                <span className="hidden sm:inline">Admin CRM Portal</span>
+                <span className="sm:hidden">CRM</span>
               </button>
             )}
 
-            <div className="hidden sm:block text-right text-xs">
+            <div className="hidden lg:block text-right text-xs">
               <p className="font-extrabold text-slate-900">{currentUser?.email}</p>
               <p className="text-[10px] text-slate-400 font-mono">Staff Canvas Active</p>
             </div>
 
             <button
               onClick={handleLogout}
-              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-3 py-2 rounded-xl transition-colors flex items-center space-x-1.5"
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] sm:text-xs font-extrabold px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-colors flex items-center space-x-1 whitespace-nowrap cursor-pointer"
             >
-              <i className="fa-solid fa-arrow-right-from-bracket"></i>
-              <span>Logout</span>
+              <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
@@ -609,26 +613,26 @@ export default function ManagementPage() {
             {/* Canvas Header Summary & Admin Action */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
               <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200 uppercase">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <span className="text-[11px] sm:text-xs font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200 uppercase">
                     🚀 {activeFlow.flowName}
                   </span>
-                  <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded border border-slate-200">
+                  <span className="text-[11px] sm:text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded border border-slate-200">
                     Campaign: {activeFlow.campaign}
                   </span>
                   {activeFlow.status === "completed" && (
-                    <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded border border-emerald-300">
+                    <span className="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded border border-emerald-300">
                       ✓ Flow Completed by Admin
                     </span>
                   )}
                 </div>
-                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
+                <h2 className="text-base sm:text-xl font-extrabold text-slate-900 mt-1">
                   Client: {activeFlow.clientName}
                 </h2>
-                <p className="text-xs text-slate-400 font-mono">{activeFlow.clientEmail}</p>
+                <p className="text-xs text-slate-400 font-mono truncate">{activeFlow.clientEmail}</p>
               </div>
 
-              <div className="flex items-center space-x-4">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <button
                   onClick={() => router.push(`/crms/view-flow?id=${activeFlow.id}`)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-1.5"

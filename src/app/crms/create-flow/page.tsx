@@ -8,6 +8,7 @@ import {
   getRoles,
   getFlowTemplates,
   createFlowTemplate,
+  updateFlowTemplate,
   deleteFlowTemplate,
   MASTER_ADMIN_UID,
   RoleData,
@@ -25,6 +26,7 @@ export default function CreateFlowPage() {
   const [accessDenied, setAccessDenied] = useState(false);
 
   // Flow Builder Form State
+  const [editingFlowId, setEditingFlowId] = useState<string | null>(null);
   const [flowName, setFlowName] = useState("");
   const [flowDescription, setFlowDescription] = useState("");
   const [rolesList, setRolesList] = useState<RoleData[]>([]);
@@ -35,6 +37,15 @@ export default function CreateFlowPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskRoleId, setTaskRoleId] = useState("");
   const [taskType, setTaskType] = useState<"checkbox" | "text" | "both">("both");
+
+  // View Mode: Grouped by Role vs Sequential List
+  const [viewMode, setViewMode] = useState<"grouped" | "sequential">("grouped");
+
+  // Task Step Editing Modal State
+  const [editingTaskItem, setEditingTaskItem] = useState<FlowTaskTemplate | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskRoleId, setEditTaskRoleId] = useState("");
+  const [editTaskType, setEditTaskType] = useState<"checkbox" | "text" | "both">("both");
 
   // Delete Flow Modal State
   const [deleteModalFlow, setDeleteModalFlow] = useState<FlowTemplate | null>(null);
@@ -85,11 +96,12 @@ export default function CreateFlowPage() {
   }, [router]);
 
   // Add Task Step to Draft
-  const handleAddTaskStep = () => {
+  const handleAddTaskStep = (overrideRoleId?: string) => {
     if (!taskTitle.trim()) return;
 
+    const targetRoleId = overrideRoleId || taskRoleId;
     const targetRole =
-      rolesList.find((r) => r.id === taskRoleId) ||
+      rolesList.find((r) => r.id === targetRoleId) ||
       rolesList[0] || { id: "role_editor", name: "Editor" };
 
     const newTask: FlowTaskTemplate = {
@@ -109,6 +121,39 @@ export default function CreateFlowPage() {
     setDraftTasks((prev) => prev.filter((t) => t.id !== taskId));
   };
 
+  // Open Edit Task Step Modal
+  const handleOpenEditTaskModal = (task: FlowTaskTemplate) => {
+    setEditingTaskItem(task);
+    setEditTaskTitle(task.title);
+    setEditTaskRoleId(task.roleId || rolesList[0]?.id || "");
+    setEditTaskType(task.type || "both");
+  };
+
+  // Save Edit Task Step
+  const handleSaveEditTask = () => {
+    if (!editingTaskItem || !editTaskTitle.trim()) return;
+
+    const targetRole =
+      rolesList.find((r) => r.id === editTaskRoleId) ||
+      rolesList[0] || { id: "role_editor", name: "Editor" };
+
+    setDraftTasks((prev) =>
+      prev.map((t) =>
+        t.id === editingTaskItem.id
+          ? {
+              ...t,
+              title: editTaskTitle.trim(),
+              roleId: targetRole.id,
+              roleName: targetRole.name,
+              type: editTaskType,
+            }
+          : t
+      )
+    );
+
+    setEditingTaskItem(null);
+  };
+
   // Reorder Task Step Up/Down
   const handleMoveTaskStep = (index: number, direction: "up" | "down") => {
     if (
@@ -125,8 +170,29 @@ export default function CreateFlowPage() {
     setDraftTasks(updated);
   };
 
-  // Submit & Create Flow Template
-  const handleCreateFlowSubmit = async (e: React.FormEvent) => {
+  // Start Editing an Existing Flow Template
+  const handleStartEditFlow = (flow: FlowTemplate) => {
+    setEditingFlowId(flow.id);
+    setFlowName(flow.name);
+    setFlowDescription(flow.description || "");
+    setDraftTasks([...(flow.tasks || [])]);
+    setErrorMessage(null);
+    setSuccessMessage(`Loaded '${flow.name}' into editor mode.`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Cancel Editing Flow Template
+  const handleCancelEditFlow = () => {
+    setEditingFlowId(null);
+    setFlowName("");
+    setFlowDescription("");
+    setDraftTasks([]);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
+  // Submit & Create or Update Flow Template
+  const handleCreateOrUpdateFlowSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -143,17 +209,44 @@ export default function CreateFlowPage() {
 
     setIsSubmitting(true);
     const creatorEmail = currentUser?.email || "Admin";
-    const res = await createFlowTemplate(cleanName, flowDescription, draftTasks, creatorEmail);
-    setIsSubmitting(false);
 
-    if (res.success && res.flow) {
-      setFlowTemplatesList((prev) => [...prev, res.flow!]);
-      setFlowName("");
-      setFlowDescription("");
-      setDraftTasks([]);
-      setSuccessMessage(`Workflow Flow '${res.flow.name}' created successfully!`);
+    if (editingFlowId) {
+      // Update Existing Flow Template
+      const res = await updateFlowTemplate(
+        editingFlowId,
+        cleanName,
+        flowDescription,
+        draftTasks,
+        creatorEmail
+      );
+      setIsSubmitting(false);
+
+      if (res.success && res.flow) {
+        setFlowTemplatesList((prev) =>
+          prev.map((f) => (f.id === editingFlowId ? res.flow! : f))
+        );
+        setEditingFlowId(null);
+        setFlowName("");
+        setFlowDescription("");
+        setDraftTasks([]);
+        setSuccessMessage(`Workflow Flow '${res.flow.name}' updated successfully!`);
+      } else {
+        setErrorMessage(res.message || "Failed to update Workflow Flow Template.");
+      }
     } else {
-      setErrorMessage(res.message || "Failed to create Workflow Flow Template.");
+      // Create New Flow Template
+      const res = await createFlowTemplate(cleanName, flowDescription, draftTasks, creatorEmail);
+      setIsSubmitting(false);
+
+      if (res.success && res.flow) {
+        setFlowTemplatesList((prev) => [...prev, res.flow!]);
+        setFlowName("");
+        setFlowDescription("");
+        setDraftTasks([]);
+        setSuccessMessage(`Workflow Flow '${res.flow.name}' created successfully!`);
+      } else {
+        setErrorMessage(res.message || "Failed to create Workflow Flow Template.");
+      }
     }
   };
 
@@ -172,6 +265,9 @@ export default function CreateFlowPage() {
     const res = await deleteFlowTemplate(deleteModalFlow.id);
     if (res.success) {
       setFlowTemplatesList((prev) => prev.filter((f) => f.id !== deleteModalFlow.id));
+      if (editingFlowId === deleteModalFlow.id) {
+        handleCancelEditFlow();
+      }
       setSuccessMessage(`Flow Template '${deleteModalFlow.name}' deleted successfully.`);
     }
 
@@ -219,6 +315,25 @@ export default function CreateFlowPage() {
     );
   }
 
+  // Group draft tasks by Role for clean Editor Work Groups
+  const groupedTasksByRole: Record<string, { role: RoleData; tasks: FlowTaskTemplate[] }> = {};
+  rolesList.forEach((role) => {
+    groupedTasksByRole[role.id] = { role, tasks: [] };
+  });
+
+  draftTasks.forEach((task) => {
+    const roleId = task.roleId || rolesList[0]?.id || "role_editor";
+    if (!groupedTasksByRole[roleId]) {
+      const foundRole: RoleData = rolesList.find((r) => r.id === roleId) || {
+        id: roleId,
+        name: task.roleName || "Editor",
+        description: "Role Work Group",
+      };
+      groupedTasksByRole[roleId] = { role: foundRole, tasks: [] };
+    }
+    groupedTasksByRole[roleId].tasks.push(task);
+  });
+
   return (
     <div className="w-full min-h-screen bg-[#F5F6F8] text-slate-900 font-sans antialiased">
       {/* Top Bar Navigation */}
@@ -234,7 +349,7 @@ export default function CreateFlowPage() {
             </button>
             <div>
               <h1 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
-                Create Workflow Flow Template
+                {editingFlowId ? "Edit Workflow Flow Template ✏️" : "Create Workflow Flow Template 🚀"}
               </h1>
               <p className="text-[11px] text-slate-500 font-medium">
                 Dedicated Workflow Builder Studio (/crms/create-flow)
@@ -295,21 +410,45 @@ export default function CreateFlowPage() {
           </div>
         )}
 
+        {/* Editing Banner Warning */}
+        {editingFlowId && (
+          <div className="bg-amber-50 border border-amber-300 text-amber-900 p-4 rounded-2xl text-xs font-extrabold flex items-center justify-between shadow-sm">
+            <div className="flex items-center space-x-2">
+              <i className="fa-solid fa-pen-to-square text-amber-600 text-base"></i>
+              <span>Currently Editing Template: <strong>"{flowName}"</strong>. Modifications will update the master template node in Firebase.</span>
+            </div>
+            <button
+              onClick={handleCancelEditFlow}
+              className="bg-white border border-amber-300 text-amber-900 font-bold px-3 py-1.5 rounded-xl hover:bg-amber-100 text-xs transition-colors"
+            >
+              Cancel Edit & Create New
+            </button>
+          </div>
+        )}
+
         {/* WORKFLOW FLOW BUILDER STUDIO FORM */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Form & Step Creator */}
           <div className="lg:col-span-2 space-y-6">
-            <form onSubmit={handleCreateFlowSubmit} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-lg font-extrabold text-slate-900 flex items-center space-x-2">
-                  <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-black">
-                    1
+            <form onSubmit={handleCreateOrUpdateFlowSubmit} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-900 flex items-center space-x-2">
+                    <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-black">
+                      1
+                    </span>
+                    <span>{editingFlowId ? "Edit Flow Template Details" : "Flow Template Details"}</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Enter flow template name (e.g. <code className="font-mono text-indigo-600 bg-indigo-50 px-1 rounded">Team Danger</code> or <code className="font-mono text-indigo-600 bg-indigo-50 px-1 rounded">Editor Onboarding Flow</code>)
+                  </p>
+                </div>
+
+                {editingFlowId && (
+                  <span className="text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1 rounded-full">
+                    ✏️ Editing Mode
                   </span>
-                  <span>Flow Template Details</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Enter flow template name (e.g. <code className="font-mono text-indigo-600 bg-indigo-50 px-1 rounded">Team Danger</code> or <code className="font-mono text-indigo-600 bg-indigo-50 px-1 rounded">20 Jan Performance Flow</code>)
-                </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -341,7 +480,7 @@ export default function CreateFlowPage() {
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                   <h3 className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
                     <i className="fa-solid fa-tasks text-indigo-600"></i>
-                    <span>Step 2: Add Role Task Steps</span>
+                    <span>Step 2: Add & Edit Role Task Steps</span>
                   </h3>
                   <span className="text-[10px] font-mono text-slate-500">
                     Draft Steps: {draftTasks.length}
@@ -353,9 +492,15 @@ export default function CreateFlowPage() {
                     <label className="text-[10px] font-bold text-slate-600">Task Title / Work Description *</label>
                     <input
                       type="text"
-                      placeholder="e.g. Verify video with client"
+                      placeholder="e.g. Edit client reel & sync background music"
                       value={taskTitle}
                       onChange={(e) => setTaskTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddTaskStep();
+                        }
+                      }}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:outline-none focus:border-indigo-600"
                     />
                   </div>
@@ -365,11 +510,11 @@ export default function CreateFlowPage() {
                     <select
                       value={taskRoleId}
                       onChange={(e) => setTaskRoleId(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
                     >
                       {rolesList.map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.name}
+                          🎬 {r.name}
                         </option>
                       ))}
                     </select>
@@ -380,7 +525,7 @@ export default function CreateFlowPage() {
                     <select
                       value={taskType}
                       onChange={(e) => setTaskType(e.target.value as any)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
                     >
                       <option value="both">Checkbox & Input</option>
                       <option value="checkbox">Checkbox Only</option>
@@ -392,73 +537,199 @@ export default function CreateFlowPage() {
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={handleAddTaskStep}
+                    onClick={() => handleAddTaskStep()}
                     disabled={!taskTitle.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold py-2 px-4 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center space-x-1.5 shadow-2xs"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold py-2 px-4 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center space-x-1.5 shadow-2xs cursor-pointer"
                   >
                     <i className="fa-solid fa-plus text-xs"></i>
                     <span>Add Task Step to Flow</span>
                   </button>
                 </div>
 
-                {/* Drafted Tasks List */}
+                {/* Drafted Tasks View Mode Selector (Grouped by Role vs Sequential) */}
                 {draftTasks.length > 0 && (
-                  <div className="space-y-2 pt-3 border-t border-slate-200">
-                    <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
-                      Sequence of Task Steps ({draftTasks.length}):
-                    </label>
+                  <div className="space-y-3 pt-3 border-t border-slate-200">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                        Sequence of Task Steps ({draftTasks.length}):
+                      </label>
 
-                    <div className="space-y-2">
-                      {draftTasks.map((t, idx) => (
-                        <div
-                          key={t.id}
-                          className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-2xs"
+                      <div className="flex items-center bg-slate-200/80 p-0.5 rounded-xl border border-slate-300 text-xs font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("grouped")}
+                          className={`px-3 py-1 rounded-lg transition-all ${
+                            viewMode === "grouped"
+                              ? "bg-white text-indigo-700 shadow-2xs font-extrabold"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
                         >
-                          <div className="flex items-center space-x-3">
-                            <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 font-extrabold flex items-center justify-center text-xs">
-                              {idx + 1}
-                            </span>
-                            <div>
-                              <p className="font-extrabold text-slate-900 text-sm">{t.title}</p>
-                              <div className="flex items-center space-x-2 mt-0.5">
-                                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2 py-0.5 rounded text-[10px]">
-                                  Role: {t.roleName}
-                                </span>
-                                <span className="bg-slate-100 text-slate-600 border border-slate-200 font-mono text-[10px] px-2 py-0.5 rounded">
-                                  Type: {t.type}
-                                </span>
+                          👥 Group by Role Work
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("sequential")}
+                          className={`px-3 py-1 rounded-lg transition-all ${
+                            viewMode === "sequential"
+                              ? "bg-white text-indigo-700 shadow-2xs font-extrabold"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          🔢 Sequential List
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* GROUPED BY ROLE WORK VIEW */}
+                    {viewMode === "grouped" && (
+                      <div className="space-y-3">
+                        {Object.values(groupedTasksByRole)
+                          .filter((group) => group.tasks.length > 0)
+                          .map((group) => (
+                            <div
+                              key={group.role.id}
+                              className="bg-white border border-indigo-100 rounded-2xl p-4 space-y-3 shadow-2xs"
+                            >
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <div className="flex items-center space-x-2">
+                                  <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                    🎬
+                                  </span>
+                                  <div>
+                                    <h4 className="text-xs font-extrabold text-slate-900">
+                                      {group.role.name} Tasks Group
+                                    </h4>
+                                    <p className="text-[10px] text-slate-500 font-medium">
+                                      Assigned work for role: <span className="font-bold text-indigo-600">{group.role.name}</span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                                    {group.tasks.length} Tasks
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTaskRoleId(group.role.id);
+                                    }}
+                                    className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg cursor-pointer"
+                                  >
+                                    + Add for {group.role.name}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                {group.tasks.map((t) => {
+                                  const globalIdx = draftTasks.findIndex((dt) => dt.id === t.id);
+                                  return (
+                                    <div
+                                      key={t.id}
+                                      className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs"
+                                    >
+                                      <div className="flex items-center space-x-2.5">
+                                        <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-800 font-bold text-[10px] flex items-center justify-center">
+                                          #{globalIdx + 1}
+                                        </span>
+                                        <div>
+                                          <p className="font-extrabold text-slate-900 text-xs">{t.title}</p>
+                                          <span className="text-[9px] font-mono text-slate-500">
+                                            Input: {t.type}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center space-x-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEditTaskModal(t)}
+                                          className="px-2 py-1 bg-white border border-slate-300 text-slate-700 hover:text-indigo-600 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                                          title="Edit Task"
+                                        >
+                                          ✏️ Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveTaskStep(t.id)}
+                                          className="px-2 py-1 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                                          title="Delete Task"
+                                        >
+                                          🗑️ Delete
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                          </div>
+                          ))}
+                      </div>
+                    )}
 
-                          <div className="flex items-center space-x-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleMoveTaskStep(idx, "up")}
-                              disabled={idx === 0}
-                              className="w-7 h-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center text-xs"
-                            >
-                              <i className="fa-solid fa-chevron-up"></i>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMoveTaskStep(idx, "down")}
-                              disabled={idx === draftTasks.length - 1}
-                              className="w-7 h-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center text-xs"
-                            >
-                              <i className="fa-solid fa-chevron-down"></i>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveTaskStep(t.id)}
-                              className="text-rose-600 hover:text-rose-800 border border-rose-200 bg-rose-50 px-2.5 py-1 rounded-lg font-bold text-xs ml-1"
-                            >
-                              Remove
-                            </button>
+                    {/* SEQUENTIAL LIST VIEW */}
+                    {viewMode === "sequential" && (
+                      <div className="space-y-2">
+                        {draftTasks.map((t, idx) => (
+                          <div
+                            key={t.id}
+                            className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-2xs"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 font-extrabold flex items-center justify-center text-xs">
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <p className="font-extrabold text-slate-900 text-sm">{t.title}</p>
+                                <div className="flex items-center space-x-2 mt-0.5">
+                                  <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2 py-0.5 rounded text-[10px]">
+                                    Role: {t.roleName}
+                                  </span>
+                                  <span className="bg-slate-100 text-slate-600 border border-slate-200 font-mono text-[10px] px-2 py-0.5 rounded">
+                                    Type: {t.type}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditTaskModal(t)}
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 border border-slate-200 text-slate-700 hover:text-indigo-700 font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                              >
+                                Edit ✏️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveTaskStep(idx, "up")}
+                                disabled={idx === 0}
+                                className="w-7 h-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center text-xs cursor-pointer"
+                              >
+                                <i className="fa-solid fa-chevron-up"></i>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveTaskStep(idx, "down")}
+                                disabled={idx === draftTasks.length - 1}
+                                className="w-7 h-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center text-xs cursor-pointer"
+                              >
+                                <i className="fa-solid fa-chevron-down"></i>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveTaskStep(t.id)}
+                                className="text-rose-600 hover:text-rose-800 border border-rose-200 bg-rose-50 px-2.5 py-1 rounded-lg font-bold text-xs cursor-pointer"
+                              >
+                                Delete 🗑️
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -476,14 +747,14 @@ export default function CreateFlowPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting || !flowName.trim() || draftTasks.length === 0}
-                  className="px-6 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md transition-all flex items-center space-x-2 disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                   ) : (
                     <i className="fa-solid fa-paper-plane text-xs"></i>
                   )}
-                  <span>Save Workflow Flow Template 🚀</span>
+                  <span>{editingFlowId ? "Update Workflow Flow Template ✏️" : "Save Workflow Flow Template 🚀"}</span>
                 </button>
               </div>
             </form>
@@ -508,58 +779,155 @@ export default function CreateFlowPage() {
                 </p>
               ) : (
                 <div className="space-y-3 max-h-[700px] overflow-y-auto pr-1">
-                  {flowTemplatesList.map((flow) => (
-                    <div
-                      key={flow.id}
-                      className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5 hover:border-indigo-300 transition-colors shadow-2xs"
-                    >
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-extrabold text-slate-900 truncate">
-                          🚀 {flow.name}
-                        </h4>
-                        <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
-                          {flow.tasks.length} Steps
-                        </span>
-                      </div>
+                  {flowTemplatesList.map((flow) => {
+                    const isSelectedForEdit = editingFlowId === flow.id;
+                    return (
+                      <div
+                        key={flow.id}
+                        className={`bg-slate-50 border rounded-2xl p-4 space-y-2.5 transition-colors shadow-2xs ${
+                          isSelectedForEdit
+                            ? "border-amber-400 bg-amber-50/40 ring-2 ring-amber-300"
+                            : "border-slate-200 hover:border-indigo-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-extrabold text-slate-900 truncate">
+                            🚀 {flow.name}
+                          </h4>
+                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                            {flow.tasks?.length || 0} Steps
+                          </span>
+                        </div>
 
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        {flow.description || "No description."}
-                      </p>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {flow.description || "No description."}
+                        </p>
 
-                      <div className="space-y-1 pt-1.5 border-t border-slate-200">
-                        {flow.tasks.map((t, idx) => (
-                          <div
-                            key={t.id}
-                            className="text-[10px] font-medium text-slate-700 flex items-center justify-between"
-                          >
-                            <span className="truncate max-w-[140px]">
-                              {idx + 1}. {t.title}
-                            </span>
-                            <span className="text-[9px] font-extrabold bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-700">
-                              {t.roleName}
-                            </span>
+                        <div className="space-y-1 pt-1.5 border-t border-slate-200">
+                          {(flow.tasks || []).map((t, idx) => (
+                            <div
+                              key={t.id}
+                              className="text-[10px] font-medium text-slate-700 flex items-center justify-between"
+                            >
+                              <span className="truncate max-w-[140px]">
+                                {idx + 1}. {t.title}
+                              </span>
+                              <span className="text-[9px] font-extrabold bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-700">
+                                {t.roleName}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                          <span>By: {flow.createdBy?.split("@")[0]}</span>
+
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditFlow(flow)}
+                              className="text-indigo-700 hover:text-indigo-900 text-[10px] font-bold bg-white border border-indigo-200 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              ✏️ Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteModal(flow)}
+                              className="text-rose-600 hover:text-rose-800 text-[10px] font-bold bg-white border border-rose-200 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              🗑️ Delete
+                            </button>
                           </div>
-                        ))}
+                        </div>
                       </div>
-
-                      <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                        <span>By: {flow.createdBy?.split("@")[0]}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDeleteModal(flow)}
-                          className="text-rose-600 hover:text-rose-800 text-[10px] font-bold bg-white border border-rose-200 px-2 py-0.5 rounded transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
         </div>
       </main>
+
+      {/* EDIT INDIVIDUAL TASK STEP MODAL */}
+      {editingTaskItem && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0" onClick={() => setEditingTaskItem(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-slate-200 z-10 font-sans">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center space-x-2">
+                <i className="fa-solid fa-pen-to-square text-indigo-600"></i>
+                <span>Edit Task Step</span>
+              </h3>
+              <button
+                onClick={() => setEditingTaskItem(null)}
+                className="w-7 h-7 rounded-full text-slate-400 hover:bg-slate-100 flex items-center justify-center text-xs"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Task Title / Work Description *</label>
+                <input
+                  type="text"
+                  value={editTaskTitle}
+                  onChange={(e) => setEditTaskTitle(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Assign Role *</label>
+                  <select
+                    value={editTaskRoleId}
+                    onChange={(e) => setEditTaskRoleId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  >
+                    {rolesList.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        🎬 {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Input Type *</label>
+                  <select
+                    value={editTaskType}
+                    onChange={(e) => setEditTaskType(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  >
+                    <option value="both">Checkbox & Input</option>
+                    <option value="checkbox">Checkbox Only</option>
+                    <option value="text">Text Input Only</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditingTaskItem(null)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditTask}
+                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+              >
+                Save Task Changes 💾
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FLOW TEMPLATE DELETION CONFIRMATION MODAL WITH TERMS CHECKBOX */}
       {deleteModalFlow && (

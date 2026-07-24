@@ -1203,6 +1203,43 @@ export async function createFlowTemplate(
 }
 
 /**
+ * Update an existing Flow Template under /flows node.
+ */
+export async function updateFlowTemplate(
+  flowId: string,
+  name: string,
+  description: string,
+  tasks: FlowTaskTemplate[],
+  updatedBy: string
+): Promise<{ success: boolean; message?: string; flow?: FlowTemplate }> {
+  try {
+    const cleanName = name.trim();
+    if (!cleanName) return { success: false, message: "Flow name is required." };
+    if (!tasks || tasks.length === 0) return { success: false, message: "At least one task step is required." };
+
+    const flowRef = ref(db, `flows/${flowId}`);
+    const snapshot = await get(flowRef);
+    const existingData = snapshot.exists() ? snapshot.val() : {};
+
+    const updatedFlow: FlowTemplate = {
+      ...existingData,
+      id: flowId,
+      name: cleanName,
+      description: description.trim(),
+      tasks,
+      updatedAt: new Date().toISOString(),
+      updatedBy,
+    };
+
+    await set(flowRef, updatedFlow);
+    return { success: true, flow: updatedFlow };
+  } catch (err) {
+    console.error("Firebase updateFlowTemplate Error:", err);
+    return { success: false, message: "Failed to update flow template." };
+  }
+}
+
+/**
  * Delete a Flow Template from /flows.
  */
 export async function deleteFlowTemplate(flowId: string): Promise<{ success: boolean; message?: string }> {

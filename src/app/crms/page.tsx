@@ -607,7 +607,7 @@ export default function CRMPage() {
         body: JSON.stringify({
           phone: cleanPhoneNum,
           leadName: selectedLead.fullName || "Client",
-          scheduledAt: newSchDateTime,
+          scheduledAt: newSchDateTime.includes("+") ? newSchDateTime : `${newSchDateTime}:00+05:30`,
           instanceName: newSchInstance,
           messageText: newSchText.trim(),
         }),

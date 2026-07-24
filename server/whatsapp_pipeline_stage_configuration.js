@@ -729,7 +729,16 @@ router.post("/scheduled-message/add", async (req, res) => {
 
     const cleanNumber = sanitizePhoneNumber(phone);
     const schId = `sch_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const scheduledDateObj = new Date(scheduledAt);
+    
+    // Parse scheduled date/time in Indian Standard Time (IST UTC+5:30)
+    let rawDateStr = String(scheduledAt).trim();
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(rawDateStr)) {
+      if (!rawDateStr.includes(":00") && rawDateStr.split(":").length === 2) {
+        rawDateStr += ":00";
+      }
+      rawDateStr += "+05:30"; // Enforce IST timezone offset
+    }
+    const scheduledDateObj = new Date(rawDateStr);
 
     const record = {
       id: schId,

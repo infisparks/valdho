@@ -93,12 +93,12 @@ const DEFAULT_PIPELINE_STAGES: PipelineStageConfig[] = [
 function parseMeetingDateTime(dateStr?: string, timeStr?: string): Date | null {
   if (!dateStr) return null;
   try {
-    const cleanDate = dateStr.trim();
+    const cleanDate = dateStr.trim().split("T")[0];
     let hour = 12;
     let minute = 0;
 
     if (timeStr) {
-      const cleanTime = timeStr.trim();
+      const cleanTime = timeStr.trim().toUpperCase();
       if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
         const isPm = cleanTime.includes("PM");
         const timePart = cleanTime.replace("AM", "").replace("PM", "").trim();
@@ -3024,7 +3024,10 @@ export default function CRMPage() {
 
                             const stageAutomations = stageAutomationsMap[stage.id] || [];
                             const hasMeetingRequirement = stageAutomations.some((a) => a.isEnabled && a.triggerBase === "meeting");
-                            const isMissingMeetingInfo = hasMeetingRequirement && (!lead.meeting?.meetingDate || !lead.meeting?.meetingTime);
+
+                            const meetingDateVal = lead.meeting?.meetingDate || (lead as any).meetingDate || (lead as any).date;
+                            const meetingTimeVal = lead.meeting?.meetingTime || (lead as any).meetingTime || (lead as any).time;
+                            const isMissingMeetingInfo = hasMeetingRequirement && (!meetingDateVal || !meetingTimeVal);
 
                             // Calculate Next Scheduled WhatsApp Countdown
                             let nextCountdownStr: string | null = null;
@@ -3043,7 +3046,7 @@ export default function CRMPage() {
                                   if (lead.pipelineStage === "won" || lead.pipelineStage === "not_qualified" || lead.onboarded) {
                                     continue;
                                   }
-                                  refDate = parseMeetingDateTime(lead.meeting?.meetingDate, lead.meeting?.meetingTime);
+                                  refDate = parseMeetingDateTime(meetingDateVal, meetingTimeVal);
                                 } else {
                                   const rawCreated = lead.createdAt || lead.createdDate || (lead as any).timestamp || lead.meeting?.bookedAt;
                                   refDate = rawCreated ? new Date(rawCreated) : new Date();

@@ -80,12 +80,12 @@ function sanitizePhoneNumber(number) {
 function parseMeetingDateTime(dateStr, timeStr) {
   if (!dateStr) return null;
   try {
-    const cleanDate = dateStr.trim();
+    const cleanDate = dateStr.trim().split("T")[0];
     let hour = 12;
     let minute = 0;
 
     if (timeStr) {
-      const cleanTime = timeStr.trim();
+      const cleanTime = timeStr.trim().toUpperCase();
       if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
         const isPm = cleanTime.includes("PM");
         const timePart = cleanTime.replace("AM", "").replace("PM", "").trim();

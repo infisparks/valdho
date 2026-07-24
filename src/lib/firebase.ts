@@ -1448,3 +1448,16 @@ export async function updateSupportTicketStatus(
   }
 }
 
+/**
+ * Delete a Support Ticket from /support_tickets
+ */
+export async function deleteSupportTicket(ticketId: string): Promise<boolean> {
+  try {
+    await set(ref(db, `support_tickets/${ticketId}`), null);
+    return true;
+  } catch (err) {
+    console.error("deleteSupportTicket Error:", err);
+    return false;
+  }
+}
+

@@ -32,6 +32,7 @@ import {
   deleteClientFlowInstance,
   getAllSupportTickets,
   updateSupportTicketStatus,
+  deleteSupportTicket,
   SupportTicket,
   MASTER_ADMIN_UID,
   sanitizeEmailToId,
@@ -756,6 +757,19 @@ export default function CRMPage() {
       setSupportTickets((prev) =>
         prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus, resolvedBy: adminName, updatedAt: new Date().toISOString() } : t))
       );
+    }
+  };
+
+  const handleDeleteTicket = async (ticket: SupportTicket) => {
+    if (!confirm(`Are you sure you want to delete support ticket #${ticket.ticketNumber} (${ticket.subject})?`)) {
+      return;
+    }
+
+    const success = await deleteSupportTicket(ticket.id);
+    if (success) {
+      setSupportTickets((prev) => prev.filter((t) => t.id !== ticket.id));
+    } else {
+      alert("Failed to delete support ticket. Please try again.");
     }
   };
 
@@ -2873,7 +2887,17 @@ export default function CRMPage() {
 
                             <div className="border-t border-slate-100 pt-2 flex items-center justify-between text-[10px] text-slate-400 font-medium">
                               <span>Submitted: {new Date(t.createdAt).toLocaleString()}</span>
-                              {t.resolvedBy && <span>Resolved by: {t.resolvedBy}</span>}
+                              <div className="flex items-center space-x-2">
+                                {t.resolvedBy && <span>Resolved by: {t.resolvedBy}</span>}
+                                <button
+                                  onClick={() => handleDeleteTicket(t)}
+                                  title="Delete Support Ticket"
+                                  className="text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-colors flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <i className="fa-solid fa-trash-can text-[10px]"></i>
+                                  <span>Delete Ticket</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );

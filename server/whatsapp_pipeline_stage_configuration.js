@@ -147,11 +147,11 @@ function parseMeetingDateTime(dateStr, timeStr) {
 /**
  * Recursive Lead Extractor - Traverses campaigns & leads nodes in Firebase RTDB
  */
-function extractLeadsFromFirebaseData(obj, foundLeads = [], path = "") {
-  if (!obj || typeof obj !== "object") return foundLeads;
+function extractLeadsFromFirebaseData(obj, foundLeads = [], path = "", depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 6) return foundLeads;
 
-  // If object has phone and name or email, it's a valid lead
-  if (obj.phone && (obj.fullName || obj.email || obj.pipelineStage)) {
+  // If object has phone and (fullName or email or pipelineStage or status), it's a valid lead
+  if (obj.phone && (obj.fullName || obj.email || obj.pipelineStage || obj.status)) {
     const leadId = obj.id || obj.email || `lead_${foundLeads.length + 1}`;
     foundLeads.push({ ...obj, leadId, _path: path });
     return foundLeads;
@@ -159,7 +159,7 @@ function extractLeadsFromFirebaseData(obj, foundLeads = [], path = "") {
 
   for (const [key, value] of Object.entries(obj)) {
     if (value && typeof value === "object") {
-      extractLeadsFromFirebaseData(value, foundLeads, `${path}/${key}`);
+      extractLeadsFromFirebaseData(value, foundLeads, `${path}/${key}`, depth + 1);
     }
   }
 
@@ -510,12 +510,16 @@ async function evaluateStageAutomations() {
 
 // Start Background Daemon Cron Worker Interval (runs every 15 seconds for instant 1m execution)
 setInterval(() => {
-  evaluateStageAutomations();
+  evaluateStageAutomations().catch((err) => {
+    console.error("[Pipeline Worker Interval Catch Error]:", err);
+  });
 }, 15000);
 
 // Run initial evaluation on server startup
 setTimeout(() => {
-  evaluateStageAutomations();
+  evaluateStageAutomations().catch((err) => {
+    console.error("[Pipeline Worker Startup Catch Error]:", err);
+  });
 }, 2000);
 
 /**

@@ -6,6 +6,15 @@ const dotenv = require("dotenv");
 // Load Environment Variables from server/.env if file exists
 dotenv.config({ path: path.resolve(__dirname, ".env") });
 
+// Global Process Crash Guards to keep Docker/Coolify container 100% alive & online
+process.on("uncaughtException", (err) => {
+  console.error("🔥 [SERVER CRASH GUARD - UNCAUGHT EXCEPTION]:", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("⚠️ [SERVER CRASH GUARD - UNHANDLED REJECTION]:", reason);
+});
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 

@@ -1001,11 +1001,11 @@ export default function CRMPage() {
       for (const [roleId, tasks] of Object.entries(tasksByRole)) {
         const matchingStaff = usersList.filter(
           (u) => (u.roleId === roleId || (roleId === "role_onboarding" && u.roleName?.toLowerCase().includes("onboarding"))) &&
-                 u.phone && u.phone.trim().replace(/\D/g, "").length >= 5
+                 u.phone && String(u.phone).trim().replace(/\D/g, "").length >= 5
         );
 
         for (const staff of matchingStaff) {
-          let cleanPhone = (staff.phone || "").trim().replace(/\D/g, "");
+          let cleanPhone = String(staff.phone || "").trim().replace(/\D/g, "");
           if (cleanPhone.length === 10) {
             cleanPhone = "91" + cleanPhone;
           }
@@ -2387,7 +2387,7 @@ export default function CRMPage() {
                       ) : (
                         usersList.map((usr) => {
                           const isMaster = usr.email?.toLowerCase().startsWith("firstoption") || usr.uid === MASTER_ADMIN_UID;
-                          const cleanPhone = (usr.phone || "").trim();
+                          const cleanPhone = String(usr.phone || "").trim();
 
                           return (
                             <tr key={usr.emailId || usr.email} className="hover:bg-slate-50/80 transition-colors">
@@ -5107,7 +5107,7 @@ export default function CRMPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4 sm:space-y-5">
-              {(!selectedLead.phone || selectedLead.phone.trim().replace(/\D/g, "").length < 5) && (
+              {(!selectedLead.phone || String(selectedLead.phone).trim().replace(/\D/g, "").length < 5) && (
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-1 text-amber-900 shadow-2xs">
                   <div className="flex items-center space-x-2">
                     <i className="fa-solid fa-triangle-exclamation text-amber-600 text-sm"></i>

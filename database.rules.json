@@ -1,0 +1,81 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null",
+      ".write": "auth != null && (
+        auth.uid === 'Z6Q2eQIQQuQf1rgk1hdWWxVUdLX2' ||
+        (auth.token.email != null && auth.token.email === 'firstoption@gmai.com') ||
+        (root.child('users').child(auth.uid).child('roleId').val() === 'role_admin') ||
+        (auth.token.email != null && root.child('users').child(auth.token.email.replace('.', '_')).child('roleId').val() === 'role_admin')
+      )",
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (
+          auth.uid === 'Z6Q2eQIQQuQf1rgk1hdWWxVUdLX2' ||
+          (auth.token.email != null && auth.token.email === 'firstoption@gmai.com') ||
+          (root.child('users').child(auth.uid).child('roleId').val() === 'role_admin')
+        )"
+      }
+    },
+    "campaigns": {
+      ".read": "auth != null",
+      ".write": true
+    },
+    "leads": {
+      ".read": "auth != null",
+      ".write": true
+    },
+    "slots": {
+      ".read": "auth != null",
+      ".write": true
+    },
+    "onboards": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "pipeline_stages": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "whatsapp_configuration": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "whatsapp_stage_automations": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "whatsapp_sent_automations": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "whatsapp_unofficial_instances": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "whatsapp_logs": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "whatsapp_lead_logs": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "roles": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "flow_templates": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "client_flows": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "$other": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}

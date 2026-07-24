@@ -9,13 +9,15 @@ const FIREBASE_DB_URL = (
   process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL ||
   "https://firstoption-8da25-default-rtdb.firebaseio.com"
 ).replace(/\/$/, "");
+const FIREBASE_DB_SECRET = process.env.FIREBASE_DB_SECRET || process.env.FIREBASE_DATABASE_SECRET || "";
 
 /**
  * Firebase Realtime Database REST API Helper
  */
 async function firebaseDb(path, method = "GET", body = null) {
   try {
-    const url = `${FIREBASE_DB_URL}/${path}.json`;
+    const authQuery = FIREBASE_DB_SECRET ? `?auth=${encodeURIComponent(FIREBASE_DB_SECRET)}` : "";
+    const url = `${FIREBASE_DB_URL}/${path}.json${authQuery}`;
     const options = {
       method,
       headers: { "Content-Type": "application/json" },

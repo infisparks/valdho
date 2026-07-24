@@ -1579,131 +1579,134 @@ export default function CRMPage() {
           </div>
 
           {/* Navigation Items (Syncs Route Query ?tab=...) */}
-          <nav className="space-y-1">
-            <button
-              onClick={() => {
-                changeTab("pipeline");
-                setIsMobileSidebarOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                activeTab === "pipeline"
-                  ? "bg-indigo-50 text-indigo-600 shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <i className="fa-solid fa-[#4F46E5] fa-columns text-sm text-indigo-600"></i>
-              <span>Pipeline Stage Board</span>
-            </button>
-
-            <button
-              onClick={() => {
-                changeTab("onboarded");
-                setIsMobileSidebarOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                activeTab === "onboarded"
-                  ? "bg-emerald-50 text-emerald-700 shadow-sm font-extrabold"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <i className="fa-solid fa-award text-sm text-emerald-600"></i>
-              <div className="flex items-center justify-between w-full">
-                <span>Onboarded Clients</span>
-                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                  {allOnboardedList.length}
-                </span>
+          <nav className="space-y-4">
+            {/* SECTION 1: CRM WORKSPACE */}
+            <div className="space-y-1">
+              <div className="px-3 pb-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                CRM Workspace
               </div>
-            </button>
 
-            <button
-              onClick={() => {
-                changeTab("roles");
-                setIsMobileSidebarOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                activeTab === "roles"
-                  ? "bg-indigo-50 text-indigo-700 shadow-sm font-extrabold"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <i className="fa-solid fa-user-gear text-sm text-indigo-600"></i>
-              <span>Roles & Workflow Flows</span>
-            </button>
+              <button
+                onClick={() => {
+                  changeTab("pipeline");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "pipeline"
+                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <i className="fa-solid fa-columns text-sm text-indigo-600"></i>
+                <span>Pipeline Stage Board</span>
+              </button>
 
-            <button
-              onClick={() => {
-                router.push("/crms/whatsapp");
-                setIsMobileSidebarOpen(false);
-              }}
-              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors shadow-2xs"
-            >
-              <i className="fa-brands fa-whatsapp text-sm text-emerald-600"></i>
-              <span>WhatsApp API Manager 💬</span>
-            </button>
+              <button
+                onClick={() => {
+                  changeTab("leads");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "leads"
+                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <i className="fa-solid fa-chart-line text-sm text-indigo-600"></i>
+                <span>Dashboard & Leads</span>
+              </button>
 
-            <button
-              onClick={() => {
-                router.push("/crms/whatsapp#integrations");
-                setIsMobileSidebarOpen(false);
-              }}
-              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs"
-            >
-              <i className="fa-solid fa-plug text-sm text-indigo-600"></i>
-              <span>Integrations & Google Meet 🎥</span>
-            </button>
+              <button
+                onClick={() => {
+                  changeTab("meetings");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "meetings"
+                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <i className="fa-solid fa-calendar-check text-sm text-indigo-600"></i>
+                <span>Scheduled Meetings</span>
+              </button>
 
-            <button
-              onClick={() => {
-                changeTab("leads");
-                setIsMobileSidebarOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                activeTab === "leads"
-                  ? "bg-indigo-50 text-indigo-600"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <i className="fa-solid fa-chart-line text-sm"></i>
-              <span>Dashboard & Leads</span>
-            </button>
+              <button
+                onClick={() => {
+                  changeTab("calendar");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "calendar"
+                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <i className="fa-solid fa-calendar-days text-sm text-indigo-600"></i>
+                <span>Meetings Calendar</span>
+              </button>
 
-            <button
-              onClick={() => {
-                changeTab("meetings");
-                setIsMobileSidebarOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                activeTab === "meetings"
-                  ? "bg-indigo-50 text-indigo-600"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <i className="fa-solid fa-calendar-check text-sm"></i>
-              <span>Scheduled Meetings</span>
-            </button>
+              <button
+                onClick={() => {
+                  changeTab("onboarded");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "onboarded"
+                    ? "bg-emerald-50 text-emerald-700 shadow-2xs font-extrabold border-l-4 border-emerald-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <i className="fa-solid fa-award text-sm text-emerald-600"></i>
+                <div className="flex items-center justify-between w-full">
+                  <span>Onboarded Clients</span>
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                    {allOnboardedList.length}
+                  </span>
+                </div>
+              </button>
+            </div>
 
-            <button
-              onClick={() => {
-                changeTab("calendar");
-                setIsMobileSidebarOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                activeTab === "calendar"
-                  ? "bg-indigo-50 text-indigo-600 shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <i className="fa-solid fa-calendar-days text-sm text-indigo-600"></i>
-              <span>Meetings Calendar</span>
-            </button>
+            {/* SECTION 2: SYSTEM & INTEGRATIONS */}
+            <div className="space-y-1 pt-2 border-t border-slate-100">
+              <div className="px-3 pb-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                System & Integrations
+              </div>
 
-            <button
-              onClick={() => router.push("/management")}
-              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 transition-colors shadow-2xs mt-2"
-            >
-              <i className="fa-solid fa-list-check text-sm text-violet-600"></i>
-              <span>Team Workspace (/management)</span>
-            </button>
+              <button
+                onClick={() => {
+                  router.push("/crms/whatsapp#integrations");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs"
+              >
+                <i className="fa-solid fa-video text-sm text-indigo-600"></i>
+                <span>Google Meet & Integrations 🎥</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  changeTab("roles");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "roles"
+                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <i className="fa-solid fa-user-gear text-sm text-indigo-600"></i>
+                <span>Roles & Workflow Flows</span>
+              </button>
+
+              <button
+                onClick={() => router.push("/management")}
+                className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 transition-colors shadow-2xs"
+              >
+                <i className="fa-solid fa-users-gear text-sm text-violet-600"></i>
+                <span>Team Workspace (/management)</span>
+              </button>
+            </div>
           </nav>
         </div>
 

@@ -17,7 +17,7 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
       {/* Trust Pill */}
       <div className="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full text-amber-400 text-xs sm:text-sm font-bold mb-4 sm:mb-6">
         <i className="fa-solid fa-bolt text-xs sm:text-sm"></i>
-        <span>Direct Response Revenue System</span>
+        <span>System That Sell While You Sleep</span>
       </div>
 
       {/* Hero Heading */}

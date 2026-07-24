@@ -567,6 +567,21 @@ export default function CRMPage() {
     return () => unsubscribe();
   }, []);
 
+  // Realtime Sync Server-side Lead Timers from Firebase RTDB `whatsapp_lead_timers`
+  const [leadTimersMap, setLeadTimersMap] = useState<Record<string, any>>({});
+  useEffect(() => {
+    const timersRef = ref(db, "whatsapp_lead_timers");
+    const unsubscribe = onValue(timersRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setLeadTimersMap(snapshot.val());
+      } else {
+        setLeadTimersMap({});
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const handleOpenStageAutomationModal = (stage: PipelineStageConfig) => {
     setActiveAutomationStage(stage);
     setIsStageAutomationModalOpen(true);
@@ -3382,7 +3397,7 @@ export default function CRMPage() {
                                   }
                                   refDate = parseMeetingDateTime(meetingDateVal, meetingTimeVal);
                                 } else {
-                                  const rawCreated = lead.createdAt || lead.createdDate || (lead as any).timestamp || lead.meeting?.bookedAt;
+                                  const rawCreated = (lead as any).stageMovedAt || lead.createdAt || lead.createdDate || (lead as any).timestamp || lead.meeting?.bookedAt;
                                   refDate = rawCreated ? new Date(rawCreated) : new Date();
                                 }
 
@@ -3403,6 +3418,13 @@ export default function CRMPage() {
                                     targetMs = refDate.getTime() - offsetMs;
                                   } else {
                                     targetMs = refDate.getTime() + offsetMs;
+                                  }
+
+                                  // Sync with Server Lead Timers if available
+                                  const fullCleanPhone = cleanPhoneNum.length === 10 ? "91" + cleanPhoneNum : cleanPhoneNum;
+                                  const serverTimerRecord = leadTimersMap[cleanPhoneNum] || leadTimersMap[fullCleanPhone];
+                                  if (serverTimerRecord && serverTimerRecord.nextTriggerTimeMs && serverTimerRecord.leadStage === lead.pipelineStage) {
+                                    targetMs = serverTimerRecord.nextTriggerTimeMs;
                                   }
 
                                   if (targetMs > nowTick) {

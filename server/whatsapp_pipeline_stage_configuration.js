@@ -386,13 +386,36 @@ async function evaluateStageAutomations() {
 
         const formatIST = (ms) => new Date(ms).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
 
+        const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
+
+        // Record accurate Server-side Timer Target in Firebase RTDB for Frontend Countdown UI
+        let nextTargetMs = scheduledTriggerTimeMs;
+        if (alreadySent && alreadySent.status === "sent") {
+          nextTargetMs = rule.offsetType === "recurring" ? (scheduledTriggerTimeMs + offsetMs) : null;
+        }
+
+        if (nextTargetMs) {
+          const remSec = Math.max(0, Math.round((nextTargetMs - nowMs) / 1000));
+          await firebaseDb(`whatsapp_lead_timers/${cleanNumber}`, "PUT", {
+            phone: cleanNumber,
+            leadName: lead.fullName || cleanNumber,
+            leadStage,
+            ruleId: rule.id,
+            ruleTitle: rule.title || rule.offsetType,
+            nextTriggerTimeMs: nextTargetMs,
+            nextTriggerTimeIST: formatIST(nextTargetMs),
+            remainingSeconds: remSec,
+            status: alreadySent && alreadySent.status === "sent" ? "next_recurring_queued" : "waiting",
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
         if (!isTimeReached) {
           console.log(`[Pipeline Worker ⏳] Rule '${rule.title}' not reached yet for ${lead.fullName || cleanNumber}. (Target IST: ${formatIST(scheduledTriggerTimeMs)}, Now IST: ${formatIST(nowMs)}, ${Math.round(-diffMs / 1000)}s remaining)`);
           continue;
         }
 
         // Guard Check 1: Verify if this specific trigger key has already been executed successfully
-        const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
         if (alreadySent && alreadySent.status === "sent") {
           console.log(`[Pipeline Worker ⏩] Rule '${rule.title}' ALREADY EXECUTED for ${lead.fullName || cleanNumber} (Key: '${triggerKey}', Sent at: ${alreadySent.sentAt})`);
           continue;

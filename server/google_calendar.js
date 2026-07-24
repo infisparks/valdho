@@ -105,45 +105,65 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
     const accessToken = await getGoogleAccessToken(activeOAuthAcc);
     if (!accessToken) return null;
 
-    // Parse start datetime robustly across formats (e.g. "July 24, 2026", "2026-07-24")
-    let startIso = new Date().toISOString();
-    if (dateStr) {
-      let baseDt = new Date(dateStr.trim());
-      if (isNaN(baseDt.getTime())) {
-        baseDt = new Date();
-      }
+    // Parse start date & time robustly for IST (+05:30) timezone
+    let year = new Date().getFullYear();
+    let month = new Date().getMonth() + 1;
+    let day = new Date().getDate();
 
-      let hour = 12;
-      let minute = 0;
-      if (timeStr) {
-        const cleanTime = timeStr.trim();
-        if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
-          const isPm = cleanTime.includes("PM");
-          const timePart = cleanTime.replace(/AM|PM/gi, "").trim();
-          const parts = timePart.split(":");
-          hour = parseInt(parts[0], 10);
-          if (isPm && hour < 12) hour += 12;
-          if (!isPm && hour === 12) hour = 0;
-          if (parts[1]) minute = parseInt(parts[1], 10);
-        } else if (cleanTime.includes(":")) {
-          const parts = cleanTime.split(":");
-          hour = parseInt(parts[0], 10);
-          minute = parseInt(parts[1], 10);
+    if (dateStr && dateStr.trim()) {
+      const cleanDate = dateStr.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+        const [y, m, d] = cleanDate.split("-").map(Number);
+        year = y;
+        month = m;
+        day = d;
+      } else {
+        const dObj = new Date(cleanDate);
+        if (!isNaN(dObj.getTime())) {
+          year = dObj.getFullYear();
+          month = dObj.getMonth() + 1;
+          day = dObj.getDate();
         }
       }
-
-      baseDt.setHours(hour, minute, 0, 0);
-      if (!isNaN(baseDt.getTime())) startIso = baseDt.toISOString();
     }
 
-    const endDt = new Date(new Date(startIso).getTime() + 45 * 60 * 1000); // 45 minute duration
-    const endIso = endDt.toISOString();
+    let hour = 12;
+    let minute = 0;
+    if (timeStr && timeStr.trim()) {
+      const cleanTime = timeStr.trim();
+      if (cleanTime.toUpperCase().includes("AM") || cleanTime.toUpperCase().includes("PM")) {
+        const isPm = cleanTime.toUpperCase().includes("PM");
+        const timePart = cleanTime.replace(/AM|PM/gi, "").trim();
+        const parts = timePart.split(":");
+        hour = parseInt(parts[0], 10);
+        if (isPm && hour < 12) hour += 12;
+        if (!isPm && hour === 12) hour = 0;
+        if (parts[1]) minute = parseInt(parts[1], 10);
+      } else if (cleanTime.includes(":")) {
+        const parts = cleanTime.split(":");
+        hour = parseInt(parts[0], 10);
+        minute = parseInt(parts[1], 10);
+      }
+    }
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const startIso = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
+
+    const startDateObj = new Date(`${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`);
+    const endDateObj = new Date(startDateObj.getTime() + 45 * 60 * 1000);
+    const endIso = `${endDateObj.getFullYear()}-${pad(endDateObj.getMonth() + 1)}-${pad(endDateObj.getDate())}T${pad(endDateObj.getHours())}:${pad(endDateObj.getMinutes())}:00+05:30`;
 
     const eventPayload = {
       summary: `Strategy Session with ${fullName || "Client"}`,
       description: `Strategy Session booked via CRM. Client Email: ${email || "N/A"}`,
-      start: { dateTime: startIso },
-      end: { dateTime: endIso },
+      start: {
+        dateTime: startIso,
+        timeZone: "Asia/Kolkata",
+      },
+      end: {
+        dateTime: endIso,
+        timeZone: "Asia/Kolkata",
+      },
       attendees: email ? [{ email }] : [],
       conferenceData: {
         createRequest: {

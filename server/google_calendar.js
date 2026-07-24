@@ -146,12 +146,31 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
       }
     }
 
-    const pad = (n) => String(n).padStart(2, "0");
-    const startIso = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
+    let startHour = hour;
+    let startMin = minute;
+    let endHour = startHour;
+    let endMin = startMin + 45; // 45 minutes meeting duration
 
-    const startDateObj = new Date(`${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`);
-    const endDateObj = new Date(startDateObj.getTime() + 45 * 60 * 1000);
-    const endIso = `${endDateObj.getFullYear()}-${pad(endDateObj.getMonth() + 1)}-${pad(endDateObj.getDate())}T${pad(endDateObj.getHours())}:${pad(endDateObj.getMinutes())}:00+05:30`;
+    if (endMin >= 60) {
+      endHour += Math.floor(endMin / 60);
+      endMin = endMin % 60;
+    }
+
+    let endYear = year;
+    let endMonth = month;
+    let endDay = day;
+
+    if (endHour >= 24) {
+      endHour = endHour % 24;
+      const dRollover = new Date(year, month - 1, day + 1);
+      endYear = dRollover.getFullYear();
+      endMonth = dRollover.getMonth() + 1;
+      endDay = dRollover.getDate();
+    }
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const startIso = `${year}-${pad(month)}-${pad(day)}T${pad(startHour)}:${pad(startMin)}:00+05:30`;
+    const endIso = `${endYear}-${pad(endMonth)}-${pad(endDay)}T${pad(endHour)}:${pad(endMin)}:00+05:30`;
 
     const eventPayload = {
       summary: `Strategy Session with ${fullName || "Client"}`,

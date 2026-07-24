@@ -666,13 +666,28 @@ export default function ManagementPage() {
               </div>
             </div>
 
-            {/* SIDE-BY-SIDE ROLE COLUMNS CANVAS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
-              {activeFlowRoles.map((role) => {
-                const isMyRoleColumn =
-                  isAdmin ||
-                  userData?.roleId === role.id ||
-                  userData?.roleName?.toLowerCase() === role.name.toLowerCase();
+            {/* SIDE-BY-SIDE ROLE COLUMNS CANVAS (Prioritizes Logged-in User's Assigned Role FIRST) */}
+            {(() => {
+              const sortedRoles = [...activeFlowRoles].sort((a, b) => {
+                const isAMyRole =
+                  userData?.roleId === a.id ||
+                  (userData?.roleName && userData.roleName.toLowerCase() === a.name.toLowerCase());
+                const isBMyRole =
+                  userData?.roleId === b.id ||
+                  (userData?.roleName && userData.roleName.toLowerCase() === b.name.toLowerCase());
+
+                if (isAMyRole && !isBMyRole) return -1;
+                if (!isAMyRole && isBMyRole) return 1;
+                return 0;
+              });
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+                  {sortedRoles.map((role) => {
+                    const isMyRoleColumn =
+                      isAdmin ||
+                      userData?.roleId === role.id ||
+                      userData?.roleName?.toLowerCase() === role.name.toLowerCase();
 
                 // Get tasks assigned specifically to this role
                 const roleTasks = activeFlow.tasks.filter(
@@ -864,8 +879,10 @@ export default function ManagementPage() {
                 );
               })}
             </div>
-          </div>
-        )}
+          );
+        })()}
+      </div>
+    )}
       </main>
 
       {/* UNCHECK WARNING MODAL POPUP */}

@@ -1048,17 +1048,32 @@ router.post("/notify-admin-ticket", async (req, res) => {
       return res.status(400).json({ success: false, error: "No active WhatsApp instance found" });
     }
 
-    // Find Admin phone numbers from users_staff node in Firebase
+    // Find Admin phone numbers from both users and users_staff nodes in Firebase
+    const usersObj = (await firebaseDb("users")) || {};
     const usersStaffObj = (await firebaseDb("users_staff")) || {};
+    const allUserRecords = { ...usersObj, ...usersStaffObj };
+
     const adminPhones = new Set();
 
-    for (const u of Object.values(usersStaffObj)) {
+    for (const u of Object.values(allUserRecords)) {
       if (!u || !u.phone) continue;
-      const isAd = u.roleId === "role_admin" || (u.roleName && u.roleName.toLowerCase().includes("admin")) || u.email?.toLowerCase().startsWith("firstoption");
+      const isAd =
+        u.roleId === "role_admin" ||
+        (u.roleName && u.roleName.toLowerCase().includes("admin")) ||
+        (u.email && u.email.toLowerCase().startsWith("firstoption"));
+
       if (isAd) {
-        const clean = sanitizePhoneNumber(u.phone);
+        let clean = sanitizePhoneNumber(u.phone);
+        if (clean.length === 10) clean = "91" + clean;
         if (clean.length >= 10) adminPhones.add(clean);
       }
+    }
+
+    // Fallback: Check configured admin phone or default master admin phone
+    if (config.adminPhone) {
+      let cleanConfig = sanitizePhoneNumber(config.adminPhone);
+      if (cleanConfig.length === 10) cleanConfig = "91" + cleanConfig;
+      if (cleanConfig.length >= 10) adminPhones.add(cleanConfig);
     }
 
     if (adminPhones.size === 0) {

@@ -274,6 +274,12 @@ export default function CRMPage() {
   const [pipelinePhoneFilter, setPipelinePhoneFilter] = useState<"all" | "has_phone" | "no_phone">("all");
   const [isDeletingLead, setIsDeletingLead] = useState(false);
 
+  // Executive Reschedule Meeting Drawer State
+  const [rescheduleDate, setRescheduleDate] = useState<string>(todayStr);
+  const [rescheduleTime, setRescheduleTime] = useState<string>("10:00 AM");
+  const [sendRescheduleWhatsapp, setSendRescheduleWhatsapp] = useState<boolean>(true);
+  const [isRescheduling, setIsRescheduling] = useState<boolean>(false);
+
   // Dashboard Leads Tab Date Filter State
   const [leadsDatePreset, setLeadsDatePreset] = useState<
     "last_7_days" | "today" | "yesterday" | "specific_date" | "custom_range" | "all_time"
@@ -1023,6 +1029,94 @@ export default function CRMPage() {
       alert("An unexpected error occurred while deleting the lead.");
     } finally {
       setIsDeletingLead(false);
+    }
+  };
+
+  // Prefill Reschedule Drawer Fields whenever Selected Lead Changes
+  useEffect(() => {
+    if (selectedLead) {
+      setRescheduleDate(selectedLead.meeting?.meetingDate || todayStr);
+      setRescheduleTime(selectedLead.meeting?.meetingTime || "10:00 AM");
+      setSendRescheduleWhatsapp(true);
+    }
+  }, [selectedLead, todayStr]);
+
+  // Execute Executive Reschedule Meeting & Update Google Meet
+  const handleExecuteReschedule = async () => {
+    if (!selectedLead) return;
+    if (!rescheduleDate || !rescheduleTime) {
+      alert("Please select both a new meeting date and meeting time.");
+      return;
+    }
+
+    setIsRescheduling(true);
+    try {
+      const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+      const res = await fetch(`${serverUrl}/api/whatsapp/reschedule-meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: selectedLead.id,
+          email: selectedLead.email,
+          phone: selectedLead.phone,
+          fullName: selectedLead.fullName,
+          oldDate: selectedLead.meeting?.meetingDate,
+          newDate: rescheduleDate,
+          newTime: rescheduleTime,
+          sendWhatsapp: sendRescheduleWhatsapp,
+          campaignName: selectedLead.campaign || selectedCampaign,
+        }),
+      });
+      const data = await res.json();
+
+      const newMeetUrl = data.meetingUrl || selectedLead.meeting?.meetingUrl || "https://meet.google.com/firstoption-strategy-call";
+
+      const updatedMeeting = {
+        ...(selectedLead.meeting || {}),
+        meetingDate: rescheduleDate,
+        meetingTime: rescheduleTime,
+        meetingUrl: newMeetUrl,
+        bookedAt: selectedLead.meeting?.bookedAt || new Date().toISOString(),
+        rescheduledAt: new Date().toISOString(),
+      };
+
+      const targetCreatedDate = selectedLead.createdDate || todayStr;
+      const targetCampaign = selectedLead.campaign || selectedCampaign;
+      const targetLeadId = selectedLead.id || (selectedLead.email ? sanitizeEmailToId(selectedLead.email) : "lead_" + Date.now());
+
+      await saveOrUpdateLead(
+        { ...selectedLead, id: targetLeadId, meeting: updatedMeeting, status: "completed" },
+        targetLeadId,
+        targetCreatedDate,
+        targetCampaign
+      );
+
+      const updatedLeadRecord: LeadData = {
+        ...selectedLead,
+        id: targetLeadId,
+        meeting: updatedMeeting,
+        status: "completed",
+      };
+
+      setAllLeadsList((prev) => prev.map((l) => (l.id === targetLeadId || l.email === selectedLead.email ? updatedLeadRecord : l)));
+      setLeadsList((prev) => prev.map((l) => (l.id === targetLeadId || l.email === selectedLead.email ? updatedLeadRecord : l)));
+      setSelectedLead(updatedLeadRecord);
+
+      const refreshedMeetings = await getAllMeetings(selectedCampaign);
+      setAllMeetingsList(refreshedMeetings);
+
+      alert(
+        `✅ Meeting successfully rescheduled to ${rescheduleDate} @ ${rescheduleTime}!\n\n` +
+          `🎥 New Google Meet Link: ${newMeetUrl}\n\n` +
+          (sendRescheduleWhatsapp
+            ? "💬 WhatsApp reschedule notification dispatched to client."
+            : "ℹ️ WhatsApp notification was skipped (unticked).")
+      );
+    } catch (err: any) {
+      console.error("handleExecuteReschedule Error:", err);
+      alert("An error occurred while rescheduling the meeting. Please try again.");
+    } finally {
+      setIsRescheduling(false);
     }
   };
 
@@ -4583,6 +4677,104 @@ export default function CRMPage() {
                   </a>
                 </div>
               )}
+
+              {/* EXECUTIVE RESCHEDULE MEETING SECTION */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 font-extrabold text-sm">
+                      🗓️
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-slate-900">Reschedule Meeting & Video Call</h4>
+                      <p className="text-[10px] text-slate-500">Set new date & time to auto-generate a new Google Meet link</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-700 uppercase tracking-wider mb-1">
+                      New Meeting Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={rescheduleDate}
+                      onChange={(e) => setRescheduleDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-700 uppercase tracking-wider mb-1">
+                      New Meeting Time *
+                    </label>
+                    <select
+                      value={rescheduleTime}
+                      onChange={(e) => setRescheduleTime(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 transition-colors"
+                    >
+                      <option value="09:00 AM">09:00 AM</option>
+                      <option value="09:30 AM">09:30 AM</option>
+                      <option value="10:00 AM">10:00 AM</option>
+                      <option value="10:30 AM">10:30 AM</option>
+                      <option value="11:00 AM">11:00 AM</option>
+                      <option value="11:30 AM">11:30 AM</option>
+                      <option value="12:00 PM">12:00 PM</option>
+                      <option value="12:30 PM">12:30 PM</option>
+                      <option value="01:00 PM">01:00 PM</option>
+                      <option value="01:30 PM">01:30 PM</option>
+                      <option value="02:00 PM">02:00 PM</option>
+                      <option value="02:30 PM">02:30 PM</option>
+                      <option value="03:00 PM">03:00 PM</option>
+                      <option value="03:30 PM">03:30 PM</option>
+                      <option value="04:00 PM">04:00 PM</option>
+                      <option value="04:30 PM">04:30 PM</option>
+                      <option value="05:00 PM">05:00 PM</option>
+                      <option value="05:30 PM">05:30 PM</option>
+                      <option value="06:00 PM">06:00 PM</option>
+                      <option value="06:30 PM">06:30 PM</option>
+                      <option value="07:00 PM">07:00 PM</option>
+                      <option value="07:30 PM">07:30 PM</option>
+                      <option value="08:00 PM">08:00 PM</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <label className="flex items-center space-x-2.5 cursor-pointer select-none bg-indigo-50/70 border border-indigo-100 p-2.5 rounded-xl hover:bg-indigo-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={sendRescheduleWhatsapp}
+                      onChange={(e) => setSendRescheduleWhatsapp(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-extrabold text-indigo-950 flex items-center space-x-1.5">
+                      <i className="fa-brands fa-whatsapp text-emerald-600 text-sm"></i>
+                      <span>Send Reschedule WhatsApp Notification to Client</span>
+                    </span>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleExecuteReschedule}
+                  disabled={isRescheduling}
+                  className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isRescheduling ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                      <span>Rescheduling & Updating Meet Link...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-calendar-check text-xs"></i>
+                      <span>Confirm & Reschedule Meeting 🗓️</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
               {/* DETAILED SURVEY RESPONSES */}
               {selectedLead.survey && Object.keys(selectedLead.survey).length > 0 && (

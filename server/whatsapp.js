@@ -821,6 +821,93 @@ router.post("/auto-send-meeting", async (req, res) => {
 });
 
 /**
+ * 14. Executive Reschedule Meeting & Update Google Meet
+ * POST /api/whatsapp/reschedule-meeting
+ */
+router.post("/reschedule-meeting", async (req, res) => {
+  try {
+    const { leadId, email, phone, fullName, newDate, newTime, sendWhatsapp, campaignName = "firstoptionagency" } = req.body;
+    if (!newDate || !newTime) {
+      return res.status(400).json({ success: false, error: "New date and time are required for rescheduling." });
+    }
+
+    // 1. Generate unique Google Meet URL for new date & time
+    const { createUniqueGoogleMeetEvent } = require("./google_calendar");
+    const autoUniqueUrl = await createUniqueGoogleMeetEvent({ fullName, email, dateStr: newDate, timeStr: newTime });
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    const newMeetingUrl = autoUniqueUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
+
+    let whatsappSent = false;
+    let whatsappError = null;
+
+    // 2. Send WhatsApp Notification if sendWhatsapp is true and phone exists
+    const cleanNumber = phone ? sanitizePhoneNumber(phone) : "";
+    if (sendWhatsapp && cleanNumber && cleanNumber.length >= 5) {
+      const instanceName = await resolveActiveInstance(config.selectedInstanceName);
+      if (instanceName) {
+        const rescheduleTemplate =
+          "📅 *Meeting Rescheduled!*\n\n" +
+          "Dear *{{name}}*,\n\n" +
+          "Your strategy session with *First Option Agency* has been updated to a new date & time:\n\n" +
+          "🗓️ *New Date:* {{date}}\n" +
+          "🕒 *New Time:* {{time}}\n" +
+          "🎥 *Google Meet Video Call:* {{meeting_url}}\n\n" +
+          "Please join the video call using the link above at the rescheduled time. We look forward to speaking with you!\n\n" +
+          "Best regards,\n" +
+          "*First Option Team*";
+
+        const formattedMessage = rescheduleTemplate
+          .replace(/\{\{\s*name\s*\}\}/gi, fullName || "Valued Client")
+          .replace(/\{\{\s*date\s*\}\}/gi, newDate)
+          .replace(/\{\{\s*time\s*\}\}/gi, newTime)
+          .replace(/\{\{\s*meeting_url\s*\}\}/gi, newMeetingUrl)
+          .replace(/\{\{\s*meeting_link\s*\}\}/gi, newMeetingUrl);
+
+        const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
+          number: cleanNumber,
+          text: formattedMessage,
+        });
+
+        whatsappSent = evoRes.ok;
+        if (!evoRes.ok) {
+          whatsappError = evoRes.data?.error || evoRes.data?.message || `HTTP ${evoRes.status}`;
+        }
+
+        if (evoRes.ok) {
+          const logId = `reschedule_${Date.now()}`;
+          const logData = {
+            id: logId,
+            type: "meeting_rescheduled",
+            number: cleanNumber,
+            leadName: fullName || "Client",
+            text: formattedMessage,
+            status: "sent",
+            timestamp: new Date().toISOString(),
+          };
+          await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", logData);
+          await firebaseDb(`whatsapp_lead_logs/${cleanNumber}/${logId}`, "PUT", logData);
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      newDate,
+      newTime,
+      meetingUrl: newMeetingUrl,
+      whatsappSent,
+      whatsappError,
+      message: whatsappSent
+        ? "Meeting rescheduled and WhatsApp notification sent!"
+        : "Meeting rescheduled successfully.",
+    });
+  } catch (err) {
+    console.error("Reschedule Meeting Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * 14. Webhook Receiver for Evolution API Events
  * POST /api/evolution/webhook
  */

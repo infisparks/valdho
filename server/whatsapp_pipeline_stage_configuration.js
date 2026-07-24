@@ -133,12 +133,14 @@ function parseMeetingDateTime(dateStr, timeStr) {
     }
 
     if (year > 1900 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
-      const dt = new Date(year, month, day, hour, minute, 0);
+      const pad = (n) => String(n).padStart(2, "0");
+      // Explicitly construct IST (+05:30) date object so server timezone doesn't offset it by 5.5 hours!
+      const isoString = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
+      const dt = new Date(isoString);
       return isNaN(dt.getTime()) ? null : dt;
     }
 
-    const dt = new Date(`${cleanDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`);
-    return isNaN(dt.getTime()) ? null : dt;
+    return null;
   } catch (err) {
     return null;
   }
@@ -382,8 +384,10 @@ async function evaluateStageAutomations() {
         // Window check: execute if current time has reached or passed scheduledTriggerTimeMs
         const isTimeReached = diffMs >= -30000;
 
+        const formatIST = (ms) => new Date(ms).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
+
         if (!isTimeReached) {
-          console.log(`[Pipeline Worker ⏳] Rule '${rule.title}' not reached yet for ${lead.fullName || cleanNumber}. (Target: ${new Date(scheduledTriggerTimeMs).toLocaleTimeString()}, Now: ${new Date(nowMs).toLocaleTimeString()}, ${Math.round(-diffMs / 1000)}s remaining)`);
+          console.log(`[Pipeline Worker ⏳] Rule '${rule.title}' not reached yet for ${lead.fullName || cleanNumber}. (Target IST: ${formatIST(scheduledTriggerTimeMs)}, Now IST: ${formatIST(nowMs)}, ${Math.round(-diffMs / 1000)}s remaining)`);
           continue;
         }
 

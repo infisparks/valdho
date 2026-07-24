@@ -10,6 +10,9 @@ import {
   getAllClientFlows,
   updateClientFlowTaskStatus,
   markClientFlowCompleted,
+  createSupportTicket,
+  getAllSupportTickets,
+  SupportTicket,
   UserData,
   RoleData,
   ClientFlowInstance,
@@ -17,6 +20,10 @@ import {
   MASTER_ADMIN_UID,
 } from "@/lib/firebase";
 import { signOut, onAuthStateChanged, User } from "firebase/auth";
+
+const SERVER_URL =
+  process.env.NEXT_PUBLIC_SERVER_URL ||
+  (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:5001` : "http://localhost:5001");
 
 export default function ManagementPage() {
   const router = useRouter();
@@ -31,6 +38,16 @@ export default function ManagementPage() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"in_progress" | "completed">("in_progress");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Support Ticket Modal & State
+  const [isRaiseTicketModalOpen, setIsRaiseTicketModalOpen] = useState(false);
+  const [ticketLevel, setTicketLevel] = useState<"level1" | "level2" | "level3" | "level4">("level3");
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketDescription, setTicketDescription] = useState("");
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [ticketSuccessMsg, setTicketSuccessMsg] = useState("");
+  const [ticketErrorMsg, setTicketErrorMsg] = useState("");
+  const [myTicketsList, setMyTicketsList] = useState<SupportTicket[]>([]);
 
   // Selected Flow Canvas State (Default to 1st flow if available)
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
@@ -70,19 +87,26 @@ export default function ManagementPage() {
     return () => unsubscribe();
   }, [router]);
 
-  // Fetch Client Flows, Roles & Users
+  // Fetch Client Flows, Roles, Users & Support Tickets
   const fetchData = useCallback(async () => {
     if (!currentUser) return;
     setIsDataLoading(true);
     try {
-      const [flows, roles, users] = await Promise.all([
+      const [flows, roles, users, tickets] = await Promise.all([
         getAllClientFlows(),
         getRoles(),
         getAllUsers(),
+        getAllSupportTickets(),
       ]);
       setClientFlows(flows);
       setRolesList(roles);
       setUsersList(users);
+
+      const userEmailLower = currentUser.email?.toLowerCase();
+      const filteredTickets = tickets.filter(
+        (t) => t.clientId === currentUser.uid || t.clientEmail?.toLowerCase() === userEmailLower
+      );
+      setMyTicketsList(filteredTickets);
 
       if (flows.length > 0 && !activeFlowId) {
         setActiveFlowId(flows[0].id);
@@ -93,6 +117,75 @@ export default function ManagementPage() {
       setIsDataLoading(false);
     }
   }, [currentUser, activeFlowId]);
+
+  // Handle Support Ticket Submit
+  const handleRaiseTicketSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketSubject.trim() || !ticketDescription.trim()) {
+      setTicketErrorMsg("Please enter subject and description for your support ticket.");
+      return;
+    }
+
+    setIsSubmittingTicket(true);
+    setTicketErrorMsg("");
+    setTicketSuccessMsg("");
+
+    const levelLabels = {
+      level1: "Critical / Urgent",
+      level2: "High Priority",
+      level3: "Medium Priority",
+      level4: "Low / General Query",
+    };
+
+    const clientName = userData?.name || currentUser?.displayName || currentUser?.email?.split("@")[0] || "Client";
+    const clientEmail = currentUser?.email || "";
+    const clientPhone = userData?.phone || "";
+
+    const res = await createSupportTicket({
+      clientId: currentUser?.uid,
+      clientName,
+      clientEmail,
+      clientPhone,
+      level: ticketLevel,
+      levelLabel: levelLabels[ticketLevel],
+      subject: ticketSubject.trim(),
+      description: ticketDescription.trim(),
+    });
+
+    if (res.success && res.data) {
+      setMyTicketsList((prev) => [res.data!, ...prev]);
+      setTicketSuccessMsg(`Ticket #${res.data.ticketNumber} raised successfully! Admin has been notified via WhatsApp.`);
+      setTicketSubject("");
+      setTicketDescription("");
+
+      // Trigger Admin WhatsApp alert
+      const domain = typeof window !== "undefined" ? window.location.host : "firstoptionagency.com";
+      fetch(`${SERVER_URL}/api/whatsapp/notify-admin-ticket`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketId: res.data.id,
+          ticketNumber: res.data.ticketNumber,
+          clientName,
+          clientEmail,
+          clientPhone,
+          level: ticketLevel,
+          levelLabel: levelLabels[ticketLevel],
+          subject: res.data.subject,
+          description: res.data.description,
+          domain,
+        }),
+      }).catch((err) => console.error("Error sending admin ticket WhatsApp notification:", err));
+
+      setTimeout(() => {
+        setIsRaiseTicketModalOpen(false);
+        setTicketSuccessMsg("");
+      }, 2500);
+    } else {
+      setTicketErrorMsg(res.error || "Failed to submit support ticket.");
+    }
+    setIsSubmittingTicket(false);
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -364,6 +457,14 @@ export default function ManagementPage() {
           </div>
 
           <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setIsRaiseTicketModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl transition-colors shadow-sm flex items-center space-x-1.5 cursor-pointer"
+            >
+              <i className="fa-solid fa-ticket"></i>
+              <span>Raise Ticket 🎫</span>
+            </button>
+
             {isAdmin && (
               <button
                 onClick={() => router.push("/crms")}
@@ -878,6 +979,184 @@ export default function ManagementPage() {
                 <span>Save & Set New Date/Time 🕒</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* RAISE SUPPORT TICKET MODAL */}
+      {isRaiseTicketModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center space-x-2">
+                <i className="fa-solid fa-ticket text-indigo-600"></i>
+                <span>Raise Support Ticket</span>
+              </h3>
+              <button
+                onClick={() => setIsRaiseTicketModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {ticketSuccessMsg && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold p-3 rounded-xl flex items-center space-x-2">
+                <i className="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                <span>{ticketSuccessMsg}</span>
+              </div>
+            )}
+
+            {ticketErrorMsg && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold p-3 rounded-xl flex items-center space-x-2">
+                <i className="fa-solid fa-circle-exclamation text-rose-600 text-base"></i>
+                <span>{ticketErrorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRaiseTicketSubmit} className="space-y-4 text-xs font-bold text-slate-700">
+              <div>
+                <label className="block mb-1.5 text-slate-900 font-extrabold">Select Urgency Level *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTicketLevel("level1")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      ticketLevel === "level1"
+                        ? "bg-rose-50 border-rose-400 text-rose-900 ring-2 ring-rose-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-rose-600 flex items-center space-x-1">
+                      <span>🚨 Level 1</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">Critical / Urgent Issue</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTicketLevel("level2")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      ticketLevel === "level2"
+                        ? "bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-amber-600 flex items-center space-x-1">
+                      <span>⚡ Level 2</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">High Priority Issue</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTicketLevel("level3")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      ticketLevel === "level3"
+                        ? "bg-indigo-50 border-indigo-400 text-indigo-900 ring-2 ring-indigo-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-indigo-600 flex items-center space-x-1">
+                      <span>📌 Level 3</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">Medium Priority</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTicketLevel("level4")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      ticketLevel === "level4"
+                        ? "bg-slate-100 border-slate-400 text-slate-900 ring-2 ring-slate-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-slate-700 flex items-center space-x-1">
+                      <span>ℹ️ Level 4</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">Low / General Query</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-slate-900 font-extrabold">Subject / Issue Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={ticketSubject}
+                  onChange={(e) => setTicketSubject(e.target.value)}
+                  placeholder="e.g. Unable to complete task #2 in workflow"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1 text-slate-900 font-extrabold">Detailed Description *</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={ticketDescription}
+                  onChange={(e) => setTicketDescription(e.target.value)}
+                  placeholder="Please write the issue details here..."
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-bold"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsRaiseTicketModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingTicket}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingTicket && <i className="fa-solid fa-circle-notch fa-spin"></i>}
+                  <span>Submit Ticket & Alert Admin 🚀</span>
+                </button>
+              </div>
+            </form>
+
+            {/* MY PREVIOUSLY RAISED TICKETS */}
+            {myTicketsList.length > 0 && (
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <h4 className="text-xs font-black text-slate-900 flex items-center space-x-1.5">
+                  <i className="fa-solid fa-clock-rotate-left text-slate-500"></i>
+                  <span>My Submitted Tickets ({myTicketsList.length})</span>
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {myTicketsList.map((t) => (
+                    <div key={t.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900 font-mono">#{t.ticketNumber}</span>
+                        <span
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                            t.status === "resolved"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : t.status === "in_progress"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          {t.status === "resolved" ? "✅ Resolved" : t.status === "in_progress" ? "🟡 In Progress" : "🔴 Open"}
+                        </span>
+                      </div>
+                      <p className="font-bold text-slate-800">{t.subject}</p>
+                      <div className="flex items-center justify-between text-[10px] text-slate-500">
+                        <span>{t.levelLabel}</span>
+                        <span>{new Date(t.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

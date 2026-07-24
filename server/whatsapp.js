@@ -1026,5 +1026,85 @@ Please log in to your dashboard to review and manage your tasks.`;
   }
 });
 
+/**
+ * POST /api/whatsapp/notify-admin-ticket
+ * Dispatch instant WhatsApp alert to Admin when a client raises a Support Ticket
+ */
+router.post("/notify-admin-ticket", async (req, res) => {
+  try {
+    const { ticketId, ticketNumber, clientName, clientEmail, clientPhone, level, levelLabel, subject, description, domain } = req.body;
+
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    let instanceName = config.selectedInstanceName;
+
+    if (!instanceName) {
+      const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
+      const instancesList = Object.values(fbInstances).filter(Boolean);
+      const openInst = instancesList.find((i) => i.status === "open") || instancesList[0];
+      if (openInst) instanceName = openInst.instanceName;
+    }
+
+    if (!instanceName) {
+      return res.status(400).json({ success: false, error: "No active WhatsApp instance found" });
+    }
+
+    // Find Admin phone numbers from users_staff node in Firebase
+    const usersStaffObj = (await firebaseDb("users_staff")) || {};
+    const adminPhones = new Set();
+
+    for (const u of Object.values(usersStaffObj)) {
+      if (!u || !u.phone) continue;
+      const isAd = u.roleId === "role_admin" || (u.roleName && u.roleName.toLowerCase().includes("admin")) || u.email?.toLowerCase().startsWith("firstoption");
+      if (isAd) {
+        const clean = sanitizePhoneNumber(u.phone);
+        if (clean.length >= 10) adminPhones.add(clean);
+      }
+    }
+
+    if (adminPhones.size === 0) {
+      adminPhones.add("919958399157"); // Default Master Admin
+    }
+
+    const urgencyMap = {
+      level1: "🚨 LEVEL 1 (CRITICAL / URGENT)",
+      level2: "⚡ LEVEL 2 (HIGH PRIORITY)",
+      level3: "📌 LEVEL 3 (MEDIUM PRIORITY)",
+      level4: "ℹ️ LEVEL 4 (GENERAL QUERY)",
+    };
+
+    const urgencyTag = urgencyMap[level] || `LEVEL ${level.replace("level", "")} (${levelLabel || "General"})`;
+    const crmUrl = `http://${domain || "firstoptionagency.com"}/crms`;
+
+    const messageText = `🎫 *NEW SUPPORT TICKET RAISED* 🎫
+
+*Ticket Number:* #${ticketNumber || ticketId}
+*Urgency Level:* ${urgencyTag}
+
+👤 *Client Name:* ${clientName || "Client"}
+✉️ *Email:* ${clientEmail || "N/A"}
+📞 *Phone:* ${clientPhone || "N/A"}
+
+📌 *Subject:* ${subject}
+
+📝 *Details:*
+${description}
+
+📅 *Submitted:* ${new Date().toLocaleString()}
+🔗 *View in CRM:* ${crmUrl}`;
+
+    for (const phone of Array.from(adminPhones)) {
+      await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
+        number: phone,
+        text: messageText,
+      }).catch((err) => console.error(`Error sending ticket alert to admin ${phone}:`, err));
+    }
+
+    return res.status(200).json({ success: true, message: "Admin ticket notification sent!" });
+  } catch (err) {
+    console.error("Notify Admin Ticket Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
 

@@ -30,6 +30,9 @@ import {
   getAllClientFlows,
   markClientFlowCompleted,
   deleteClientFlowInstance,
+  getAllSupportTickets,
+  updateSupportTicketStatus,
+  SupportTicket,
   MASTER_ADMIN_UID,
   sanitizeEmailToId,
   LeadData,
@@ -93,12 +96,43 @@ const DEFAULT_PIPELINE_STAGES: PipelineStageConfig[] = [
 function parseMeetingDateTime(dateStr?: string, timeStr?: string): Date | null {
   if (!dateStr) return null;
   try {
-    const cleanDate = dateStr.trim().split("T")[0];
+    const rawDate = String(dateStr).trim();
+    const cleanDate = rawDate.split("T")[0];
+    const dateParts = cleanDate.split(/[-/]/);
+
+    let year = 0, month = 0, day = 0;
+
+    if (dateParts.length === 3) {
+      const p0 = parseInt(dateParts[0], 10);
+      const p1 = parseInt(dateParts[1], 10);
+      const p2 = parseInt(dateParts[2], 10);
+
+      if (p0 > 1000) {
+        // YYYY-MM-DD or YYYY/MM/DD
+        year = p0;
+        month = p1 - 1;
+        day = p2;
+      } else if (p2 > 1000) {
+        // DD-MM-YYYY or MM-DD-YYYY or DD/MM/YYYY
+        year = p2;
+        if (p0 > 12) {
+          day = p0;
+          month = p1 - 1;
+        } else if (p1 > 12) {
+          month = p0 - 1;
+          day = p1;
+        } else {
+          day = p0;
+          month = p1 - 1;
+        }
+      }
+    }
+
     let hour = 12;
     let minute = 0;
 
     if (timeStr) {
-      const cleanTime = timeStr.trim().toUpperCase();
+      const cleanTime = String(timeStr).trim().toUpperCase();
       if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
         const isPm = cleanTime.includes("PM");
         const timePart = cleanTime.replace("AM", "").replace("PM", "").trim();
@@ -114,8 +148,12 @@ function parseMeetingDateTime(dateStr?: string, timeStr?: string): Date | null {
       }
     }
 
-    const isoStr = `${cleanDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`;
-    const dt = new Date(isoStr);
+    if (year > 1900 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      const dt = new Date(year, month, day, hour, minute, 0);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    const dt = new Date(`${cleanDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`);
     return isNaN(dt.getTime()) ? null : dt;
   } catch (err) {
     return null;
@@ -191,21 +229,28 @@ export default function CRMPage() {
 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [selectedCampaign, setSelectedCampaign] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"leads" | "pipeline" | "meetings" | "calendar" | "onboarded" | "roles">("pipeline");
+  const [activeTab, setActiveTab] = useState<"leads" | "pipeline" | "meetings" | "calendar" | "onboarded" | "roles" | "tickets">("pipeline");
+
+  // Support Tickets Management State
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [ticketSearchQuery, setTicketSearchQuery] = useState("");
+  const [ticketStatusFilter, setTicketStatusFilter] = useState<string>("all");
+  const [ticketLevelFilter, setTicketLevelFilter] = useState<string>("all");
 
   // Read URL query parameter on initial load to preserve route state on refresh
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as any;
-      if (tabParam && ["leads", "pipeline", "meetings", "calendar", "onboarded", "roles"].includes(tabParam)) {
+      if (tabParam && ["leads", "pipeline", "meetings", "calendar", "onboarded", "roles", "tickets"].includes(tabParam)) {
         setActiveTab(tabParam);
       }
     }
   }, []);
 
   // Helper to switch active tab and sync URL query parameter
-  const changeTab = useCallback((tab: "leads" | "pipeline" | "meetings" | "calendar" | "onboarded" | "roles") => {
+  const changeTab = useCallback((tab: "leads" | "pipeline" | "meetings" | "calendar" | "onboarded" | "roles" | "tickets") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -662,6 +707,7 @@ export default function CRMPage() {
         fetchedUsers,
         fetchedFlows,
         fetchedClientFlows,
+        fetchedTickets,
       ] = await Promise.all([
         getLeadsForDate(selectedDate, selectedCampaign),
         getMeetingsForDate(selectedDate, selectedCampaign),
@@ -672,6 +718,7 @@ export default function CRMPage() {
         getAllUsers(),
         getFlowTemplates(),
         getAllClientFlows(),
+        getAllSupportTickets(),
       ]);
       setLeadsList(fetchedLeads);
       setMeetingsList(fetchedMeetings);
@@ -682,12 +729,35 @@ export default function CRMPage() {
       setUsersList(fetchedUsers);
       setFlowTemplatesList(fetchedFlows);
       setClientFlowInstancesList(fetchedClientFlows);
+      setSupportTickets(fetchedTickets);
     } catch (err) {
       console.error("CRM Data Fetch Error:", err);
     } finally {
       setIsDataLoading(false);
     }
   }, [currentUser, selectedDate, selectedCampaign, accessDenied]);
+
+  const fetchSupportTickets = useCallback(async () => {
+    setIsLoadingTickets(true);
+    try {
+      const data = await getAllSupportTickets();
+      setSupportTickets(data);
+    } catch (err) {
+      console.error("Fetch Support Tickets Error:", err);
+    } finally {
+      setIsLoadingTickets(false);
+    }
+  }, []);
+
+  const handleUpdateTicketStatus = async (ticketId: string, newStatus: SupportTicket["status"]) => {
+    const adminName = currentUserData?.name || currentUser?.displayName || currentUser?.email || "Admin";
+    const success = await updateSupportTicketStatus(ticketId, newStatus, adminName);
+    if (success) {
+      setSupportTickets((prev) =>
+        prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus, resolvedBy: adminName, updatedAt: new Date().toISOString() } : t))
+      );
+    }
+  };
 
   useEffect(() => {
     if (currentUser && !accessDenied) {
@@ -1940,6 +2010,32 @@ export default function CRMPage() {
                   </span>
                 </div>
               </button>
+
+              <button
+                onClick={() => {
+                  changeTab("tickets");
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "tickets"
+                    ? "bg-rose-50 text-rose-700 shadow-2xs font-extrabold border-l-4 border-rose-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <i className="fa-solid fa-ticket text-sm text-rose-600"></i>
+                <div className="flex items-center justify-between w-full">
+                  <span>Support Tickets</span>
+                  {supportTickets.filter((t) => t.status === "open").length > 0 ? (
+                    <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-2xs">
+                      {supportTickets.filter((t) => t.status === "open").length}
+                    </span>
+                  ) : (
+                    <span className="bg-slate-100 text-slate-600 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                      {supportTickets.length}
+                    </span>
+                  )}
+                </div>
+              </button>
             </div>
 
             {/* SECTION 2: SYSTEM & INTEGRATIONS */}
@@ -2574,6 +2670,217 @@ export default function CRMPage() {
                     );
                   })}
                 </div>
+              </div>
+            </div>
+          ) : activeTab === "tickets" ? (
+            <div className="space-y-5 font-sans">
+              {/* Top Header Card */}
+              <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-5 shadow-sm space-y-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-lg text-indigo-600 shadow-2xs flex-shrink-0">
+                    <i className="fa-solid fa-ticket"></i>
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                      Client Support Tickets Directory
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Manage and resolve support tickets raised by clients with urgency levels (Level 1 to Level 4).
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={fetchSupportTickets}
+                  disabled={isLoadingTickets}
+                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-2xs transition-all flex items-center space-x-2 cursor-pointer self-start sm:self-auto"
+                >
+                  <i className={`fa-solid fa-rotate-right ${isLoadingTickets ? "fa-spin" : ""}`}></i>
+                  <span>Refresh Tickets 🔄</span>
+                </button>
+              </div>
+
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Total Tickets</p>
+                  <p className="text-xl font-black text-slate-900 mt-1">{supportTickets.length}</p>
+                </div>
+
+                <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[11px] font-extrabold text-rose-600 uppercase flex items-center space-x-1">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                    <span>Open Tickets</span>
+                  </p>
+                  <p className="text-xl font-black text-rose-700 mt-1">
+                    {supportTickets.filter((t) => t.status === "open").length}
+                  </p>
+                </div>
+
+                <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[11px] font-extrabold text-amber-600 uppercase">In Progress</p>
+                  <p className="text-xl font-black text-amber-700 mt-1">
+                    {supportTickets.filter((t) => t.status === "in_progress").length}
+                  </p>
+                </div>
+
+                <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[11px] font-extrabold text-emerald-600 uppercase">Resolved</p>
+                  <p className="text-xl font-black text-emerald-700 mt-1">
+                    {supportTickets.filter((t) => t.status === "resolved").length}
+                  </p>
+                </div>
+              </div>
+
+              {/* Filters Bar */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div className="relative w-full sm:w-72">
+                  <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                  <input
+                    type="text"
+                    value={ticketSearchQuery}
+                    onChange={(e) => setTicketSearchQuery(e.target.value)}
+                    placeholder="Search by ticket #, client, subject..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                  <select
+                    value={ticketLevelFilter}
+                    onChange={(e) => setTicketLevelFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="all">All Urgency Levels</option>
+                    <option value="level1">🚨 Level 1 (Critical)</option>
+                    <option value="level2">⚡ Level 2 (High)</option>
+                    <option value="level3">📌 Level 3 (Medium)</option>
+                    <option value="level4">ℹ️ Level 4 (Low)</option>
+                  </select>
+
+                  <select
+                    value={ticketStatusFilter}
+                    onChange={(e) => setTicketStatusFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="open">🔴 Open</option>
+                    <option value="in_progress">🟡 In Progress</option>
+                    <option value="resolved">🟢 Resolved</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Tickets Cards Directory */}
+              <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-5 shadow-sm space-y-4">
+                {(() => {
+                  const filteredSupportTickets = supportTickets.filter((t) => {
+                    const matchesSearch =
+                      !ticketSearchQuery ||
+                      t.ticketNumber.toLowerCase().includes(ticketSearchQuery.toLowerCase()) ||
+                      t.clientName.toLowerCase().includes(ticketSearchQuery.toLowerCase()) ||
+                      t.clientEmail.toLowerCase().includes(ticketSearchQuery.toLowerCase()) ||
+                      t.subject.toLowerCase().includes(ticketSearchQuery.toLowerCase());
+
+                    const matchesLevel = ticketLevelFilter === "all" || t.level === ticketLevelFilter;
+                    const matchesStatus = ticketStatusFilter === "all" || t.status === ticketStatusFilter;
+
+                    return matchesSearch && matchesLevel && matchesStatus;
+                  });
+
+                  if (filteredSupportTickets.length === 0) {
+                    return (
+                      <div className="text-center py-12 space-y-2">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl mx-auto">
+                          <i className="fa-solid fa-ticket-simple"></i>
+                        </div>
+                        <h3 className="text-sm font-extrabold text-slate-900">No Support Tickets Found</h3>
+                        <p className="text-xs text-slate-500">When clients raise support tickets from their portal, they will appear here instantly.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredSupportTickets.map((t) => {
+                        const levelConfig = {
+                          level1: { badge: "bg-rose-100 text-rose-800 border-rose-300", icon: "🚨 Level 1 (Critical)" },
+                          level2: { badge: "bg-amber-100 text-amber-800 border-amber-300", icon: "⚡ Level 2 (High)" },
+                          level3: { badge: "bg-indigo-100 text-indigo-800 border-indigo-300", icon: "📌 Level 3 (Medium)" },
+                          level4: { badge: "bg-slate-100 text-slate-800 border-slate-300", icon: "ℹ️ Level 4 (Low)" },
+                        }[t.level] || { badge: "bg-slate-100 text-slate-800 border-slate-300", icon: t.levelLabel };
+
+                        const cleanPhone = (t.clientPhone || "").replace(/\D/g, "");
+                        const waNumber = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
+
+                        return (
+                          <div key={t.id} className="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
+                            <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                              <div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-mono text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">
+                                    #{t.ticketNumber}
+                                  </span>
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${levelConfig.badge}`}>
+                                    {levelConfig.icon}
+                                  </span>
+                                </div>
+                                <h4 className="text-sm font-extrabold text-slate-900 mt-1.5">{t.subject}</h4>
+                              </div>
+
+                              <select
+                                value={t.status}
+                                onChange={(e) => handleUpdateTicketStatus(t.id, e.target.value as any)}
+                                className={`text-xs font-black rounded-xl px-2.5 py-1 border focus:outline-none cursor-pointer ${
+                                  t.status === "resolved"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                    : t.status === "in_progress"
+                                    ? "bg-amber-50 text-amber-800 border-amber-300"
+                                    : "bg-rose-50 text-rose-800 border-rose-300"
+                                }`}
+                              >
+                                <option value="open">🔴 Open</option>
+                                <option value="in_progress">🟡 In Progress</option>
+                                <option value="resolved">🟢 Resolved</option>
+                              </select>
+                            </div>
+
+                            <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed font-normal bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                              {t.description}
+                            </p>
+
+                            <div className="flex items-center justify-between text-xs pt-1">
+                              <div className="space-y-0.5">
+                                <p className="font-extrabold text-slate-900 flex items-center space-x-1">
+                                  <i className="fa-solid fa-user text-[10px] text-slate-400"></i>
+                                  <span>{t.clientName}</span>
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-mono">{t.clientEmail}</p>
+                              </div>
+
+                              {waNumber && (
+                                <a
+                                  href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${t.clientName}, regarding your support ticket #${t.ticketNumber} (${t.subject}): `)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-3 py-1.5 rounded-xl transition-colors inline-flex items-center space-x-1.5 shadow-2xs"
+                                >
+                                  <i className="fa-brands fa-whatsapp text-emerald-600 text-xs"></i>
+                                  <span>Chat on WhatsApp</span>
+                                </a>
+                              )}
+                            </div>
+
+                            <div className="border-t border-slate-100 pt-2 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                              <span>Submitted: {new Date(t.createdAt).toLocaleString()}</span>
+                              {t.resolvedBy && <span>Resolved by: {t.resolvedBy}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ) : activeTab === "onboarded" ? (

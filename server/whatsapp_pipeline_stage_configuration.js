@@ -80,8 +80,38 @@ function sanitizePhoneNumber(number) {
 function parseMeetingDateTime(dateStr, timeStr) {
   if (!dateStr) return null;
   try {
-    const cleanDate = String(dateStr).trim().split("T")[0];
-    const dateParts = cleanDate.split("-");
+    const rawDate = String(dateStr).trim();
+    const cleanDate = rawDate.split("T")[0];
+    const dateParts = cleanDate.split(/[-/]/);
+
+    let year = 0, month = 0, day = 0;
+
+    if (dateParts.length === 3) {
+      const p0 = parseInt(dateParts[0], 10);
+      const p1 = parseInt(dateParts[1], 10);
+      const p2 = parseInt(dateParts[2], 10);
+
+      if (p0 > 1000) {
+        // YYYY-MM-DD or YYYY/MM/DD
+        year = p0;
+        month = p1 - 1;
+        day = p2;
+      } else if (p2 > 1000) {
+        // DD-MM-YYYY or MM-DD-YYYY or DD/MM/YYYY
+        year = p2;
+        if (p0 > 12) {
+          day = p0;
+          month = p1 - 1;
+        } else if (p1 > 12) {
+          month = p0 - 1;
+          day = p1;
+        } else {
+          day = p0;
+          month = p1 - 1;
+        }
+      }
+    }
+
     let hour = 12;
     let minute = 0;
 
@@ -102,10 +132,7 @@ function parseMeetingDateTime(dateStr, timeStr) {
       }
     }
 
-    if (dateParts.length === 3) {
-      const year = parseInt(dateParts[0], 10);
-      const month = parseInt(dateParts[1], 10) - 1;
-      const day = parseInt(dateParts[2], 10);
+    if (year > 1900 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
       const dt = new Date(year, month, day, hour, minute, 0);
       return isNaN(dt.getTime()) ? null : dt;
     }

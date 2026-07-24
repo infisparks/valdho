@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getDatabase, ref, update, get, set } from "firebase/database";
+import { getDatabase, ref, update, get, set, push } from "firebase/database";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
 import { CAMPAIGNS } from "@/config/campaigns";
 
@@ -1353,6 +1353,98 @@ export async function deleteClientFlowInstance(clientFlowId: string): Promise<{ 
   } catch (err) {
     console.error("Firebase deleteClientFlowInstance Error:", err);
     return { success: false };
+  }
+}
+
+/* ==========================================================================
+   SUPPORT TICKET SYSTEM HELPERS
+   ========================================================================== */
+
+export interface SupportTicket {
+  id: string;
+  ticketNumber: string;
+  clientId?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone?: string;
+  level: "level1" | "level2" | "level3" | "level4";
+  levelLabel: string;
+  subject: string;
+  description: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  createdAt: string;
+  updatedAt?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
+/**
+ * Raise a new Support Ticket in /support_tickets
+ */
+export async function createSupportTicket(
+  ticket: Omit<SupportTicket, "id" | "ticketNumber" | "createdAt" | "status">
+): Promise<{ success: boolean; data?: SupportTicket; error?: string }> {
+  try {
+    const timestamp = new Date().toISOString();
+    const ticketsRef = ref(db, "support_tickets");
+    const snapshot = await get(ticketsRef);
+    const existingCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+    const ticketNumber = `TCK-${1000 + existingCount + 1}`;
+    const newTicketRef = push(ticketsRef);
+    const ticketId = newTicketRef.key || `tck_${Date.now()}`;
+
+    const newTicket: SupportTicket = {
+      ...ticket,
+      id: ticketId,
+      ticketNumber,
+      status: "open",
+      createdAt: timestamp,
+    };
+
+    await set(ref(db, `support_tickets/${ticketId}`), newTicket);
+    return { success: true, data: newTicket };
+  } catch (err: any) {
+    console.error("createSupportTicket Error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Fetch all Support Tickets from /support_tickets
+ */
+export async function getAllSupportTickets(): Promise<SupportTicket[]> {
+  try {
+    const snapshot = await get(ref(db, "support_tickets"));
+    if (!snapshot.exists()) return [];
+    const val = snapshot.val();
+    const tickets = Object.values(val) as SupportTicket[];
+    return tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (err) {
+    console.error("getAllSupportTickets Error:", err);
+    return [];
+  }
+}
+
+/**
+ * Update Support Ticket Status in /support_tickets
+ */
+export async function updateSupportTicketStatus(
+  ticketId: string,
+  status: SupportTicket["status"],
+  resolvedBy?: string
+): Promise<boolean> {
+  try {
+    const timestamp = new Date().toISOString();
+    const updateData: Record<string, any> = { status, updatedAt: timestamp };
+    if (status === "resolved" || status === "closed") {
+      updateData.resolvedAt = timestamp;
+      if (resolvedBy) updateData.resolvedBy = resolvedBy;
+    }
+    await update(ref(db, `support_tickets/${ticketId}`), updateData);
+    return true;
+  } catch (err) {
+    console.error("updateSupportTicketStatus Error:", err);
+    return false;
   }
 }
 

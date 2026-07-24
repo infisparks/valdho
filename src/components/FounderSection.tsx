@@ -22,7 +22,7 @@ export function FounderSection({ onBookClick }: { onBookClick: () => void }) {
           </div>
           <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-slate-950 text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-full shadow-lg border border-emerald-300 flex items-center space-x-1">
             <i className="fa-solid fa-circle-check"></i>
-            <span>Verified Founder</span>
+            <span>Faiz Ansari</span>
           </div>
         </div>
 

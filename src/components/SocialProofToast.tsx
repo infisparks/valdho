@@ -26,16 +26,16 @@ export function SocialProofToast() {
       setCurrentUser(user);
       setIsVisible(true);
 
-      // Hide strictly after 1.5 seconds (1500ms)
+      // Hide strictly after 2.5 seconds (2500ms)
       hideTimer = setTimeout(() => {
         setIsVisible(false);
         scheduleNext();
-      }, 1500);
+      }, 2500);
     };
 
-    // Schedule next toast after 20 to 30 seconds interval
+    // Schedule next toast after random 8 to 13 seconds interval
     const scheduleNext = () => {
-      const randomInterval = Math.floor(Math.random() * 10000) + 20000; // 20s to 30s
+      const randomInterval = Math.floor(Math.random() * 5000) + 8000; // 8s (8000ms) to 13s (13000ms)
       nextTimer = setTimeout(() => {
         showRandomToast();
       }, randomInterval);

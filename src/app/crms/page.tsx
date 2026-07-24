@@ -2024,8 +2024,8 @@ export default function CRMPage() {
         <div className="space-y-6">
           {/* Logo */}
           <div className="flex items-center space-x-3 px-2">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-base shadow">
-              FO
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs shadow">
+              FOA
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900 leading-tight">

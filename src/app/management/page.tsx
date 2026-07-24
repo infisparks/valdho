@@ -439,8 +439,8 @@ export default function ManagementPage() {
       <header className="bg-white border-b border-slate-200 px-3 sm:px-8 py-2.5 sm:py-3.5 sticky top-0 z-30 shadow-xs w-full max-w-full overflow-hidden">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-black text-sm sm:text-lg flex items-center justify-center shadow-md flex-shrink-0">
-              FO
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-black text-xs sm:text-base flex items-center justify-center shadow-md flex-shrink-0">
+              FOA
             </div>
             <div className="min-w-0">
               <h1 className="text-xs sm:text-lg font-extrabold text-slate-900 truncate leading-tight">

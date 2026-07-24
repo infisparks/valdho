@@ -86,11 +86,11 @@ function LoginContent() {
       <div className="w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 md:p-10 lg:p-12 shadow-xl space-y-6 sm:space-y-8 my-auto">
         {/* Brand Header */}
         <div className="text-center space-y-2.5">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-violet-500 text-white flex items-center justify-center text-xl sm:text-2xl font-black mx-auto shadow-lg shadow-indigo-200">
-            FO
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-violet-500 text-white flex items-center justify-center text-lg sm:text-xl font-black mx-auto shadow-lg shadow-indigo-200">
+            FOA
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            First Option CRM Portal
+            First Option Agency CRM Portal
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-md mx-auto">
             Authorized Executive Access Only. Enter your admin credentials to manage lead pipelines and calendar appointments.

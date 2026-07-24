@@ -61,17 +61,19 @@ async function evoApiCall(endpoint, method = "GET", body = null, customHeaders =
  * Helper to normalize instance status from Evolution API response
  */
 function normalizeInstanceStatus(evoData, fallbackStatus = "created") {
-  if (!evoData) return fallbackStatus;
+  if (!evoData || typeof evoData !== "object") return fallbackStatus;
 
-  const rawState = (
-    evoData.connectionStatus ||
-    evoData.status ||
-    evoData.state ||
-    evoData.instance?.status ||
-    evoData.instance?.state ||
-    evoData.connection?.state ||
-    ""
-  ).toLowerCase();
+  const rawStateVal =
+    (typeof evoData.connectionStatus === "string" ? evoData.connectionStatus : null) ||
+    (typeof evoData.status === "string" ? evoData.status : null) ||
+    (typeof evoData.state === "string" ? evoData.state : null) ||
+    (typeof evoData.instance?.status === "string" ? evoData.instance.status : null) ||
+    (typeof evoData.instance?.state === "string" ? evoData.instance.state : null) ||
+    (typeof evoData.connection?.state === "string" ? evoData.connection.state : null) ||
+    (typeof evoData.connectionStatus === "number" ? String(evoData.connectionStatus) : null) ||
+    "";
+
+  const rawState = String(rawStateVal).toLowerCase();
 
   if (
     rawState === "open" ||
@@ -146,7 +148,7 @@ router.post("/instance/create", async (req, res) => {
 
     // Handle Evolution API 403 / 400 / Already Exists responses gracefully
     if (!evoRes.ok) {
-      const errMsg = (evoRes.data?.error || evoRes.data?.message || evoRes.data?.response?.message || "").toLowerCase();
+      const errMsg = String(evoRes.data?.error || evoRes.data?.message || evoRes.data?.response?.message || "").toLowerCase();
 
       if (
         evoRes.status === 403 ||

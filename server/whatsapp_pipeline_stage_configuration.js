@@ -80,12 +80,13 @@ function sanitizePhoneNumber(number) {
 function parseMeetingDateTime(dateStr, timeStr) {
   if (!dateStr) return null;
   try {
-    const cleanDate = dateStr.trim().split("T")[0];
+    const cleanDate = String(dateStr).trim().split("T")[0];
+    const dateParts = cleanDate.split("-");
     let hour = 12;
     let minute = 0;
 
     if (timeStr) {
-      const cleanTime = timeStr.trim().toUpperCase();
+      const cleanTime = String(timeStr).trim().toUpperCase();
       if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
         const isPm = cleanTime.includes("PM");
         const timePart = cleanTime.replace("AM", "").replace("PM", "").trim();
@@ -101,8 +102,15 @@ function parseMeetingDateTime(dateStr, timeStr) {
       }
     }
 
-    const isoStr = `${cleanDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`;
-    const dt = new Date(isoStr);
+    if (dateParts.length === 3) {
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1;
+      const day = parseInt(dateParts[2], 10);
+      const dt = new Date(year, month, day, hour, minute, 0);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    const dt = new Date(`${cleanDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`);
     return isNaN(dt.getTime()) ? null : dt;
   } catch (err) {
     return null;
@@ -278,16 +286,19 @@ async function evaluateStageAutomations() {
         let referenceDate = null;
 
         if (rule.triggerBase === "meeting") {
-          // Do NOT send meeting reminders if lead has moved to Won, Not Qualified or is onboarded
-          if (leadStage === "won" || leadStage === "not_qualified" || lead.onboarded === true) {
-            console.log(`[Pipeline Worker ⏭️] Skipping meeting reminder for lead ${lead.fullName || cleanNumber} in stage '${leadStage}'`);
+          // Do NOT send meeting reminders if lead has moved to Won or Not Qualified
+          if (leadStage === "won" || leadStage === "not_qualified") {
+            console.log(`[Pipeline Worker ⏭️] Skipping meeting reminder for lead ${lead.fullName || cleanNumber} in completed/disqualified stage '${leadStage}'`);
             continue;
           }
 
-          if (!lead.meeting || !lead.meeting.meetingDate) {
+          const meetingDateVal = lead.meeting?.meetingDate || lead.meetingDate || lead.date;
+          const meetingTimeVal = lead.meeting?.meetingTime || lead.meetingTime || lead.time;
+
+          if (!meetingDateVal) {
             continue; // Skip if missing meeting details
           }
-          referenceDate = parseMeetingDateTime(lead.meeting.meetingDate, lead.meeting.meetingTime);
+          referenceDate = parseMeetingDateTime(meetingDateVal, meetingTimeVal);
 
           if (!referenceDate || isNaN(referenceDate.getTime())) continue;
 

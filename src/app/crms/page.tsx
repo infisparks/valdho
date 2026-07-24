@@ -3042,8 +3042,8 @@ export default function CRMPage() {
                               for (const rule of activeRules) {
                                 let refDate: Date | null = null;
                                 if (rule.triggerBase === "meeting") {
-                                  // Skip meeting reminder countdown for Won, Not Qualified or onboarded leads
-                                  if (lead.pipelineStage === "won" || lead.pipelineStage === "not_qualified" || lead.onboarded) {
+                                  // Skip meeting reminder countdown for Won or Not Qualified leads
+                                  if (lead.pipelineStage === "won" || lead.pipelineStage === "not_qualified") {
                                     continue;
                                   }
                                   refDate = parseMeetingDateTime(meetingDateVal, meetingTimeVal);

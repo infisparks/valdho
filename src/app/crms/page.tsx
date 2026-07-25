@@ -1300,7 +1300,14 @@ export default function CRMPage() {
       targetCampaign
     );
 
-    fetch(`${SERVER_URL}/api/whatsapp/evaluate-automations`, { method: "POST" }).catch(() => {});
+    fetch(`${SERVER_URL}/api/whatsapp/sync-lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        leadData: updatedLead,
+        previousStage: lead.pipelineStage || null,
+      }),
+    }).catch(() => {});
   };
 
   // Trigger Onboard Confirmation Modal

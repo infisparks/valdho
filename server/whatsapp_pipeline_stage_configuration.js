@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { createScheduledHttpTask, deleteScheduledHttpTask } = require("./cloud_tasks");
 
 // Configuration from Environment
 const API_KEY = process.env.WHATSAPP_API_KEY || "vR39h6avY69g7kAU3YQbS6V6XEvudson";
@@ -10,6 +11,8 @@ const FIREBASE_DB_URL = (
   "https://firstoption-8da25-default-rtdb.firebaseio.com"
 ).replace(/\/$/, "");
 const FIREBASE_DB_SECRET = process.env.FIREBASE_DB_SECRET || process.env.FIREBASE_DATABASE_SECRET || "";
+const SERVER_PUBLIC_URL = (process.env.WHATSAPP_SERVER_URL || process.env.PUBLIC_APP_URL || "https://first.infiplus.in").replace(/\/$/, "");
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "valdho_gcp_tasks_sec_2026_x89";
 
 /**
  * Firebase Realtime Database REST API Helper
@@ -27,13 +30,14 @@ async function firebaseDb(path, method = "GET", body = null) {
     }
     const res = await fetch(url, options);
     if (!res.ok) {
-      console.error(`[Pipeline Worker] Firebase DB Error (${res.status}):`, await res.text());
-      return null;
+      const errText = await res.text();
+      console.error(`[Pipeline Worker] Firebase DB Error (${res.status}):`, errText);
+      throw new Error(`Firebase DB HTTP ${res.status}: ${errText}`);
     }
     return await res.json();
   } catch (err) {
-    console.error("[Pipeline Worker] Firebase DB Exception:", err);
-    return null;
+    console.error("[Pipeline Worker] Firebase DB Exception:", err.message || err);
+    throw err;
   }
 }
 
@@ -75,7 +79,7 @@ function sanitizePhoneNumber(number) {
 }
 
 /**
- * Parse Date and Time String into JavaScript Date
+ * Parse Date and Time String into JavaScript Date (Enforcing IST UTC+05:30)
  */
 function parseMeetingDateTime(dateStr, timeStr) {
   if (!dateStr) return null;
@@ -134,7 +138,7 @@ function parseMeetingDateTime(dateStr, timeStr) {
 
     if (year > 1900 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
       const pad = (n) => String(n).padStart(2, "0");
-      // Explicitly construct IST (+05:30) date object so server timezone doesn't offset it by 5.5 hours!
+      // Explicitly construct IST (+05:30) date object so server timezone doesn't offset it
       const isoString = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
       const dt = new Date(isoString);
       return isNaN(dt.getTime()) ? null : dt;
@@ -152,7 +156,6 @@ function parseMeetingDateTime(dateStr, timeStr) {
 function extractLeadsFromFirebaseData(obj, foundLeads = [], path = "", depth = 0) {
   if (!obj || typeof obj !== "object" || depth > 6) return foundLeads;
 
-  // If object has phone and (fullName or email or pipelineStage or status), it's a valid lead
   if (obj.phone && (obj.fullName || obj.email || obj.pipelineStage || obj.status)) {
     const leadId = obj.id || obj.email || `lead_${foundLeads.length + 1}`;
     foundLeads.push({ ...obj, leadId, _path: path });
@@ -200,13 +203,15 @@ router.post("/stage-automations", async (req, res) => {
       id: ruleId,
       stageId,
       title: rule.title.trim(),
-      instanceName: rule.instanceName || "", // Specific WhatsApp Instance selector
+      instanceName: rule.instanceName || "",
       triggerBase: rule.triggerBase || "created", // "meeting" | "created"
       offsetType: rule.offsetType || "recurring", // "before" | "after" | "recurring"
       offsetValue: Number(rule.offsetValue) || 1,
       offsetUnit: rule.offsetUnit || "minutes", // "minutes" | "hours" | "days"
       template: rule.template || "Hello {{name}}, reminder for your session at {{time}} on {{date}}!",
       isEnabled: rule.isEnabled !== false,
+      applyToExisting: rule.applyToExisting !== false, // Condition 5 support
+      createdAt: rule.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
@@ -238,65 +243,61 @@ router.delete("/stage-automations/:stageId/:ruleId", async (req, res) => {
 });
 
 /* ==========================================================================
-   BACKGROUND AUTOMATION EVALUATOR & CRON WORKER DAEMON
+   GOOGLE CLOUD TASKS EVENT-DRIVEN AUTOMATION ENGINE
    ========================================================================== */
 
-let isWorkerEvaluating = false;
-
-async function evaluateStageAutomations() {
-  if (isWorkerEvaluating) return;
-  isWorkerEvaluating = true;
+/**
+ * Condition 3: Lead Deletion (Zombie Messages)
+ * Deletes all pending Cloud Tasks for a given lead and wipes the Firebase task tracking node.
+ */
+async function cancelAllLeadTasks(leadPhone) {
   try {
-    // 1. Fetch active stage automation rules
-    const allStageRulesObj = (await firebaseDb("whatsapp_stage_automations/firstoptionagency")) || {};
-    const activeRules = [];
-    for (const [stageId, rulesMap] of Object.entries(allStageRulesObj)) {
-      if (!rulesMap) continue;
-      for (const rule of Object.values(rulesMap)) {
-        if (rule && rule.isEnabled) {
-          activeRules.push(rule);
-        }
-      }
+    const cleanPhone = sanitizePhoneNumber(leadPhone);
+    if (!cleanPhone) return { success: false, error: "Invalid phone number" };
+
+    console.log(`[Cloud Tasks 🧹] Canceling all scheduled tasks for lead '${cleanPhone}'...`);
+
+    const activeTasksMap = (await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}`)) || {};
+    const taskEntries = Object.entries(activeTasksMap);
+
+    if (taskEntries.length === 0) {
+      console.log(`[Cloud Tasks ℹ️] No pending tasks found for lead '${cleanPhone}'.`);
+      return { success: true, count: 0 };
     }
 
-    if (activeRules.length === 0) return; // No active rules to process
-
-    // 2. Resolve Global Default WhatsApp Sender Instance
-    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
-    let defaultInstanceName = config.selectedInstanceName;
-
-    if (!defaultInstanceName) {
-      const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
-      const instancesList = Object.values(fbInstances).filter(Boolean);
-      const openInst = instancesList.find((i) => i.status === "open") || instancesList[0];
-      if (openInst) defaultInstanceName = openInst.instanceName;
+    for (const [taskId, taskRecord] of taskEntries) {
+      if (!taskRecord) continue;
+      const gcpTaskName = typeof taskRecord === "object" ? taskRecord.taskName : null;
+      await deleteScheduledHttpTask({ taskId, taskName: gcpTaskName });
     }
 
-    // 3. Fetch All Campaign & Master Leads from Firebase RTDB
-    const campaignsData = (await firebaseDb("campaigns")) || {};
-    const leadsData = (await firebaseDb("leads")) || {};
+    // Wipe tracking nodes in RTDB
+    await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}`, "DELETE");
+    await firebaseDb(`whatsapp_lead_timers/${cleanPhone}`, "DELETE");
 
-    const rawLeadsList = [
-      ...extractLeadsFromFirebaseData(campaignsData, [], "campaigns"),
-      ...extractLeadsFromFirebaseData(leadsData, [], "leads"),
-    ];
+    console.log(`[Cloud Tasks ✅] Canceled ${taskEntries.length} pending tasks for lead '${cleanPhone}'.`);
+    return { success: true, count: taskEntries.length };
+  } catch (err) {
+    console.error("[Cloud Tasks ❌] cancelAllLeadTasks Exception:", err);
+    return { success: false, error: err.message };
+  }
+}
 
-    // Deduplicate leads by normalized 12-digit phone number / email
-    const uniqueLeadsMap = new Map();
-    for (const l of rawLeadsList) {
-      const cleanPhone = sanitizePhoneNumber(l.phone);
-      const key = cleanPhone || (l.email ? l.email.toLowerCase().trim() : l.leadId);
-      if (key && !uniqueLeadsMap.has(key)) {
-        uniqueLeadsMap.set(key, { ...l, _cleanPhone: cleanPhone });
-      }
+/**
+ * Unified Function: Sync Lead Automations
+ * Calculates future execution times based on active stage rules and schedules Google Cloud Tasks.
+ */
+async function syncLeadAutomations(leadData, previousStage = null, previousMeetingTime = null) {
+  try {
+    if (!leadData) return { success: false, error: "leadData is required" };
+
+    const cleanPhone = sanitizePhoneNumber(leadData.phone || leadData.number);
+    if (!cleanPhone || cleanPhone.length < 5) {
+      console.warn("[Cloud Tasks ⚠️] Lead has no valid phone number. Skipping automation sync.");
+      return { success: false, error: "No valid phone number" };
     }
 
-    const allLeads = Array.from(uniqueLeadsMap.values());
-    const nowMs = Date.now();
-
-    console.log(`[Pipeline Worker 🔍] Starting evaluation of ${activeRules.length} active rules across ${allLeads.length} leads at ${new Date().toLocaleTimeString()}...`);
-
-    // 4. Evaluate each lead against matching stage rules (With Smart Stage Alias Mapping & Fallback Funnel Engine)
+    const currentStage = leadData.pipelineStage || leadData.status || leadData.stage || "raw";
     const normStage = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
     const stageEquivalents = {
@@ -309,309 +310,46 @@ async function evaluateStageAutomations() {
       notqualified: ["notqualified", "disqualified"],
     };
 
-    for (const lead of allLeads) {
-      const cleanNumber = lead._cleanPhone || sanitizePhoneNumber(lead.phone);
-      if (!cleanNumber || cleanNumber.length < 5) {
-        console.log(`[Pipeline Worker ⚠️] Lead '${lead.fullName || lead.leadId}' has no valid phone number (${lead.phone}). Skipping.`);
-        continue;
-      }
+    const currentNorm = normStage(currentStage);
+    const prevNorm = previousStage ? normStage(previousStage) : null;
 
-      const leadStage = lead.pipelineStage || lead.status || lead.stage || "raw";
-      const leadStgNorm = normStage(leadStage);
-      const leadEquivs = stageEquivalents[leadStgNorm] || [leadStgNorm];
+    // Condition 1: Changing Pipeline Stages (Ghost Tasks)
+    if (previousStage && prevNorm !== currentNorm) {
+      console.log(`[Cloud Tasks 🔄] Stage change detected for lead ${cleanPhone}: '${previousStage}' -> '${currentStage}'. Purging ghost tasks...`);
+      await cancelAllLeadTasks(cleanPhone);
+    }
 
-      let matchingRules = activeRules.filter((r) => {
-        const rStgNorm = normStage(r.stageId);
-        const rEquivs = stageEquivalents[rStgNorm] || [rStgNorm];
-        return rEquivs.some((eq) => leadEquivs.includes(eq)) || (rStgNorm && leadStgNorm && (rStgNorm.includes(leadStgNorm) || leadStgNorm.includes(rStgNorm)));
-      });
+    // Condition 2: Changing Meeting Dates
+    const currentMeetingDate = leadData.meeting?.meetingDate || leadData.meetingDate || leadData.date || "";
+    const currentMeetingTime = leadData.meeting?.meetingTime || leadData.meetingTime || leadData.time || "";
+    const currentMeetingKey = `${currentMeetingDate}_${currentMeetingTime}`;
 
-      // Smart Fallback Engine: If no custom stage rule exists, check Global 3-Step Funnel Config
-      if (matchingRules.length === 0) {
-        if (leadEquivs.includes("surveycompleted")) {
-          const tpl = config.step2Survey?.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.";
-          matchingRules.push({
-            id: "fallback_step2_survey",
-            stageId: leadStage,
-            title: "Auto Funnel: Step 2 Survey Completed",
-            triggerBase: "created",
-            offsetType: "after",
-            offsetValue: 0,
-            offsetUnit: "minutes",
-            template: tpl,
-            isEnabled: true,
-          });
-        } else if (leadEquivs.includes("inprogress") || leadEquivs.includes("raw")) {
-          const tpl = config.step1Welcome?.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details. Our team will get back to you shortly.";
-          matchingRules.push({
-            id: "fallback_step1_welcome",
-            stageId: leadStage,
-            title: "Auto Funnel: Step 1 Contact Welcome",
-            triggerBase: "created",
-            offsetType: "after",
-            offsetValue: 0,
-            offsetUnit: "minutes",
-            template: tpl,
-            isEnabled: true,
-          });
-        } else if (leadEquivs.includes("meetingbooked")) {
-          const tpl = config.step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Join video call: {{meeting_url}}";
-          matchingRules.push({
-            id: "fallback_step3_meeting",
-            stageId: leadStage,
-            title: "Auto Funnel: Step 3 Meeting Confirmed",
-            triggerBase: "meeting",
-            offsetType: "before",
-            offsetValue: 10,
-            offsetUnit: "minutes",
-            template: tpl,
-            isEnabled: true,
-          });
+    if (previousMeetingTime && previousMeetingTime !== currentMeetingKey) {
+      console.log(`[Cloud Tasks 📅] Meeting date/time change detected for lead ${cleanPhone}: '${previousMeetingTime}' -> '${currentMeetingKey}'. Purging old meeting tasks...`);
+      const activeTasksMap = (await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}`)) || {};
+      for (const [taskId, record] of Object.entries(activeTasksMap)) {
+        if (record && record.triggerBase === "meeting") {
+          await deleteScheduledHttpTask({ taskId, taskName: record.taskName });
+          await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}/${taskId}`, "DELETE");
         }
-      }
-
-      console.log(`[Pipeline Worker 👤] Checking Lead: ${lead.fullName || "Client"} (${cleanNumber}) | Stage: '${leadStage}' (Norm: '${leadStgNorm}') | Matching Rules: ${matchingRules.length}`);
-
-      for (const rule of matchingRules) {
-        const targetInstance = rule.instanceName || defaultInstanceName;
-        if (!targetInstance) {
-          console.warn(`[Pipeline Worker ⚠️] No active WhatsApp instance available for rule "${rule.title}"`);
-          continue;
-        }
-
-        let referenceDate = null;
-        let meetingKey = "";
-
-        if (rule.triggerBase === "meeting") {
-          if (leadStage === "won" || leadStage === "not_qualified") {
-            console.log(`[Pipeline Worker ⏭️] Skipping meeting reminder for ${lead.fullName || cleanNumber} in stage '${leadStage}'`);
-            continue;
-          }
-
-          const meetingDateVal = lead.meeting?.meetingDate || lead.meetingDate || lead.date;
-          const meetingTimeVal = lead.meeting?.meetingTime || lead.meetingTime || lead.time;
-
-          if (!meetingDateVal) {
-            console.log(`[Pipeline Worker ℹ️] Lead ${lead.fullName || cleanNumber} has no meeting date set. Skipping rule '${rule.title}'`);
-            continue;
-          }
-          referenceDate = parseMeetingDateTime(meetingDateVal, meetingTimeVal);
-
-          if (!referenceDate || isNaN(referenceDate.getTime())) {
-            console.log(`[Pipeline Worker ⚠️] Failed to parse meeting date '${meetingDateVal}' '${meetingTimeVal}' for ${lead.fullName || cleanNumber}`);
-            continue;
-          }
-
-          meetingKey = (String(meetingDateVal) + "_" + String(meetingTimeVal || "")).replace(/\D/g, "");
-        } else {
-          const rawReference = lead.stageMovedAt || lead.createdAt || lead.createdDate || lead.timestamp || lead.meeting?.bookedAt;
-          referenceDate = rawReference ? new Date(rawReference) : new Date();
-          meetingKey = String(rawReference || "").replace(/\D/g, "").slice(0, 12) || "init";
-        }
-
-        if (!referenceDate || isNaN(referenceDate.getTime())) continue;
-
-        // Calculate offset in milliseconds
-        let offsetMs = Number(rule.offsetValue) * 60 * 1000;
-        if (rule.offsetUnit === "hours") offsetMs = Number(rule.offsetValue) * 3600 * 1000;
-        if (rule.offsetUnit === "days") offsetMs = Number(rule.offsetValue) * 86400 * 1000;
-        if (offsetMs <= 0) offsetMs = 60000;
-
-        let scheduledTriggerTimeMs = 0;
-        let triggerKey = "";
-
-        if (rule.offsetType === "recurring") {
-          const elapsedMs = Math.max(0, nowMs - referenceDate.getTime());
-          const intervalIndex = Math.floor(elapsedMs / offsetMs);
-
-          scheduledTriggerTimeMs = referenceDate.getTime() + (intervalIndex * offsetMs);
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_stg_${meetingKey || "init"}_seq_${intervalIndex}`;
-        } else if (rule.offsetType === "before") {
-          scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_m_${meetingKey || "bef"}`;
-        } else {
-          // after
-          scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
-          triggerKey = `auto_${cleanNumber}_stg_${leadStage}_rule_${rule.id}_aft_${meetingKey || "aft"}`;
-        }
-
-        const diffMs = nowMs - scheduledTriggerTimeMs;
-
-        // For 'before' meeting rules, do not send if meeting has already passed by > 15 minutes
-        if (rule.triggerBase === "meeting" && rule.offsetType === "before") {
-          if (nowMs > referenceDate.getTime() + (15 * 60 * 1000)) {
-            console.log(`[Pipeline Worker ⏭️] Skipping 'before' rule '${rule.title}' for ${lead.fullName || cleanNumber} because meeting at ${referenceDate.toLocaleTimeString()} passed > 15m ago.`);
-            continue;
-          }
-        }
-
-        // Window check: execute if current time has reached or passed scheduledTriggerTimeMs
-        const isTimeReached = diffMs >= -30000;
-
-        const formatIST = (ms) => new Date(ms).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
-
-        const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
-
-        // Record accurate Server-side Timer Target in Firebase RTDB for Frontend Countdown UI
-        let nextTargetMs = scheduledTriggerTimeMs;
-        if (alreadySent && alreadySent.status === "sent") {
-          nextTargetMs = rule.offsetType === "recurring" ? (scheduledTriggerTimeMs + offsetMs) : null;
-        }
-
-        if (nextTargetMs) {
-          const remSec = Math.max(0, Math.round((nextTargetMs - nowMs) / 1000));
-          await firebaseDb(`whatsapp_lead_timers/${cleanNumber}`, "PUT", {
-            phone: cleanNumber,
-            leadName: lead.fullName || cleanNumber,
-            leadStage,
-            ruleId: rule.id,
-            ruleTitle: rule.title || rule.offsetType,
-            nextTriggerTimeMs: nextTargetMs,
-            nextTriggerTimeIST: formatIST(nextTargetMs),
-            remainingSeconds: remSec,
-            status: alreadySent && alreadySent.status === "sent" ? "next_recurring_queued" : "waiting",
-            updatedAt: new Date().toISOString(),
-          });
-        }
-
-        if (!isTimeReached) {
-          console.log(`[Pipeline Worker ⏳] Rule '${rule.title}' not reached yet for ${lead.fullName || cleanNumber}. (Target IST: ${formatIST(scheduledTriggerTimeMs)}, Now IST: ${formatIST(nowMs)}, ${Math.round(-diffMs / 1000)}s remaining)`);
-          continue;
-        }
-
-        // Guard Check 1: Verify if this specific trigger key has already been executed successfully
-        if (alreadySent && alreadySent.status === "sent") {
-          console.log(`[Pipeline Worker ⏩] Rule '${rule.title}' ALREADY EXECUTED for ${lead.fullName || cleanNumber} (Key: '${triggerKey}', Sent at: ${alreadySent.sentAt})`);
-          continue;
-        }
-
-        // Guard Check 2: 15-Second Cooldown per rule and phone number
-        const cooldownKey = `cooldown_${rule.id}_${cleanNumber}`;
-        const phoneCooldown = await firebaseDb(`whatsapp_sent_automations/${cooldownKey}`);
-        if (phoneCooldown && phoneCooldown.lastSentAt) {
-          const cooldownDiffMs = nowMs - new Date(phoneCooldown.lastSentAt).getTime();
-          if (cooldownDiffMs < 15000) {
-            console.log(`[Pipeline Worker ⏳] Cooldown active for ${cleanNumber} on rule '${rule.title}' (${Math.round(cooldownDiffMs / 1000)}s since last message). Skipping.`);
-            continue;
-          }
-        }
-
-        // If previously failed less than 30s ago, wait before retrying
-        if (alreadySent && alreadySent.status === "failed" && alreadySent.failedAt) {
-          const failedDiffMs = nowMs - new Date(alreadySent.failedAt).getTime();
-          if (failedDiffMs < 30000) {
-            console.log(`[Pipeline Worker ⏳] Previous failed attempt < 30s ago for ${cleanNumber} on '${rule.title}'. Waiting before retry.`);
-            continue;
-          }
-        }
-
-        // Format Dynamic Message Template
-        const formattedDate = lead.meeting?.meetingDate || lead.meetingDate || "Upcoming Date";
-        const formattedTime = lead.meeting?.meetingTime || lead.meetingTime || "Scheduled Time";
-        const resolvedMeetingUrl =
-          lead.meeting?.meetingUrl ||
-          lead.links?.meetingUrl ||
-          lead.meetingUrl ||
-          config.defaultMeetingUrl ||
-          "https://meet.google.com/firstoption-strategy-call";
-
-        const stageNameMap = {
-          raw: "Leads",
-          in_progress: "1st Connection",
-          survey_completed: "Survey Completed",
-          meeting_booked: "Meeting Booked",
-          proposal_sent: "Proposal Sent",
-          won: "Won",
-          not_qualified: "Not Qualified",
-        };
-        const leadStageName = stageNameMap[leadStage] || leadStage;
-
-        const textMessage = rule.template
-          .replace(/\{\{\s*name\s*\}\}/gi, lead.fullName || "Valued Client")
-          .replace(/\{\{\s*email\s*\}\}/gi, lead.email || "N/A")
-          .replace(/\{\{\s*phone\s*\}\}/gi, lead.phone || "N/A")
-          .replace(/\{\{\s*date\s*\}\}/gi, formattedDate)
-          .replace(/\{\{\s*time\s*\}\}/gi, formattedTime)
-          .replace(/\{\{\s*meeting_url\s*\}\}/gi, resolvedMeetingUrl)
-          .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
-          .replace(/\{\{\s*meetingUrl\s*\}\}/gi, resolvedMeetingUrl)
-          .replace(/\{\{\s*meetingLink\s*\}\}/gi, resolvedMeetingUrl)
-          .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl)
-          .replace(/\{\{\s*stage\s*\}\}/gi, leadStageName);
-
-        console.log(`[Pipeline Worker ⚡ DISPATCHING] Sending WhatsApp Rule "${rule.title}" via instance '${targetInstance}' to ${lead.fullName || "Client"} (${cleanNumber})`);
-
-        // Record immediate cooldown timestamp
-        await firebaseDb(`whatsapp_sent_automations/${cooldownKey}`, "PUT", {
-          lastSentAt: new Date().toISOString(),
-          ruleId: rule.id,
-          phone: cleanNumber,
-        });
-
-        // Send Text Message via Evolution API
-        const evoRes = await evoApiCall(`/message/sendText/${targetInstance}`, "POST", {
-          number: cleanNumber,
-          text: textMessage,
-        });
-
-        console.log(`[Pipeline Worker ${evoRes.ok ? "✅ SUCCESS" : "❌ FAILED"}] Message dispatch for '${rule.title}' to ${cleanNumber}: ${evoRes.ok ? "Sent successfully" : evoRes.data?.error || evoRes.status}`);
-
-        // Record Guard Flag status
-        await firebaseDb(`whatsapp_sent_automations/${triggerKey}`, "PUT", {
-          sentAt: new Date().toISOString(),
-          status: evoRes.ok ? "sent" : "failed",
-          failedAt: evoRes.ok ? null : new Date().toISOString(),
-          leadId: lead.leadId || lead.phone,
-          ruleId: rule.id,
-          phone: cleanNumber,
-          instanceName: targetInstance,
-          error: evoRes.ok ? null : (evoRes.data?.error || evoRes.data?.message || `HTTP ${evoRes.status}`),
-        });
-
-        // Log into Realtime Activity Logs for instant retrieval
-        const logId = `auto_stage_${Date.now()}`;
-        const errorMessage = evoRes.ok
-          ? null
-          : (evoRes.data?.error || evoRes.data?.message || evoRes.data?.response?.message || `HTTP Error ${evoRes.status}: Evolution API request failed`);
-
-        const logData = {
-          id: logId,
-          type: "auto_stage_automation",
-          ruleTitle: rule.title,
-          stageId: leadStage,
-          number: cleanNumber,
-          leadName: lead.fullName || "Client",
-          text: textMessage,
-          instanceName: targetInstance,
-          status: evoRes.ok ? "sent" : "failed",
-          error: errorMessage,
-          timestamp: new Date().toISOString(),
-        };
-
-        await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", logData);
-        await firebaseDb(`whatsapp_lead_logs/${cleanNumber}/${logId}`, "PUT", logData);
       }
     }
-  } catch (err) {
-    console.error("[Pipeline Worker Daemon Exception]:", err);
-  } finally {
-    isWorkerEvaluating = false;
-  }
-}
 
-/**
- * 5. Evaluate Lead WhatsApp Messages Scheduled By Exact Date & Time
- * Node: /lead_whatapp_send_by_date/${cleanNumber}/${scheduleId}
- */
-async function evaluateScheduledDateMessages() {
-  try {
-    const allScheduledData = (await firebaseDb("lead_whatapp_send_by_date")) || {};
-    if (!allScheduledData || typeof allScheduledData !== "object" || Object.keys(allScheduledData).length === 0) return;
+    // Fetch active rules from RTDB
+    const allStageRulesObj = (await firebaseDb("whatsapp_stage_automations/firstoptionagency")) || {};
+    const activeRules = [];
+    for (const [sId, rulesMap] of Object.entries(allStageRulesObj)) {
+      if (!rulesMap) continue;
+      for (const rule of Object.values(rulesMap)) {
+        if (rule && rule.isEnabled) {
+          activeRules.push(rule);
+        }
+      }
+    }
 
-    // Resolve Default Instance
+    // Resolve Default WhatsApp Instance
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
     let defaultInstanceName = config.selectedInstanceName;
-
     if (!defaultInstanceName) {
       const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
       const instancesList = Object.values(fbInstances).filter(Boolean);
@@ -619,106 +357,434 @@ async function evaluateScheduledDateMessages() {
       if (openInst) defaultInstanceName = openInst.instanceName;
     }
 
-    const nowMs = Date.now();
+    const currentEquivs = stageEquivalents[currentNorm] || [currentNorm];
 
-    for (const [cleanNumber, scheduleGroup] of Object.entries(allScheduledData)) {
-      if (!scheduleGroup || typeof scheduleGroup !== "object") continue;
+    let matchingRules = activeRules.filter((r) => {
+      const rStgNorm = normStage(r.stageId);
+      const rEquivs = stageEquivalents[rStgNorm] || [rStgNorm];
+      return rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && (rStgNorm.includes(currentNorm) || currentNorm.includes(rStgNorm)));
+    });
 
-      for (const [schId, item] of Object.entries(scheduleGroup)) {
-        if (!item || typeof item !== "object") continue;
-
-        // Skip if already successfully sent
-        if (item.status === "sent") continue;
-
-        // If previously failed, retry after 15 seconds cooldown
-        if (item.status === "failed" && item.lastAttemptAt) {
-          const lastFailDiff = nowMs - new Date(item.lastAttemptAt).getTime();
-          if (lastFailDiff < 15000) continue; // Wait 15s before retrying
-        }
-
-        const scheduledAtMs = new Date(item.scheduledAt).getTime();
-        if (isNaN(scheduledAtMs)) continue;
-
-        // Check if scheduled date/time has been reached
-        if (nowMs >= scheduledAtMs - 5000) {
-          const targetInstance = item.instanceName || defaultInstanceName;
-          if (!targetInstance) {
-            console.warn(`[Scheduled Worker ⚠️] No active WhatsApp instance available for scheduled message '${schId}'`);
-            continue;
-          }
-
-          console.log(`[Scheduled Worker ⚡ DISPATCHING] Sending Date-Scheduled Message '${schId}' via instance '${targetInstance}' to ${cleanNumber}`);
-
-          // Send Text Message via Evolution API
-          const evoRes = await evoApiCall(`/message/sendText/${targetInstance}`, "POST", {
-            number: cleanNumber,
-            text: item.messageText || "",
-          });
-
-          const isSuccess = evoRes.ok;
-          const attemptCount = (item.attempts || 0) + 1;
-          const updateRecord = {
-            ...item,
-            status: isSuccess ? "sent" : "failed",
-            sentAt: isSuccess ? new Date().toISOString() : null,
-            lastAttemptAt: new Date().toISOString(),
-            attempts: attemptCount,
-            error: isSuccess ? null : (evoRes.data?.error || `HTTP ${evoRes.status}`),
-            updatedAt: new Date().toISOString(),
-          };
-
-          // Update Firebase RTDB under /lead_whatapp_send_by_date/${cleanNumber}/${schId}
-          await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${schId}`, "PUT", updateRecord);
-
-          // Log in WhatsApp Logs
-          const logId = `sch_log_${Date.now()}`;
-          const logData = {
-            id: logId,
-            ruleTitle: `Scheduled Date Broadcast (${item.scheduledAtIST || item.scheduledAt})`,
-            number: cleanNumber,
-            leadName: item.leadName || cleanNumber,
-            text: item.messageText,
-            instanceName: targetInstance,
-            status: isSuccess ? "sent" : "failed",
-            error: updateRecord.error,
-            timestamp: new Date().toISOString(),
-          };
-
-          await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", logData);
-          await firebaseDb(`whatsapp_lead_logs/${cleanNumber}/${logId}`, "PUT", logData);
-
-          console.log(`[Scheduled Worker ${isSuccess ? "✅ SUCCESS" : "❌ FAILED (Will retry in 15s)"}] Result for ${cleanNumber}: ${isSuccess ? "Sent successfully" : updateRecord.error}`);
-        }
+    // Auto Funnel Fallback Engine
+    if (matchingRules.length === 0) {
+      if (currentEquivs.includes("surveycompleted")) {
+        const tpl = config.step2Survey?.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.";
+        matchingRules.push({
+          id: "fallback_step2_survey",
+          stageId: currentStage,
+          title: "Auto Funnel: Step 2 Survey Completed",
+          triggerBase: "created",
+          offsetType: "after",
+          offsetValue: 0,
+          offsetUnit: "minutes",
+          template: tpl,
+          isEnabled: true,
+        });
+      } else if (currentEquivs.includes("inprogress") || currentEquivs.includes("raw")) {
+        const tpl = config.step1Welcome?.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details. Our team will get back to you shortly.";
+        matchingRules.push({
+          id: "fallback_step1_welcome",
+          stageId: currentStage,
+          title: "Auto Funnel: Step 1 Contact Welcome",
+          triggerBase: "created",
+          offsetType: "after",
+          offsetValue: 0,
+          offsetUnit: "minutes",
+          template: tpl,
+          isEnabled: true,
+        });
+      } else if (currentEquivs.includes("meetingbooked")) {
+        const tpl = config.step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Join video call: {{meeting_url}}";
+        matchingRules.push({
+          id: "fallback_step3_meeting",
+          stageId: currentStage,
+          title: "Auto Funnel: Step 3 Meeting Confirmed",
+          triggerBase: "meeting",
+          offsetType: "before",
+          offsetValue: 10,
+          offsetUnit: "minutes",
+          template: tpl,
+          isEnabled: true,
+        });
       }
     }
+
+    const nowMs = Date.now();
+    const scheduledTaskResults = [];
+
+    for (const rule of matchingRules) {
+      // Condition 5: Retroactive Rule Creation (applyToExisting check)
+      if (rule.applyToExisting === false) {
+        const leadCreatedTime = new Date(leadData.stageMovedAt || leadData.createdAt || leadData.createdDate || 0).getTime();
+        const ruleCreatedTime = new Date(rule.createdAt || 0).getTime();
+        if (ruleCreatedTime > 0 && leadCreatedTime > 0 && leadCreatedTime < ruleCreatedTime) {
+          console.log(`[Cloud Tasks ⏭️] Skipping rule '${rule.title}' for lead ${cleanPhone}: rule.applyToExisting is false and lead was created before rule.`);
+          continue;
+        }
+      }
+
+      let referenceDate = null;
+      let meetingKey = "";
+
+      if (rule.triggerBase === "meeting") {
+        if (currentStage === "won" || currentStage === "not_qualified") continue;
+        if (!currentMeetingDate) {
+          console.log(`[Cloud Tasks ℹ️] Lead ${cleanPhone} has no meeting date set. Skipping rule '${rule.title}'.`);
+          continue;
+        }
+
+        // Condition 6: Timezone Accuracy in IST (+05:30)
+        referenceDate = parseMeetingDateTime(currentMeetingDate, currentMeetingTime);
+        if (!referenceDate || isNaN(referenceDate.getTime())) {
+          console.warn(`[Cloud Tasks ⚠️] Failed to parse IST meeting date/time '${currentMeetingDate}' '${currentMeetingTime}' for ${cleanPhone}`);
+          continue;
+        }
+        meetingKey = (String(currentMeetingDate) + "_" + String(currentMeetingTime)).replace(/\D/g, "");
+      } else {
+        const rawReference = leadData.stageMovedAt || leadData.createdAt || leadData.createdDate || leadData.timestamp;
+        referenceDate = rawReference ? new Date(rawReference) : new Date();
+        meetingKey = String(rawReference || "").replace(/\D/g, "").slice(0, 12) || "init";
+      }
+
+      if (!referenceDate || isNaN(referenceDate.getTime())) continue;
+
+      let offsetMs = Number(rule.offsetValue) * 60 * 1000;
+      if (rule.offsetUnit === "hours") offsetMs = Number(rule.offsetValue) * 3600 * 1000;
+      if (rule.offsetUnit === "days") offsetMs = Number(rule.offsetValue) * 86400 * 1000;
+      if (offsetMs <= 0) offsetMs = 10000;
+
+      let scheduledTriggerTimeMs = 0;
+      let triggerKey = "";
+
+      if (rule.offsetType === "recurring") {
+        const elapsedMs = Math.max(0, nowMs - referenceDate.getTime());
+        const intervalIndex = Math.floor(elapsedMs / offsetMs) + 1;
+        scheduledTriggerTimeMs = referenceDate.getTime() + (intervalIndex * offsetMs);
+        triggerKey = `auto_${cleanPhone}_stg_${currentStage}_rule_${rule.id}_stg_${meetingKey || "init"}_seq_${intervalIndex}`;
+      } else if (rule.offsetType === "before") {
+        scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
+        triggerKey = `auto_${cleanPhone}_stg_${currentStage}_rule_${rule.id}_m_${meetingKey || "bef"}`;
+      } else {
+        scheduledTriggerTimeMs = referenceDate.getTime() + offsetMs;
+        triggerKey = `auto_${cleanPhone}_stg_${currentStage}_rule_${rule.id}_aft_${meetingKey || "aft"}`;
+      }
+
+      // Guard against Late Reminder Blast: Skip 'before meeting' rules if the meeting is already in the past
+      if (rule.triggerBase === "meeting" && rule.offsetType === "before") {
+        if (nowMs > referenceDate.getTime()) {
+          console.log(`[Cloud Tasks ⏭️] Skipping 'before' rule '${rule.title}' because meeting is in the past.`);
+          continue;
+        }
+      }
+
+      const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
+      if (alreadySent && alreadySent.status === "sent") {
+        console.log(`[Cloud Tasks ⏩] Trigger '${triggerKey}' ALREADY EXECUTED for ${cleanPhone}.`);
+        continue;
+      }
+
+      const scheduledSeconds = Math.floor(scheduledTriggerTimeMs / 1000);
+      const currentSeconds = Math.floor(nowMs / 1000);
+
+      const targetSeconds = scheduledSeconds < currentSeconds - 120 ? currentSeconds + 5 : Math.max(currentSeconds + 5, scheduledSeconds);
+
+      const taskId = `task_${cleanPhone}_${rule.id}_${meetingKey || "t"}_${targetSeconds}`;
+      const webhookUrl = `${SERVER_PUBLIC_URL}/api/whatsapp/execute-task`;
+
+      const webhookPayload = {
+        taskId,
+        leadPhone: cleanPhone,
+        leadId: leadData.id || leadData.email || cleanPhone,
+        leadName: leadData.fullName || cleanPhone,
+        leadPath: leadData._path || (leadData.campaign && leadData.createdDate && leadData.id ? `campaigns/${leadData.campaign}/leads/${leadData.createdDate}/${leadData.id}` : null),
+        stageId: currentStage,
+        ruleId: rule.id,
+        ruleTitle: rule.title,
+        triggerKey,
+        triggerBase: rule.triggerBase,
+        offsetType: rule.offsetType,
+        offsetValue: rule.offsetValue,
+        offsetUnit: rule.offsetUnit,
+        template: rule.template,
+        instanceName: rule.instanceName || defaultInstanceName,
+        meetingDate: currentMeetingDate,
+        meetingTime: currentMeetingTime,
+        scheduledTimeMs: targetSeconds * 1000,
+        createdAt: new Date().toISOString(),
+      };
+
+      const taskResult = await createScheduledHttpTask({
+        taskId,
+        url: webhookUrl,
+        payload: webhookPayload,
+        scheduleTimeSeconds: targetSeconds,
+      });
+
+      if (taskResult.success) {
+        const trackingRecord = {
+          taskId,
+          taskName: taskResult.taskName,
+          phone: cleanPhone,
+          ruleId: rule.id,
+          ruleTitle: rule.title,
+          stageId: currentStage,
+          scheduledAt: new Date(targetSeconds * 1000).toISOString(),
+          scheduledTimeMs: targetSeconds * 1000,
+          triggerBase: rule.triggerBase,
+          offsetType: rule.offsetType,
+          status: "scheduled",
+          updatedAt: new Date().toISOString(),
+        };
+        await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}/${taskId}`, "PUT", trackingRecord);
+
+        await firebaseDb(`whatsapp_lead_timers/${cleanPhone}`, "PUT", {
+          phone: cleanPhone,
+          leadName: leadData.fullName || cleanPhone,
+          leadStage: currentStage,
+          ruleId: rule.id,
+          ruleTitle: rule.title,
+          nextTriggerTimeMs: targetSeconds * 1000,
+          nextTriggerTimeIST: new Date(targetSeconds * 1000).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" }),
+          remainingSeconds: Math.max(0, targetSeconds - currentSeconds),
+          status: "scheduled_cloud_task",
+          updatedAt: new Date().toISOString(),
+        });
+
+        scheduledTaskResults.push(trackingRecord);
+      }
+    }
+
+    return { success: true, count: scheduledTaskResults.length, tasks: scheduledTaskResults };
   } catch (err) {
-    console.error("[Scheduled Worker Exception]:", err);
+    console.error("[Cloud Tasks ❌] syncLeadAutomations Exception:", err);
+    return { success: false, error: err.message };
   }
 }
 
-// Start Background Daemon Cron Worker Interval (runs every 15 seconds)
-setInterval(() => {
-  evaluateStageAutomations().catch((err) => {
-    console.error("[Pipeline Worker Interval Catch Error]:", err);
-  });
-  evaluateScheduledDateMessages().catch((err) => {
-    console.error("[Scheduled Worker Interval Catch Error]:", err);
-  });
-}, 15000);
+/**
+ * Condition 4: Idempotency & State Verification Webhook Endpoint
+ * Executed by Google Cloud Tasks HTTP trigger when scheduled time arrives.
+ * POST /api/whatsapp/execute-task
+ */
+router.post("/execute-task", async (req, res) => {
+  try {
+    // 1. Verify Webhook Secret Header
+    const secretHeader = req.headers["x-webhook-secret"];
+    if (secretHeader && secretHeader !== WEBHOOK_SECRET) {
+      console.warn("[Cloud Tasks Executor ⚠️] Unauthorized execution attempt with invalid secret header.");
+      return res.status(401).json({ success: false, error: "Unauthorized webhook request" });
+    }
 
-// Run initial evaluation on server startup
-setTimeout(() => {
-  evaluateStageAutomations().catch((err) => {
-    console.error("[Pipeline Worker Startup Catch Error]:", err);
-  });
-  evaluateScheduledDateMessages().catch((err) => {
-    console.error("[Scheduled Worker Startup Catch Error]:", err);
-  });
-}, 2000);
+    const {
+      taskId,
+      leadPhone,
+      leadId,
+      leadName,
+      leadPath,
+      stageId,
+      ruleId,
+      ruleTitle,
+      triggerKey,
+      triggerBase,
+      offsetType,
+      offsetValue,
+      offsetUnit,
+      template,
+      instanceName,
+      meetingDate,
+      meetingTime,
+    } = req.body;
+
+    if (!leadPhone || !triggerKey || !template) {
+      return res.status(400).json({ success: false, error: "Missing required task payload parameters" });
+    }
+
+    const cleanNumber = sanitizePhoneNumber(leadPhone);
+
+    console.log(`[Cloud Tasks Executor ⚡] Executing Task '${taskId}' for lead '${cleanNumber}' (Rule: '${ruleTitle}')`);
+
+    // 2. Targeted Single-Lead RTDB Fetch (Fast Route: 1 API call, tiny payload)
+    let currentLead = null;
+
+    if (leadPath) {
+      try {
+        const cleanPath = String(leadPath).replace(/^\//, "").replace(/\.json$/, "");
+        const fetched = await firebaseDb(cleanPath);
+        if (fetched && typeof fetched === "object" && (fetched.phone || fetched.fullName || fetched.pipelineStage)) {
+          currentLead = { ...fetched, _path: cleanPath };
+        }
+      } catch (err) {
+        console.warn(`[Cloud Tasks Executor ⚠️] Direct fetch failed for leadPath '${leadPath}': ${err.message}. Falling back to search.`);
+      }
+    }
+
+    if (!currentLead) {
+      // Fallback Route: Only if leadPath is missing or direct fetch returned null
+      console.warn(`[Cloud Tasks Executor ⚠️] leadPath missing or failed for ${cleanNumber}, performing fallback RTDB search.`);
+      const campaignsData = (await firebaseDb("campaigns")) || {};
+      const leadsData = (await firebaseDb("leads")) || {};
+      const allLeads = [
+        ...extractLeadsFromFirebaseData(campaignsData, [], "campaigns"),
+        ...extractLeadsFromFirebaseData(leadsData, [], "leads"),
+      ];
+      currentLead = allLeads.find((l) => sanitizePhoneNumber(l.phone) === cleanNumber);
+    }
+
+    if (!currentLead) {
+      console.warn(`[Cloud Tasks Executor 🛑 ABORT] Lead '${cleanNumber}' no longer exists in Firebase. Skipping task execution.`);
+      if (taskId) await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
+      return res.status(200).json({ success: true, skipped: true, reason: "Lead deleted from database" });
+    }
+
+    // Check Stage Alignment (Condition 4)
+    const normStage = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+    const stageEquivalents = {
+      surveycompleted: ["surveycompleted", "survey", "step2", "qualificationsurvey"],
+      inprogress: ["inprogress", "1stconnection", "firstconnection", "step1", "connection"],
+      meetingbooked: ["meetingbooked", "meeting", "step3", "booking"],
+      raw: ["raw", "leads", "newlead"],
+      proposalsent: ["proposalsent", "proposal"],
+      won: ["won", "closedwon"],
+      notqualified: ["notqualified", "disqualified"],
+    };
+
+    const currentLeadStage = currentLead.pipelineStage || currentLead.status || currentLead.stage || "raw";
+    const currentLeadNorm = normStage(currentLeadStage);
+    const ruleStageNorm = normStage(stageId);
+
+    const leadEquivs = stageEquivalents[currentLeadNorm] || [currentLeadNorm];
+    const ruleEquivs = stageEquivalents[ruleStageNorm] || [ruleStageNorm];
+
+    const isStageMatching = leadEquivs.some((eq) => ruleEquivs.includes(eq)) || (ruleStageNorm && currentLeadNorm && (ruleStageNorm.includes(currentLeadNorm) || currentLeadNorm.includes(ruleStageNorm)));
+
+    if (!isStageMatching) {
+      console.warn(`[Cloud Tasks Executor 🛑 ABORT] Lead '${cleanNumber}' stage in RTDB ('${currentLeadStage}') no longer matches rule stage ('${stageId}'). Aborting task execution.`);
+      if (taskId) await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
+      return res.status(200).json({ success: true, skipped: true, reason: `Stage mismatch: current stage is ${currentLeadStage}, rule stage is ${stageId}` });
+    }
+
+    // 3. Double-Send Check (Idempotency Check)
+    const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
+    if (alreadySent && alreadySent.status === "sent") {
+      console.log(`[Cloud Tasks Executor 🛑 ABORT] Trigger key '${triggerKey}' was already executed at ${alreadySent.sentAt}. Skipping duplicate send.`);
+      if (taskId) await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
+      return res.status(200).json({ success: true, skipped: true, reason: "Already executed" });
+    }
+
+    // Resolve Instance Name
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    let targetInstance = instanceName || config.selectedInstanceName;
+    if (!targetInstance) {
+      const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
+      const instancesList = Object.values(fbInstances).filter(Boolean);
+      const openInst = instancesList.find((i) => i.status === "open") || instancesList[0];
+      if (openInst) targetInstance = openInst.instanceName;
+    }
+
+    if (!targetInstance) {
+      console.error(`[Cloud Tasks Executor ❌] No active WhatsApp instance available for task '${taskId}'`);
+      return res.status(500).json({ success: false, error: "No active WhatsApp instance available" });
+    }
+
+    // 4. Format Dynamic Message Template
+    const formattedDate = currentLead.meeting?.meetingDate || currentLead.meetingDate || meetingDate || "Upcoming Date";
+    const formattedTime = currentLead.meeting?.meetingTime || currentLead.meetingTime || meetingTime || "Scheduled Time";
+    const resolvedMeetingUrl =
+      currentLead.meeting?.meetingUrl ||
+      currentLead.links?.meetingUrl ||
+      currentLead.meetingUrl ||
+      config.defaultMeetingUrl ||
+      "https://meet.google.com/firstoption-strategy-call";
+
+    const textMessage = template
+      .replace(/\{\{\s*name\s*\}\}/gi, currentLead.fullName || leadName || "Valued Client")
+      .replace(/\{\{\s*email\s*\}\}/gi, currentLead.email || "N/A")
+      .replace(/\{\{\s*phone\s*\}\}/gi, currentLead.phone || "N/A")
+      .replace(/\{\{\s*date\s*\}\}/gi, formattedDate)
+      .replace(/\{\{\s*time\s*\}\}/gi, formattedTime)
+      .replace(/\{\{\s*meeting_url\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*meetingUrl\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*meetingLink\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*stage\s*\}\}/gi, currentLeadStage);
+
+    console.log(`[Cloud Tasks Executor 🚀 DISPATCH] Sending WhatsApp message via '${targetInstance}' to ${cleanNumber}...`);
+
+    // 5. Send WhatsApp Message via Evolution API
+    const evoRes = await evoApiCall(`/message/sendText/${targetInstance}`, "POST", {
+      number: cleanNumber,
+      text: textMessage,
+    });
+
+    const isSuccess = evoRes.ok;
+
+    // 6. Record Guard Flag status
+    await firebaseDb(`whatsapp_sent_automations/${triggerKey}`, "PUT", {
+      sentAt: new Date().toISOString(),
+      status: isSuccess ? "sent" : "failed",
+      failedAt: isSuccess ? null : new Date().toISOString(),
+      leadId: currentLead.leadId || currentLead.id || cleanNumber,
+      ruleId,
+      phone: cleanNumber,
+      instanceName: targetInstance,
+      error: isSuccess ? null : (evoRes.data?.error || evoRes.data?.message || `HTTP ${evoRes.status}`),
+    });
+
+    // 7. Log into Realtime Activity Logs
+    const logId = `auto_stage_${Date.now()}`;
+    const logData = {
+      id: logId,
+      type: "auto_stage_automation",
+      ruleTitle: ruleTitle || "Stage Automation",
+      stageId: currentLeadStage,
+      number: cleanNumber,
+      leadName: currentLead.fullName || leadName || cleanNumber,
+      text: textMessage,
+      instanceName: targetInstance,
+      status: isSuccess ? "sent" : "failed",
+      error: isSuccess ? null : (evoRes.data?.error || evoRes.data?.message || `HTTP ${evoRes.status}`),
+      timestamp: new Date().toISOString(),
+    };
+
+    await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", logData);
+    await firebaseDb(`whatsapp_lead_logs/${cleanNumber}/${logId}`, "PUT", logData);
+
+    // 8. Clean up task tracking node on success
+    if (taskId && isSuccess) {
+      await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
+    }
+
+    // 9. Handle Retries & Recurrence
+    if (!isSuccess) {
+      console.warn(`[Cloud Tasks Executor ⚠️] WhatsApp dispatch failed. Returning 500 to trigger GCP Task Retry.`);
+      return res.status(500).json({
+        success: false,
+        error: evoRes.data?.error || evoRes.data?.message || `Evolution API dispatch failed (HTTP ${evoRes.status})`,
+        logId,
+      });
+    }
+
+    // If it reaches here, the message sent successfully! Now schedule the next one.
+    if (offsetType === "recurring") {
+      console.log(`[Cloud Tasks Executor 🔄] Scheduling next iteration for recurring rule '${ruleTitle}'...`);
+      await syncLeadAutomations(currentLead);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Task executed successfully",
+      logId,
+    });
+  } catch (err) {
+    console.error("[Cloud Tasks Executor Exception]:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 /**
  * POST /api/whatsapp/scheduled-message/add
- * Body: { phone: "919958399157", leadName: "mkmods", scheduledAt: "2026-07-25T13:00", instanceName: "mudassir", messageText: "..." }
+ * Schedule a single exact date WhatsApp message using Google Cloud Tasks
  */
 router.post("/scheduled-message/add", async (req, res) => {
   try {
@@ -739,9 +805,14 @@ router.post("/scheduled-message/add", async (req, res) => {
       rawDateStr += "+05:30"; // Enforce IST timezone offset
     }
     const scheduledDateObj = new Date(rawDateStr);
+    const scheduleTimeSeconds = Math.floor(scheduledDateObj.getTime() / 1000);
+
+    const taskId = `task_sch_${cleanNumber}_${schId}`;
+    const webhookUrl = `${SERVER_PUBLIC_URL}/api/whatsapp/execute-task`;
 
     const record = {
       id: schId,
+      taskId,
       phone: cleanNumber,
       leadName: leadName || cleanNumber,
       scheduledAt: scheduledDateObj.toISOString(),
@@ -750,17 +821,46 @@ router.post("/scheduled-message/add", async (req, res) => {
       messageText,
       status: "pending",
       attempts: 0,
-      lastAttemptAt: null,
-      sentAt: null,
       createdAt: new Date().toISOString(),
     };
 
+    // 1. Save in Firebase RTDB
     await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${schId}`, "PUT", record);
 
-    // Trigger immediate evaluation check
-    evaluateScheduledDateMessages().catch(() => {});
+    // 2. Schedule Google Cloud Task HTTP Webhook
+    const taskResult = await createScheduledHttpTask({
+      taskId,
+      url: webhookUrl,
+      payload: {
+        taskId,
+        leadPhone: cleanNumber,
+        leadId: cleanNumber,
+        leadName: leadName || cleanNumber,
+        stageId: "custom_scheduled_message",
+        ruleId: schId,
+        ruleTitle: `Scheduled Date Message (${record.scheduledAtIST})`,
+        triggerKey: `custom_sch_${cleanNumber}_${schId}`,
+        triggerBase: "custom",
+        offsetType: "custom",
+        template: messageText,
+        instanceName: instanceName || "",
+      },
+      scheduleTimeSeconds: Math.max(Math.floor(Date.now() / 1000) + 5, scheduleTimeSeconds),
+    });
 
-    return res.status(200).json({ success: true, message: "WhatsApp message scheduled successfully", data: record });
+    if (taskResult.success) {
+      await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "PUT", {
+        taskId,
+        taskName: taskResult.taskName,
+        phone: cleanNumber,
+        ruleId: schId,
+        ruleTitle: `Scheduled Message (${record.scheduledAtIST})`,
+        scheduledAt: scheduledDateObj.toISOString(),
+        status: "scheduled",
+      });
+    }
+
+    return res.status(200).json({ success: true, message: "WhatsApp message scheduled successfully via Cloud Tasks", data: record });
   } catch (err) {
     console.error("Add Scheduled Message Exception:", err);
     return res.status(500).json({ success: false, error: err.message });
@@ -769,7 +869,7 @@ router.post("/scheduled-message/add", async (req, res) => {
 
 /**
  * POST /api/whatsapp/scheduled-message/delete
- * Body: { phone: "919958399157", schId: "sch_123" }
+ * Cancels scheduled message task from GCP Cloud Tasks and deletes from Firebase RTDB
  */
 router.post("/scheduled-message/delete", async (req, res) => {
   try {
@@ -779,7 +879,11 @@ router.post("/scheduled-message/delete", async (req, res) => {
     }
 
     const cleanNumber = sanitizePhoneNumber(phone);
+    const taskId = `task_sch_${cleanNumber}_${schId}`;
+
+    await deleteScheduledHttpTask({ taskId });
     await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${schId}`, "DELETE");
+    await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
 
     return res.status(200).json({ success: true, message: "Scheduled message deleted successfully" });
   } catch (err) {
@@ -789,18 +893,43 @@ router.post("/scheduled-message/delete", async (req, res) => {
 });
 
 /**
- * POST /api/whatsapp/evaluate-automations
- * Instant realtime trigger for automation evaluation
+ * POST /api/whatsapp/sync-lead
+ * Endpoint to trigger syncLeadAutomations for a lead
  */
-router.post("/evaluate-automations", async (req, res) => {
+router.post("/sync-lead", async (req, res) => {
   try {
-    evaluateStageAutomations();
-    evaluateScheduledDateMessages();
-    return res.status(200).json({ success: true, message: "Stage automations evaluation triggered" });
+    const { leadData, previousStage, previousMeetingTime } = req.body;
+    if (!leadData) {
+      return res.status(400).json({ success: false, error: "leadData is required" });
+    }
+
+    const result = await syncLeadAutomations(leadData, previousStage, previousMeetingTime);
+    return res.status(200).json(result);
   } catch (err) {
+    console.error("Sync Lead API Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/cancel-lead-tasks
+ * Endpoint to cancel all pending Cloud Tasks for a lead (e.g. on lead deletion)
+ */
+router.post("/cancel-lead-tasks", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, error: "phone is required" });
+    }
+
+    const result = await cancelAllLeadTasks(phone);
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Cancel Lead Tasks API Exception:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 module.exports = router;
-
+module.exports.syncLeadAutomations = syncLeadAutomations;
+module.exports.cancelAllLeadTasks = cancelAllLeadTasks;

@@ -19,6 +19,53 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getDatabase(app);
 export const auth = getAuth(app);
 
+const WHATSAPP_SERVER_URL = (
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL
+    ? process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL
+    : "https://first.infiplus.in"
+).replace(/\/$/, "");
+
+/**
+ * Helper: Triggers Google Cloud Tasks sync for a lead after creation, stage update, or meeting update
+ */
+export async function syncLeadCloudTasks(
+  leadData: any,
+  previousStage?: string | null,
+  previousMeetingTime?: string | null
+): Promise<void> {
+  try {
+    if (!leadData || !leadData.phone) return;
+    await fetch(`${WHATSAPP_SERVER_URL}/api/whatsapp/sync-lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        leadData,
+        previousStage,
+        previousMeetingTime,
+      }),
+    });
+  } catch (err) {
+    console.error("syncLeadCloudTasks Exception:", err);
+  }
+}
+
+/**
+ * Helper: Cancels all pending Google Cloud Tasks when a lead is deleted or disqualified
+ */
+export async function cancelLeadCloudTasks(phone: string): Promise<void> {
+  try {
+    if (!phone) return;
+    await fetch(`${WHATSAPP_SERVER_URL}/api/whatsapp/cancel-lead-tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+  } catch (err) {
+    console.error("cancelLeadCloudTasks Exception:", err);
+  }
+}
+
+
 export interface SurveyData {
   industry?: string;
   role?: string;
@@ -517,6 +564,13 @@ export async function saveOrUpdateLead(
     // Perform Atomic Write to Firebase
     await update(ref(db), updates);
 
+    // Trigger Google Cloud Tasks Automation Sync
+    syncLeadCloudTasks(
+      leadPayload,
+      existingLead?.pipelineStage || null,
+      existingLead?.meeting ? `${existingLead.meeting.meetingDate}_${existingLead.meeting.meetingTime}` : null
+    ).catch(() => {});
+
     return {
       leadId,
       createdDate,
@@ -543,6 +597,18 @@ export async function deleteLead(
     const targetCreatedDate = createdDate || todayStr;
     const updates: Record<string, any> = {};
 
+    // Fetch lead phone to cancel pending Cloud Tasks (Zombie Messages prevention)
+    try {
+      const leadRefPath = `campaigns/${campaignName}/leads/${targetCreatedDate}/${leadId}`;
+      const leadSnap = await get(ref(db, leadRefPath));
+      if (leadSnap.exists()) {
+        const lData = leadSnap.val();
+        if (lData?.phone) {
+          cancelLeadCloudTasks(lData.phone).catch(() => {});
+        }
+      }
+    } catch (e) {}
+
     updates[`campaigns/${campaignName}/leads/${targetCreatedDate}/${leadId}`] = null;
 
     if (meetingDate && meetingTime) {
@@ -553,6 +619,7 @@ export async function deleteLead(
 
     await update(ref(db), updates);
     return { success: true };
+
   } catch (err: any) {
     console.error("deleteLead Error:", err);
     return { success: false, message: err?.message || "Failed to delete lead." };
@@ -638,6 +705,20 @@ export async function updateLeadStaffFields(
     }
 
     await update(ref(db), updates);
+
+    // Trigger Cloud Tasks Sync if pipelineStage or staff fields updated
+    syncLeadCloudTasks(
+      {
+        ...existingLead,
+        notes: staffData.notes !== undefined ? staffData.notes : existingLead.notes,
+        followUpDate: staffData.followUpDate !== undefined ? staffData.followUpDate : existingLead.followUpDate,
+        pipelineStage: staffData.pipelineStage !== undefined ? staffData.pipelineStage : existingLead.pipelineStage,
+        dealValue: staffData.dealValue !== undefined ? staffData.dealValue : existingLead.dealValue,
+      },
+      staffData.pipelineStage !== undefined ? existingLead.pipelineStage || null : null,
+      existingLead.meeting ? `${existingLead.meeting.meetingDate}_${existingLead.meeting.meetingTime}` : null
+    ).catch(() => {});
+
     return true;
   } catch (error) {
     console.error("Firebase updateLeadStaffFields Error:", error);
@@ -700,6 +781,10 @@ export async function onboardLeadClient(
     updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}`] = updatedLeadPayload;
 
     await update(ref(db), updates);
+
+    // Trigger Cloud Tasks Sync for 'won' stage transition
+    syncLeadCloudTasks(updatedLeadPayload, lead.pipelineStage || null, null).catch(() => {});
+
     return { success: true, onboardId };
   } catch (err) {
     console.error("Firebase onboardLeadClient Error:", err);

@@ -957,6 +957,97 @@ router.post("/reschedule-meeting", async (req, res) => {
       }
     }
 
+    // 3. Save Updated Meeting Date, Time, and URL back into Firebase RTDB
+    if (leadId || email || phone) {
+      const cleanPhoneNum = phone ? sanitizePhoneNumber(phone) : "";
+      const cleanEmailStr = email ? String(email).toLowerCase().trim() : "";
+      const searchLeadId = leadId ? String(leadId).trim() : "";
+      const nowIso = new Date().toISOString();
+
+      const campaignsObj = (await firebaseDb("campaigns")) || {};
+
+      for (const [cKey, campaignData] of Object.entries(campaignsObj)) {
+        if (!campaignData || typeof campaignData !== "object") continue;
+        const leadsNode = campaignData.leads || {};
+
+        for (const [dKey, leadsDateGroup] of Object.entries(leadsNode)) {
+          if (!leadsDateGroup || typeof leadsDateGroup !== "object") continue;
+
+          for (const [lId, leadObj] of Object.entries(leadsDateGroup)) {
+            if (!leadObj || typeof leadObj !== "object") continue;
+
+            const lEmail = (leadObj.email || "").toLowerCase().trim();
+            const lPhone = sanitizePhoneNumber(leadObj.phone);
+            const lIdStr = String(leadObj.id || lId).trim();
+
+            const isMatch =
+              (searchLeadId && (lIdStr === searchLeadId || lId === searchLeadId)) ||
+              (cleanEmailStr && lEmail === cleanEmailStr) ||
+              (cleanPhoneNum && lPhone === cleanPhoneNum);
+
+            if (isMatch) {
+              const oldMDate = leadObj.meeting?.meetingDate || leadObj.meetingDate;
+              const oldMTime = leadObj.meeting?.meetingTime || leadObj.meetingTime;
+              const oldMeetingKey = oldMDate && oldMTime ? `${oldMDate}_${oldMTime}` : null;
+
+              const leadPath = `campaigns/${cKey}/leads/${dKey}/${lId}`;
+
+              // Update meeting sub-object on Lead node
+              await firebaseDb(`${leadPath}/meeting`, "PATCH", {
+                meetingDate: newDate,
+                meetingTime: newTime,
+                meetingUrl: newMeetingUrl,
+                rescheduledAt: nowIso,
+              });
+
+              await firebaseDb(leadPath, "PATCH", {
+                updatedAt: nowIso,
+              });
+
+              // Clean up old meeting index if meeting date changed
+              if (oldMDate && oldMDate !== newDate && campaignData.meetings?.[oldMDate]?.[lId]) {
+                await firebaseDb(`campaigns/${cKey}/meetings/${oldMDate}/${lId}`, "DELETE");
+              }
+
+              // Update/create new meeting index record under /meetings/{newDate}/{lId}
+              const updatedMeetingPayload = {
+                leadId: lIdStr || lId,
+                fullName: leadObj.fullName || fullName || "Client",
+                email: leadObj.email || email || "",
+                phone: leadObj.phone || phone || "",
+                meetingDate: newDate,
+                meetingTime: newTime,
+                meetingUrl: newMeetingUrl,
+                status: "booked",
+                rescheduledAt: nowIso,
+                updatedAt: nowIso,
+              };
+
+              await firebaseDb(`campaigns/${cKey}/meetings/${newDate}/${lId}`, "PATCH", updatedMeetingPayload);
+
+              // Trigger Google Cloud Tasks Automation Sync for updated meeting schedule
+              try {
+                const { syncLeadAutomations } = require("./whatsapp_pipeline_stage_configuration");
+                const fullUpdatedLead = {
+                  ...leadObj,
+                  _path: leadPath,
+                  meeting: {
+                    ...(leadObj.meeting || {}),
+                    meetingDate: newDate,
+                    meetingTime: newTime,
+                    meetingUrl: newMeetingUrl,
+                  },
+                };
+                syncLeadAutomations(fullUpdatedLead, null, oldMeetingKey).catch(() => {});
+              } catch (err) {
+                // Cloud Tasks sync optional catch
+              }
+            }
+          }
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       newDate,

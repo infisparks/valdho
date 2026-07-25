@@ -88,6 +88,17 @@ async function createScheduledHttpTask({ taskId, url, payload, scheduleTimeSecon
       scheduledTimeSeconds: scheduleTimeSeconds,
     };
   } catch (err) {
+    // Error code 6 = ALREADY_EXISTS in GCP gRPC
+    if (err.code === 6 || (err.message && err.message.includes("ALREADY_EXISTS"))) {
+      console.log(`[Cloud Tasks ⏩] Task '${sanitizedTaskId}' already exists in queue. Skipping duplicate creation.`);
+      return {
+        success: true,
+        taskName: fullTaskName,
+        taskId: sanitizedTaskId,
+        scheduledTimeSeconds: scheduleTimeSeconds,
+      };
+    }
+
     console.error(`[Cloud Tasks ❌] Failed to create Cloud Task '${taskId}':`, err.message || err);
     return {
       success: false,

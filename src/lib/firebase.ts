@@ -25,8 +25,10 @@ const WHATSAPP_SERVER_URL = (
     : "https://first.infiplus.in"
 ).replace(/\/$/, "");
 
+const syncDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 /**
- * Helper: Triggers Google Cloud Tasks sync for a lead after creation, stage update, or meeting update
+ * Helper: Triggers Google Cloud Tasks sync for a lead after creation, stage update, or meeting update (Debounced 400ms)
  */
 export async function syncLeadCloudTasks(
   leadData: any,
@@ -35,15 +37,32 @@ export async function syncLeadCloudTasks(
 ): Promise<void> {
   try {
     if (!leadData || !leadData.phone) return;
-    await fetch(`${WHATSAPP_SERVER_URL}/api/whatsapp/sync-lead`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        leadData,
-        previousStage,
-        previousMeetingTime,
-      }),
-    });
+    const cleanPhone = String(leadData.phone).replace(/\D/g, "");
+    const debounceKey = `sync_${cleanPhone || leadData.id || leadData.email}`;
+
+    if (syncDebounceTimers.has(debounceKey)) {
+      clearTimeout(syncDebounceTimers.get(debounceKey)!);
+    }
+
+    syncDebounceTimers.set(
+      debounceKey,
+      setTimeout(async () => {
+        syncDebounceTimers.delete(debounceKey);
+        try {
+          await fetch(`${WHATSAPP_SERVER_URL}/api/whatsapp/sync-lead`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              leadData,
+              previousStage,
+              previousMeetingTime,
+            }),
+          });
+        } catch (err) {
+          console.error("syncLeadCloudTasks Exception:", err);
+        }
+      }, 400)
+    );
   } catch (err) {
     console.error("syncLeadCloudTasks Exception:", err);
   }

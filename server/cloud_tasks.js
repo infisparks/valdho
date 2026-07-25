@@ -47,18 +47,18 @@ function getCloudTasksClient() {
  * @returns {Promise<{success: boolean, taskName?: string, error?: string}>}
  */
 async function createScheduledHttpTask({ taskId, url, payload, scheduleTimeSeconds }) {
-  try {
-    const projectId = process.env.GCP_PROJECT_ID || "firstoption-8da25";
-    const location = process.env.GCP_LOCATION || "asia-south1";
-    const queueName = process.env.GCP_QUEUE_NAME || "whatsapp-automation-queue";
-    const webhookSecret = process.env.WEBHOOK_SECRET || "valdho_gcp_tasks_sec_2026_x89";
+  const projectId = process.env.GCP_PROJECT_ID || "firstoption-8da25";
+  const location = process.env.GCP_LOCATION || "asia-south1";
+  const queueName = process.env.GCP_QUEUE_NAME || "whatsapp-automation-queue";
+  const webhookSecret = process.env.WEBHOOK_SECRET || "valdho_gcp_tasks_sec_2026_x89";
 
+  const sanitizedTaskId = String(taskId).replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 450);
+  let fullTaskName = "";
+
+  try {
     const client = getCloudTasksClient();
     const parent = client.queuePath(projectId, location, queueName);
-    
-    // Sanitize taskId for GCP requirements (only letters, numbers, hyphens, underscores)
-    const sanitizedTaskId = String(taskId).replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 450);
-    const fullTaskName = client.taskPath(projectId, location, queueName, sanitizedTaskId);
+    fullTaskName = client.taskPath(projectId, location, queueName, sanitizedTaskId);
 
     const task = {
       name: fullTaskName,
@@ -99,7 +99,7 @@ async function createScheduledHttpTask({ taskId, url, payload, scheduleTimeSecon
       };
     }
 
-    console.error(`[Cloud Tasks ❌] Failed to create Cloud Task '${taskId}':`, err.message || err);
+    console.error(`[Cloud Tasks ❌] Failed to create Cloud Task '${sanitizedTaskId}':`, err.message || err);
     return {
       success: false,
       error: err.message || String(err),

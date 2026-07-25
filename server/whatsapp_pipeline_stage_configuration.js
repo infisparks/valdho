@@ -477,11 +477,24 @@ async function syncLeadAutomations(leadData, previousStage = null, previousMeeti
         }
       }
 
-      const alreadySent = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
-      if (alreadySent && alreadySent.status === "sent") {
-        console.log(`[Cloud Tasks ⏩] Trigger '${triggerKey}' ALREADY EXECUTED for ${cleanPhone}.`);
-        continue;
+      // STRICT LOCKOUT: Prevent double-scheduling from rapid-fire API requests
+      const idempotencyNode = await firebaseDb(`whatsapp_sent_automations/${triggerKey}`);
+      if (idempotencyNode) {
+        if (idempotencyNode.status === "sent") {
+          console.log(`[Cloud Tasks ⏩] Trigger '${triggerKey}' ALREADY EXECUTED for ${cleanPhone}.`);
+          continue;
+        }
+        if (idempotencyNode.status === "pending" || idempotencyNode.status === "scheduled") {
+          console.log(`[Cloud Tasks 🛡️] Duplicate API request blocked. Trigger '${triggerKey}' is already scheduled.`);
+          continue;
+        }
       }
+
+      // Immediately write a "pending" lock to Firebase to block the twin request
+      await firebaseDb(`whatsapp_sent_automations/${triggerKey}`, "PUT", {
+        status: "pending",
+        lockedAt: new Date().toISOString(),
+      });
 
       const scheduledSeconds = Math.floor(scheduledTriggerTimeMs / 1000);
       const currentSeconds = Math.floor(nowMs / 1000);

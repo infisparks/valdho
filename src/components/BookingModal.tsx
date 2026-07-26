@@ -439,100 +439,116 @@ export function BookingModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 animate-toast-in overflow-y-auto">
-      {/* Step 1: Initial White Form Modal */}
+      {/* Step 1: Executive Dark Form Modal (Fast Mobile Filing) */}
       {step === 1 && (
-        <div className="bg-white text-slate-900 border border-slate-200 w-full max-w-lg rounded-2xl p-4 sm:p-7 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans my-auto">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wide">
-              FILL OUT THE FORM BELOW TO BOOK YOUR CONSULTATION
-            </span>
+        <div className="bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 text-white border border-amber-500/40 w-full max-w-md sm:max-w-lg rounded-3xl p-4 sm:p-7 shadow-[0_0_50px_rgba(245,166,35,0.2)] relative max-h-[92vh] overflow-y-auto font-sans my-auto">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
+            <div className="flex items-center space-x-2">
+              <span className="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full">
+                Step 1 of 3
+              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">
+                Fast 30-Sec Booking
+              </span>
+            </div>
             <button
               onClick={handleReset}
-              className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center text-sm transition-colors"
+              className="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm transition-colors"
             >
               <i className="fa-solid fa-xmark"></i>
             </button>
           </div>
 
-          <form onSubmit={handleStep1Submit} className="space-y-3.5">
-            <h3 className="text-sm sm:text-lg font-bold text-slate-900 text-center leading-snug px-1">
-              Complete the form below and move to the next step to provide some basic information about your business
-            </h3>
+          <form onSubmit={handleStep1Submit} className="space-y-3.5 text-left">
+            <div className="text-center space-y-1">
+              <h3 className="text-base sm:text-xl font-black text-white leading-snug">
+                Claim Your 1-on-1 Growth Consultation
+              </h3>
+              <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
+                Enter your details to reserve your custom revenue strategy session
+              </p>
+            </div>
 
             {/* Full Name */}
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
-                Full Name
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Full Name <span className="text-amber-400">*</span>
               </label>
               <input
                 type="text"
                 required
+                autoComplete="name"
                 placeholder="Enter your full name"
                 value={contactInfo.fullName}
                 onChange={(e) => setContactInfo({ ...contactInfo, fullName: e.target.value })}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-sm"
+                className="w-full bg-zinc-900/90 border border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors"
               />
             </div>
 
             {/* Email */}
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
-                Email
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Work Email <span className="text-amber-400">*</span>
               </label>
               <input
                 type="email"
                 required
-                placeholder="name@example.com"
+                autoComplete="email"
+                placeholder="name@company.com"
                 value={contactInfo.email}
                 onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
                 onBlur={handleEmailBlur}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-sm"
+                className="w-full bg-zinc-900/90 border border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors"
               />
             </div>
 
             {/* 10-digit Phone Number with Mobile Numeric Keypad */}
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
-                Phone Number (10 Digits)
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                WhatsApp Phone Number <span className="text-amber-400">*</span>
               </label>
-              <div className="flex items-center bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500">
-                <div className="flex items-center space-x-1 px-3 py-2.5 sm:py-3 bg-slate-50 border-r border-slate-200 text-xs sm:text-sm font-medium text-slate-700">
+              <div className="flex items-center bg-zinc-900/90 border border-zinc-800 rounded-xl overflow-hidden shadow-inner focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+                <div className="flex items-center space-x-1 px-3 py-2.5 sm:py-3 bg-zinc-950 border-r border-zinc-800 text-xs sm:text-sm font-bold text-slate-300">
                   <span>🇮🇳</span>
                   <span>+91</span>
                 </div>
                 <input
                   type="tel"
                   inputMode="numeric"
+                  autoComplete="tel-national"
                   pattern="[0-9]*"
                   maxLength={10}
                   required
-                  placeholder="9096294110"
+                  placeholder="9876543210"
                   value={contactInfo.phone}
                   onChange={(e) => {
                     const onlyNums = e.target.value.replace(/\D/g, "");
                     setContactInfo({ ...contactInfo, phone: onlyNums });
                     if (phoneError) setPhoneError(null);
                   }}
-                  className="w-full px-3 py-2.5 sm:py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none font-mono"
+                  className="w-full px-3 py-2.5 sm:py-3 text-sm text-white bg-transparent placeholder-zinc-500 focus:outline-none font-mono tracking-wider"
                 />
               </div>
               {phoneError && (
-                <p className="text-red-600 font-bold text-xs mt-1 animate-pulse">
-                  ⚠ {phoneError}
+                <p className="text-red-400 font-bold text-xs mt-1 animate-pulse flex items-center space-x-1">
+                  <span>⚠</span>
+                  <span>{phoneError}</span>
                 </p>
               )}
             </div>
 
+            {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-gradient-to-b from-[#ffd369] via-[#f7b731] to-[#eb9d14] border border-amber-600/80 rounded-xl p-3.5 sm:p-4 text-center cursor-pointer shadow-md hover:brightness-105 active:scale-[0.99] transition-all mt-3"
+              className="w-full cta-gold-btn shimmer rounded-2xl p-3.5 sm:p-4 text-center cursor-pointer shadow-xl hover:opacity-95 active:scale-[0.99] transition-all mt-4"
             >
-              <div className="text-sm sm:text-lg font-bold text-slate-950 flex items-center justify-center space-x-1.5 leading-snug">
-                <span>Click to save and proceed to the next step</span>
-                <span className="text-lg sm:text-xl">→</span>
+              <div className="text-sm sm:text-base font-black text-slate-950 flex items-center justify-center space-x-2 uppercase tracking-wide">
+                <span>CONTINUE TO SELECT SLOT</span>
+                <i className="fa-solid fa-arrow-right text-xs sm:text-sm"></i>
               </div>
-              <div className="text-[11px] sm:text-xs font-semibold text-slate-900/90 mt-0.5">
-                Book Your call at just 09 rs
+              <div className="text-[10px] sm:text-xs font-extrabold text-slate-900 mt-0.5">
+                ⚡ 100% Free Strategy Session • No Sales Pitch
               </div>
             </button>
           </form>

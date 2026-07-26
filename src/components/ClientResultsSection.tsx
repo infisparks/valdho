@@ -120,77 +120,80 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
     : liveLeads.filter(l => l.status.toLowerCase() === crmFilter.toLowerCase());
 
   return (
-    <section className="space-y-5 pt-1">
+    <section className="space-y-4 pt-1">
+      {/* Section Header */}
       <div className="text-center space-y-1">
-        <span className="text-xs font-extrabold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-3.5 py-1 rounded-full border border-amber-500/30">
+        <span className="text-[10px] sm:text-xs font-extrabold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-3 py-0.5 rounded-full border border-amber-500/30">
           Real Proof • Verified Case Studies
         </span>
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-center text-white tracking-tight pt-1">
+        <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-center text-white tracking-tight pt-0.5">
           Our Client Results
         </h2>
       </div>
 
-      {/* Video Case Study Cards Grid: 2 cards per row on mobile (grid-cols-2), 3 cards on desktop (md:grid-cols-3) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3.5">
+      {/* Video Case Study Cards Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
         {videoCaseStudies.map((study, idx) => (
           <div
             key={idx}
-            className="gold-border-card bg-white text-slate-900 rounded-2xl p-2 sm:p-3.5 text-center space-y-1.5 shadow-md flex flex-col justify-between"
+            className="bg-zinc-950/90 border border-zinc-800/80 hover:border-amber-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group"
           >
-            <div className="space-y-1">
-              <span className="inline-block bg-amber-100 text-amber-900 text-[8px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                {study.badge}
-              </span>
-              
-              <h3 className="text-xs sm:text-base font-black tracking-tight text-slate-950 truncate leading-snug">
-                {study.title}
-              </h3>
-              
-              <p className="text-[9px] sm:text-xs font-bold text-slate-600 truncate">
-                {study.subtitle}
-              </p>
-
-              {/* 5 Stars */}
-              <div className="flex justify-center items-center space-x-0.5 text-amber-400 text-[10px] sm:text-xs">
-                {[...Array(study.stars)].map((_, sIdx) => (
-                  <i key={sIdx} className="fa-solid fa-star"></i>
-                ))}
+            <div className="space-y-1.5">
+              {/* Header: Badge & Rating */}
+              <div className="flex items-center justify-between gap-1">
+                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-[65%]">
+                  {study.badge}
+                </span>
+                <div className="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5 flex-shrink-0">
+                  {[...Array(study.stars)].map((_, sIdx) => (
+                    <i key={sIdx} className="fa-solid fa-star"></i>
+                  ))}
+                </div>
               </div>
 
+              {/* Title & Subtitle */}
+              <div>
+                <h3 className="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-amber-400 transition-colors">
+                  {study.title}
+                </h3>
+                <p className="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                  {study.subtitle}
+                </p>
+              </div>
+
+              {/* Sleek Compact Metric Pill */}
               {study.quote && (
-                <div className="bg-amber-50/90 p-1.5 rounded-lg border border-amber-200/80 text-[9px] sm:text-xs font-extrabold text-slate-900 leading-snug">
-                  &quot;{study.quote}&quot;
+                <div className="bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-emerald-400 leading-tight flex items-center space-x-1 truncate">
+                  <i className="fa-solid fa-circle-check text-[9px] text-emerald-400 flex-shrink-0"></i>
+                  <span className="truncate">{study.quote}</span>
                 </div>
               )}
             </div>
 
-            {/* Compact Video Card Thumbnail */}
+            {/* Compact Video Thumbnail */}
             <div
-              className="relative rounded-lg overflow-hidden bg-slate-900 border border-slate-200 mt-1 cursor-pointer group"
+              className="relative rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/90 mt-1 cursor-pointer group/vid"
               onClick={() => onVideoClick(study.videoTitle, "First Option Agency", study.embedId)}
             >
-              <div className="relative aspect-video w-full bg-slate-900 flex items-center justify-center">
+              <div className="relative aspect-video w-full bg-zinc-950 flex items-center justify-center">
                 <img
                   src={`https://img.youtube.com/vi/${study.embedId}/hqdefault.jpg`}
                   alt={study.title}
-                  className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity"
+                  className="w-full h-full object-cover opacity-80 group-hover/vid:opacity-100 group-hover/vid:scale-105 transition-all duration-300"
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 
-                {/* Overlay Title */}
-                <div className="absolute top-0 left-0 right-0 p-1 bg-gradient-to-b from-black/80 to-transparent flex items-center space-x-1 text-left">
-                  <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-purple-700 flex items-center justify-center font-bold text-white text-[8px] flex-shrink-0">
-                    F
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className="text-white font-bold text-[8px] sm:text-[10px] leading-tight truncate">
-                      {study.videoTitle}
-                    </p>
+                {/* Sleek Centered Play Button */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg group-hover/vid:scale-110 transition-transform">
+                    <i className="fa-solid fa-play text-[10px] sm:text-xs ml-0.5"></i>
                   </div>
                 </div>
 
-                {/* Play Button Icon */}
-                <div className="relative z-10 w-8 h-5 sm:w-10 sm:h-7 bg-red-600 rounded flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                  <div className="w-0 h-0 border-y-[3px] sm:border-y-[5px] border-y-transparent border-l-[7px] sm:border-l-[10px] border-l-white ml-0.5"></div>
+                {/* Video Title Chip */}
+                <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-300 font-medium">
+                  <span className="truncate max-w-[75%] drop-shadow">{study.videoTitle}</span>
+                  <span className="text-amber-400 font-bold drop-shadow">Watch</span>
                 </div>
               </div>
             </div>
@@ -198,47 +201,53 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
         ))}
 
         {/* Card 6: 12-Month Scaled Campaign & CRM Overview */}
-        <div className="gold-border-card bg-white text-slate-900 rounded-2xl p-2 sm:p-3.5 text-center space-y-1.5 shadow-md flex flex-col justify-between">
-          <div className="space-y-1">
-            <span className="inline-block bg-blue-100 text-blue-900 text-[8px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-              10k+ Leads
-            </span>
-            
-            <h3 className="text-xs sm:text-base font-black tracking-tight text-slate-950 truncate leading-snug">
-              1-Year Scaled Campaign
-            </h3>
-            
-            <p className="text-[9px] sm:text-xs font-bold text-slate-600 truncate">
-              Unani Consultant
-            </p>
-
-            <div className="flex justify-center items-center space-x-0.5 text-amber-400 text-[10px] sm:text-xs">
-              {[...Array(5)].map((_, sIdx) => (
-                <i key={sIdx} className="fa-solid fa-star"></i>
-              ))}
+        <div className="bg-zinc-950/90 border border-zinc-800/80 hover:border-blue-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                10k+ Leads
+              </span>
+              <div className="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5">
+                {[...Array(5)].map((_, sIdx) => (
+                  <i key={sIdx} className="fa-solid fa-star"></i>
+                ))}
+              </div>
             </div>
 
-            <div className="bg-blue-50/90 p-1.5 rounded-lg border border-blue-200/80 text-[9px] sm:text-xs font-extrabold text-slate-900 leading-snug">
-              &quot;10,482+ patient appointments generated in 1 year.&quot;
+            <div>
+              <h3 className="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-blue-400 transition-colors">
+                1-Year Scaled Campaign
+              </h3>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                Unani Consultant
+              </p>
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-blue-400 leading-tight flex items-center space-x-1 truncate">
+              <i className="fa-solid fa-chart-line text-[9px] text-blue-400 flex-shrink-0"></i>
+              <span className="truncate">10,482+ patient appointments</span>
             </div>
           </div>
 
           <div 
-            className="rounded-lg overflow-hidden border border-slate-300 bg-slate-900 mt-1 p-1.5 text-left cursor-pointer group"
+            className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2 text-left cursor-pointer group/crm"
             onClick={() => onVideoClick("10k Patient Leads Campaign", "First Option Agency", "n1qrvNAMOp4")}
           >
-            <div className="flex items-center justify-between text-[8px] sm:text-[10px] text-emerald-400 font-mono font-bold mb-0.5">
-              <span>LIVE CRM</span>
-              <span className="bg-emerald-600 text-white text-[7px] sm:text-[9px] px-1 rounded font-black">10,482</span>
+            <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-emerald-400 font-mono font-bold mb-1">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                LIVE CRM
+              </span>
+              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[7px] sm:text-[8px] px-1.5 py-0.5 rounded font-black">10,482</span>
             </div>
-            <div className="text-[8px] text-slate-300 font-mono space-y-0.5">
-              <div className="flex justify-between text-white font-bold">
+            <div className="text-[8px] sm:text-[9px] text-slate-300 font-mono space-y-0.5">
+              <div className="flex justify-between text-slate-200">
                 <span className="truncate">Shari Shukla</span>
-                <span className="text-emerald-400">Booked</span>
+                <span className="text-emerald-400 font-bold">Booked</span>
               </div>
-              <div className="flex justify-between text-white font-bold">
+              <div className="flex justify-between text-slate-200">
                 <span className="truncate">Moi Kukreja</span>
-                <span className="text-emerald-400">Booked</span>
+                <span className="text-emerald-400 font-bold">Booked</span>
               </div>
             </div>
           </div>
@@ -246,16 +255,16 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
       </div>
 
       {/* Fanned Card Deck Results Presentation */}
-      <div className="pt-4 space-y-4">
-        <div className="text-center space-y-1">
-          <div className="inline-flex items-center space-x-2 text-amber-400 font-extrabold text-xs tracking-widest uppercase bg-amber-500/10 px-3.5 py-1 rounded-full border border-amber-500/30">
-            <i className="fa-solid fa-layer-group text-xs"></i>
+      <div className="pt-2 space-y-2">
+        <div className="text-center space-y-0.5">
+          <div className="inline-flex items-center space-x-1.5 text-amber-400 font-extrabold text-[10px] sm:text-xs tracking-widest uppercase bg-amber-500/10 px-3 py-0.5 rounded-full border border-amber-500/30">
+            <i className="fa-solid fa-layer-group text-[10px]"></i>
             <span>Verified Live Campaign Proof</span>
           </div>
-          <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
+          <h3 className="text-lg sm:text-xl md:text-2xl font-black text-white tracking-tight">
             Real Client Campaign Results
           </h3>
-          <p className="text-xs sm:text-sm text-slate-300 font-medium">
+          <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
             Click the card stack to view all 12 verified campaign result screenshots
           </p>
         </div>
@@ -263,9 +272,9 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
         {/* Fanned Deck Interactive Trigger */}
         <div 
           onClick={() => setActiveModalIndex(0)}
-          className="relative max-w-lg mx-auto h-56 sm:h-72 md:h-80 my-4 cursor-pointer group flex items-center justify-center"
+          className="relative max-w-lg mx-auto h-44 sm:h-56 my-2 cursor-pointer group flex items-center justify-center"
         >
-          <div className="relative w-44 sm:w-60 md:w-72 h-44 sm:h-56 md:h-64 flex items-center justify-center">
+          <div className="relative w-36 sm:w-56 h-36 sm:h-52 flex items-center justify-center">
             {[
               resultImages[2], // 13.jpg.jpeg (-rotate-12)
               resultImages[1], // 12.jpg.jpeg (-rotate-6)
@@ -274,18 +283,18 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
               resultImages[4], // 15.jpg.jpeg (rotate-12)
             ].map((item, idx) => {
               const rotationClasses = [
-                "-rotate-12 -translate-x-10 sm:-translate-x-16 translate-y-2 z-0",
-                "-rotate-6 -translate-x-5 sm:-translate-x-8 translate-y-1 z-10",
-                "rotate-0 translate-y-0 z-30 scale-105 shadow-[0_0_30px_rgba(245,166,35,0.5)] border-amber-400",
-                "rotate-6 translate-x-5 sm:translate-x-8 translate-y-1 z-20",
-                "rotate-12 translate-x-10 sm:translate-x-16 translate-y-2 z-0",
+                "-rotate-12 -translate-x-8 sm:-translate-x-14 translate-y-1 z-0",
+                "-rotate-6 -translate-x-4 sm:-translate-x-7 translate-y-0.5 z-10",
+                "rotate-0 translate-y-0 z-30 scale-105 shadow-[0_0_25px_rgba(245,166,35,0.4)] border-amber-400",
+                "rotate-6 translate-x-4 sm:translate-x-7 translate-y-0.5 z-20",
+                "rotate-12 translate-x-8 sm:translate-x-14 translate-y-1 z-0",
               ][idx];
 
               return (
                 <div
                   key={idx}
-                  className={`absolute inset-0 rounded-2xl overflow-hidden border-2 shadow-[0_10px_25px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 ${
-                    idx === 2 ? "border-amber-400 shadow-[0_0_30px_rgba(245,166,35,0.5)]" : "border-amber-500/60"
+                  className={`absolute inset-0 rounded-xl overflow-hidden border-2 shadow-[0_8px_20px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 ${
+                    idx === 2 ? "border-amber-400 shadow-[0_0_25px_rgba(245,166,35,0.5)]" : "border-amber-500/60"
                   } ${rotationClasses}`}
                 >
                   <img
@@ -299,7 +308,7 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
             })}
 
             {/* Glowing Callout Badge */}
-            <div className="absolute z-40 -bottom-2 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 text-xs sm:text-sm font-black px-4 py-2 rounded-full shadow-[0_0_25px_rgba(245,166,35,0.7)] border border-amber-200 flex items-center space-x-2 group-hover:scale-110 transition-transform">
+            <div className="absolute z-40 -bottom-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 text-[10px] sm:text-xs font-black px-3 py-1.5 rounded-full shadow-[0_0_20px_rgba(245,166,35,0.6)] border border-amber-200 flex items-center space-x-1.5 group-hover:scale-105 transition-transform">
               <i className="fa-solid fa-images"></i>
               <span>Click to View 12 Live Results</span>
             </div>

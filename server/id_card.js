@@ -6,24 +6,87 @@ const { createCanvas, loadImage } = require("@napi-rs/canvas");
  * Server-Side ID / Confirmation Card Image Generator
  * Overlay lead details onto template card image (server/image/card.png)
  */
-async function generateConfirmationCardBuffer(data = {}) {
-  const fullName = data.fullName || data.name || " - ";
-  const phone = data.phone || " - ";
-  const email = data.email || " - ";
+const FIREBASE_DB_URL = (process.env.FIREBASE_DATABASE_URL || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://firstoption-8da25-default-rtdb.firebaseio.com").replace(/\/$/, "");
+const FIREBASE_DB_SECRET = process.env.FIREBASE_DB_SECRET || process.env.FIREBASE_DATABASE_SECRET || "";
 
+/**
+ * Fetch lead details from Firebase RTDB if missing from request payload
+ */
+async function fetchLeadFromFirebase(lookupKey) {
+  try {
+    if (!lookupKey) return null;
+    const authQuery = FIREBASE_DB_SECRET ? `?auth=${encodeURIComponent(FIREBASE_DB_SECRET)}` : "";
+    const res = await fetch(`${FIREBASE_DB_URL}/campaigns/firstoptionagency/leads.json${authQuery}`);
+    if (!res.ok) return null;
+    const leadsDateObj = await res.json();
+    if (!leadsDateObj) return null;
+
+    const cleanNum = String(lookupKey).replace(/\D/g, "");
+    const cleanEmail = String(lookupKey).toLowerCase().trim();
+
+    for (const [dateKey, leadsMap] of Object.entries(leadsDateObj)) {
+      if (!leadsMap || typeof leadsMap !== "object") continue;
+      for (const [leadId, lead] of Object.entries(leadsMap)) {
+        if (!lead || typeof lead !== "object") continue;
+        const pNum = lead.phone ? String(lead.phone).replace(/\D/g, "") : "";
+        const eAddr = lead.email ? String(lead.email).toLowerCase().trim() : "";
+
+        if (
+          (cleanNum && cleanNum.length >= 5 && pNum && (pNum.endsWith(cleanNum) || cleanNum.endsWith(pNum))) ||
+          (cleanEmail && eAddr === cleanEmail) ||
+          (cleanEmail && leadId && leadId.includes(cleanEmail.replace(/[^a-z0-9]/g, "_")))
+        ) {
+          return lead;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("fetchLeadFromFirebase Exception:", err);
+  }
+  return null;
+}
+
+/**
+ * Server-Side ID / Confirmation Card Image Generator
+ * Overlay lead details onto template card image (server/image/card.png)
+ */
+async function generateConfirmationCardBuffer(data = {}) {
+  let fullName = (data.fullName || data.name || "").trim();
+  let phone = (data.phone || "").trim();
+  let email = (data.email || "").trim();
+  let dateStr = (data.date || data.meetingDate || "").trim();
+  let timeStr = (data.time || data.meetingTime || "").trim();
+
+  // Automatic Firebase Lookup Fallback if details are missing or empty
+  if (!fullName || fullName === "-" || !email || email === "-") {
+    const targetLookup = phone || email || fullName;
+    if (targetLookup) {
+      const fbLead = await fetchLeadFromFirebase(targetLookup);
+      if (fbLead) {
+        if (!fullName || fullName === "-") fullName = fbLead.fullName || "";
+        if (!email || email === "-") email = fbLead.email || "";
+        if (!phone || phone === "-") phone = fbLead.phone || "";
+        if (!dateStr && fbLead.meeting?.meetingDate) dateStr = fbLead.meeting.meetingDate;
+        if (!timeStr && fbLead.meeting?.meetingTime) timeStr = fbLead.meeting.meetingTime;
+      }
+    }
+  }
+
+  // Final Fallback values if still empty
+  fullName = fullName || "Valued Client";
+  email = email || "N/A";
+  phone = phone || "N/A";
   const today = new Date();
-  const dateStr =
-    data.date ||
-    data.meetingDate ||
+  dateStr =
+    dateStr ||
     today.toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
       year: "numeric",
     });
 
-  const timeStr =
-    data.time ||
-    data.meetingTime ||
+  timeStr =
+    timeStr ||
     today.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",

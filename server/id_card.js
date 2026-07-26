@@ -127,7 +127,7 @@ async function generateConfirmationCardBuffer(data = {}) {
 
   // 2. Configure bold, crisp professional typography
   ctx.fillStyle = "#0f172a"; // Deep slate text
-  ctx.font = "bold 30px Poppins, Roboto, Arial, sans-serif";
+  ctx.font = "bold 40px Poppins, Roboto, Arial, sans-serif";
 
   // 3. Draw text fields perfectly centered vertically inside white rows
   const startX = 185;

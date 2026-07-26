@@ -172,9 +172,14 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
     const startIso = `${year}-${pad(month)}-${pad(day)}T${pad(startHour)}:${pad(startMin)}:00+05:30`;
     const endIso = `${endYear}-${pad(endMonth)}-${pad(endDay)}T${pad(endHour)}:${pad(endMin)}:00+05:30`;
 
+    const cleanLeadName = fullName || "Faiz Ansari";
+    const organizerObj = activeOAuthAcc.email
+      ? { email: activeOAuthAcc.email, displayName: activeOAuthAcc.name || "First Option Agency" }
+      : { email: "booking@firstoption.agency", displayName: "First Option Agency" };
+
     const eventPayload = {
-      summary: `Strategy Session with ${fullName || "Client"}`,
-      description: `Strategy Session booked via CRM. Client Email: ${email || "N/A"}`,
+      summary: `Strategy Session with ${cleanLeadName}`,
+      description: `1-on-1 Business Growth Strategy Session with First Option Agency.\n\nClient Name: ${cleanLeadName}\nClient Email: ${email || "N/A"}`,
       start: {
         dateTime: startIso,
         timeZone: "Asia/Kolkata",
@@ -183,7 +188,8 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
         dateTime: endIso,
         timeZone: "Asia/Kolkata",
       },
-      attendees: email ? [{ email }] : [],
+      organizer: organizerObj,
+      attendees: email ? [{ email, displayName: cleanLeadName, responseStatus: "accepted" }] : [],
       conferenceData: {
         createRequest: {
           requestId: `valdho_meet_${Date.now()}_${Math.random().toString(36).substring(7)}`,
@@ -192,7 +198,7 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
       },
     };
 
-    const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1", {
+    const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,

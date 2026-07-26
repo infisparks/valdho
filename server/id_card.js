@@ -127,15 +127,15 @@ async function generateConfirmationCardBuffer(data = {}) {
 
   // 2. Configure bold, crisp professional typography
   ctx.fillStyle = "#0f172a"; // Deep slate text
-  ctx.font = "bold 26px Poppins, Roboto, Arial, sans-serif";
+  ctx.font = "bold 30px Poppins, Roboto, Arial, sans-serif";
 
   // 3. Draw text fields perfectly centered vertically inside white rows
   const startX = 185;
   ctx.fillText(fullName, startX, 513);
-  ctx.fillText(formattedPhone, startX, 566);
-  ctx.fillText(email, startX, 630);
-  ctx.fillText(dateStr, startX, 694);
-  ctx.fillText(timeStr, startX, 758);
+  ctx.fillText(formattedPhone, startX, 576);
+  ctx.fillText(email, startX, 640);
+  ctx.fillText(dateStr, startX, 704);
+  ctx.fillText(timeStr, startX, 768);
 
   return canvas.toBuffer("image/png");
 }

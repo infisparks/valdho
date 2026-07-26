@@ -215,13 +215,13 @@ export default function Home() {
 
           <button
             onClick={handleOpenBooking}
-            className="w-full cta-gold-btn shimmer rounded-2xl p-4 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all shadow-2xl"
+            className="w-full cta-gold-btn shimmer rounded-2xl p-3 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all shadow-2xl overflow-hidden"
           >
-            <div className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wide flex items-center justify-center space-x-2">
+            <div className="text-xs min-[360px]:text-sm sm:text-xl md:text-2xl lg:text-3xl font-black uppercase tracking-tight sm:tracking-wide flex items-center justify-center space-x-1.5 whitespace-nowrap overflow-hidden text-ellipsis">
               <span>CLAIM YOUR GROWTH SESSION</span>
-              <i className="fa-solid fa-arrow-right"></i>
+              <i className="fa-solid fa-arrow-right text-xs sm:text-lg flex-shrink-0"></i>
             </div>
-            <div className="text-xs sm:text-sm md:text-base font-extrabold text-slate-900 mt-1">
+            <div className="text-[10px] sm:text-xs md:text-sm font-extrabold text-slate-900 mt-0.5 sm:mt-1">
               Only 3 spots left for this month. 100% Free Strategy Blueprint.
             </div>
           </button>

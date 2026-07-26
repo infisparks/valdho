@@ -754,7 +754,7 @@ export default function ManagementPage() {
                         </div>
                       ) : (
                         roleTasks.map((task) => {
-                          const isTaskDone = task.isCompleted || activeFlow.status === "completed";
+                          const isTaskDone = Boolean(task.isCompleted === true);
                           const originalStepIdx = activeFlow.tasks.findIndex((t) => t.id === task.id) + 1;
                           const currentDraftText =
                             draftTexts[task.id] !== undefined ? draftTexts[task.id] : (task.textValue || "");

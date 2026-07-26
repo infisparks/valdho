@@ -6101,7 +6101,7 @@ export default function CRMPage() {
                           </div>
                         ) : (
                           roleTasks.map((task) => {
-                            const isTaskDone = task.isCompleted || viewFlowAuditModal.status === "completed";
+                            const isTaskDone = Boolean(task.isCompleted === true);
                             const originalStepIdx = viewFlowAuditModal.tasks.findIndex((t) => t.id === task.id) + 1;
 
                             return (

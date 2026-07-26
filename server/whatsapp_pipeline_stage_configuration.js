@@ -718,7 +718,9 @@ router.post("/execute-task", async (req, res) => {
     const leadEquivs = stageEquivalents[currentLeadNorm] || [currentLeadNorm];
     const ruleEquivs = stageEquivalents[ruleStageNorm] || [ruleStageNorm];
 
-    const isStageMatching = leadEquivs.some((eq) => ruleEquivs.includes(eq)) || (ruleStageNorm && currentLeadNorm && (ruleStageNorm.includes(currentLeadNorm) || currentLeadNorm.includes(ruleStageNorm)));
+    const isCustomMessage = stageId === "custom_scheduled_message" || triggerBase === "custom" || (ruleId && String(ruleId).startsWith("sch_"));
+
+    const isStageMatching = isCustomMessage || leadEquivs.some((eq) => ruleEquivs.includes(eq)) || (ruleStageNorm && currentLeadNorm && (ruleStageNorm.includes(currentLeadNorm) || currentLeadNorm.includes(ruleStageNorm)));
 
     if (!isStageMatching) {
       console.warn(`[Cloud Tasks Executor 🛑 ABORT] Lead '${cleanNumber}' stage in RTDB ('${currentLeadStage}') no longer matches rule stage ('${stageId}'). Aborting task execution.`);
@@ -813,9 +815,13 @@ router.post("/execute-task", async (req, res) => {
     await firebaseDb(`whatsapp_logs/${targetInstance}/${logId}`, "PUT", logData);
     await firebaseDb(`whatsapp_lead_logs/${cleanNumber}/${logId}`, "PUT", logData);
 
-    // 8. Clean up task tracking node on success
+    // 8. Clean up task tracking node on success & update custom scheduled message status
     if (taskId && isSuccess) {
       await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
+    }
+    if (ruleId && String(ruleId).startsWith("sch_") && isSuccess) {
+      await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${ruleId}/status`, "PUT", "sent");
+      await firebaseDb(`lead_whatapp_send_by_date/${cleanNumber}/${ruleId}/sentAt`, "PUT", new Date().toISOString());
     }
 
     // 9. Handle Retries & Recurrence

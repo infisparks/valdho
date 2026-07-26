@@ -796,7 +796,22 @@ router.post("/auto-send-meeting", async (req, res) => {
     const autoUniqueUrl = await createUniqueGoogleMeetEvent({ fullName, email, dateStr: date, timeStr: time });
     const resolvedMeetingUrl = meetingUrl || autoUniqueUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
 
-    // Determine if WhatsApp message should be sent WITH CARD image or WITHOUT CARD
+    // Format custom message template configured in WhatsApp Manager Page
+    let rawTemplate =
+      stepConfig.template ||
+      "🎉 *Appointment Confirmed!*\n\nHi *{{name}}*,\nYour 1-on-1 Business Growth Consultation has been booked successfully.\n\n📅 *Date:* {{date}}\n⏰ *Time:* {{time}}\n📧 *Email:* {{email}}\n🎥 *Google Meet Link:* {{meeting_url}}\n\nWe're excited to help you scale your business revenue!";
+
+    const formattedMessage = rawTemplate
+      .replace(/\{\{\s*name\s*\}\}/gi, fullName || "Valued Client")
+      .replace(/\{\{\s*email\s*\}\}/gi, email || "N/A")
+      .replace(/\{\{\s*phone\s*\}\}/gi, phone || "N/A")
+      .replace(/\{\{\s*date\s*\}\}/gi, date || "Upcoming Date")
+      .replace(/\{\{\s*time\s*\}\}/gi, time || "Scheduled Time")
+      .replace(/\{\{\s*meeting_url\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
+      .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl);
+
+    // Determine if WhatsApp message should be sent WITH CARD image or WITHOUT CARD text
     const sendWithCard = stepConfig.sendWithCard !== false;
 
     const { generateAndSendWhatsAppCard } = require("./id_card");
@@ -807,6 +822,7 @@ router.post("/auto-send-meeting", async (req, res) => {
       date: date || "Upcoming Date",
       time: time || "Scheduled Time",
       meetingUrl: resolvedMeetingUrl,
+      customMessage: formattedMessage,
       instanceName,
       sendWithCard,
     });

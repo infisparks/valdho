@@ -150,6 +150,7 @@ async function generateAndSendWhatsAppCard({
   date,
   time,
   meetingUrl,
+  customMessage,
   instanceName,
   sendWithCard = true,
 }) {
@@ -163,6 +164,7 @@ async function generateAndSendWhatsAppCard({
 
     const meetUrl = meetingUrl || "https://meet.google.com/firstoption-strategy-call";
     const captionText =
+      customMessage ||
       `🎉 *Appointment Confirmed!*\n\n` +
       `Hi *${fullName || "Valued Client"}*,\n` +
       `Your 1-on-1 Business Growth Consultation has been booked successfully.\n\n` +

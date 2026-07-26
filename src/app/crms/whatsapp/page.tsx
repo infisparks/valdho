@@ -833,22 +833,42 @@ export default function WhatsappManagerPage() {
                   <span>Step 3/4: Calendar Meeting Booked Confirmation 📅</span>
                 </h3>
 
-                <label className="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl cursor-pointer hover:bg-emerald-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={config.step3Meeting.isEnabled}
-                    onChange={(e) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        step3Meeting: { ...prev.step3Meeting, isEnabled: e.target.checked },
-                      }))
-                    }
-                    className="w-3.5 h-3.5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <span className="text-[11px] font-bold text-emerald-800">
-                    {config.step3Meeting.isEnabled ? "Step 3 Active ✓" : "Step 3 Off ❌"}
-                  </span>
-                </label>
+                <div className="flex items-center space-x-2.5">
+                  <label className="flex items-center space-x-2 bg-amber-50 border border-amber-300 px-3 py-1 rounded-xl cursor-pointer hover:bg-amber-100 transition-colors shadow-2xs">
+                    <input
+                      type="checkbox"
+                      checked={config.step3Meeting.sendWithCard !== false}
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          step3Meeting: { ...prev.step3Meeting, sendWithCard: e.target.checked },
+                        }))
+                      }
+                      className="w-3.5 h-3.5 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                    />
+                    <span className="text-[11px] font-extrabold text-amber-900 flex items-center space-x-1">
+                      <span>🪪</span>
+                      <span>{config.step3Meeting.sendWithCard !== false ? "Send Card Image ✓" : "Send Text Only 💬"}</span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl cursor-pointer hover:bg-emerald-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={config.step3Meeting.isEnabled}
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          step3Meeting: { ...prev.step3Meeting, isEnabled: e.target.checked },
+                        }))
+                      }
+                      className="w-3.5 h-3.5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span className="text-[11px] font-bold text-emerald-800">
+                      {config.step3Meeting.isEnabled ? "Step 3 Active ✓" : "Step 3 Off ❌"}
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <div className="space-y-1">

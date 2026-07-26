@@ -672,8 +672,9 @@ export default function CRMPage() {
     setActiveAutomationStage(stage);
     setIsStageAutomationModalOpen(true);
     setRuleTitle("");
-    setRuleTriggerBase(stage.id === "meeting_booked" ? "meeting" : "created");
-    setRuleOffsetType("before");
+    const isMeetingStage = stage.id === "meeting_booked";
+    setRuleTriggerBase(isMeetingStage ? "meeting" : "created");
+    setRuleOffsetType(isMeetingStage ? "before" : "after");
     setRuleOffsetValue(10);
     setRuleOffsetUnit("minutes");
     setRuleTemplate(`Hello {{name}}, reminder for your session in stage "${stage.name}" at {{time}} on {{date}}!`);
@@ -693,7 +694,7 @@ export default function CRMPage() {
           title: ruleTitle.trim(),
           instanceName: ruleInstanceName,
           triggerBase: ruleTriggerBase,
-          offsetType: ruleOffsetType,
+          offsetType: ruleTriggerBase === "created" ? "after" : ruleOffsetType,
           offsetValue: ruleOffsetValue,
           offsetUnit: ruleOffsetUnit,
           template: ruleTemplate,
@@ -3521,8 +3522,9 @@ export default function CRMPage() {
                                   if (rule.offsetUnit === "days") offsetMs = Number(rule.offsetValue) * 86400 * 1000;
                                   if (offsetMs <= 0) offsetMs = 60000;
 
+                                  let effectiveOffsetType = rule.triggerBase === "created" ? "after" : rule.offsetType;
                                   let targetMs = 0;
-                                  if (rule.offsetType === "before") {
+                                  if (effectiveOffsetType === "before") {
                                     targetMs = refDate.getTime() - offsetMs;
                                   } else {
                                     targetMs = refDate.getTime() + offsetMs;
@@ -6604,12 +6606,13 @@ export default function CRMPage() {
                       </button>
                     </div>
                     <select
-                      value={ruleOffsetType}
+                      value={ruleTriggerBase === "created" ? "after" : ruleOffsetType}
                       onChange={(e) => setRuleOffsetType(e.target.value as any)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                      disabled={ruleTriggerBase === "created"}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
                     >
-                      <option value="before">⏳ Before Event Target</option>
                       <option value="after">⏩ After Event Entry</option>
+                      {ruleTriggerBase === "meeting" && <option value="before">⏳ Before Event Target</option>}
                     </select>
 
                     {showTimingDirectionInfo && (
@@ -6712,7 +6715,7 @@ export default function CRMPage() {
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <span className="text-xs font-extrabold text-slate-900">{rule.title}</span>
                             <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 uppercase">
-                              {rule.offsetValue} {rule.offsetUnit} {rule.offsetType} ({rule.triggerBase})
+                              {rule.offsetValue} {rule.offsetUnit} {rule.triggerBase === "created" ? "after" : rule.offsetType} ({rule.triggerBase})
                             </span>
                           </div>
                           <p className="text-xs text-slate-600 italic truncate font-mono">

@@ -493,7 +493,10 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
       let scheduledTriggerTimeMs = 0;
       let triggerKey = "";
 
-      if (rule.offsetType === "before") {
+      // Rules based on Lead Creation MUST be 'after' (adding offset) to avoid past-date triggers
+      const effectiveOffsetType = rule.triggerBase === "created" ? "after" : rule.offsetType;
+
+      if (effectiveOffsetType === "before") {
         scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
         triggerKey = `auto_${cleanPhone}_stg_${currentStage}_rule_${rule.id}_m_${meetingKey || "bef"}`;
       } else {

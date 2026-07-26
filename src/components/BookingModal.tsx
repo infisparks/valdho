@@ -185,7 +185,7 @@ export function BookingModal({
             if (fbLead.survey) {
               setQAnswers(fbLead.survey as Record<string, string>);
             }
-            // If lead already has a booked meeting, restore date/time and show confirmation
+            // Restore booked date/time if present
             if (fbLead.meeting?.meetingDate && fbLead.meeting?.meetingTime) {
               setSelectedTimeSlot(fbLead.meeting.meetingTime);
               const parts = fbLead.meeting.meetingDate.split("-");
@@ -199,6 +199,9 @@ export function BookingModal({
                   setSelectedDay(d);
                 }
               }
+            }
+            // ONLY jump to step 4 if initialStep was explicitly passed as step 3 or 4 (e.g. direct meeting URL)
+            if (initialStep === 3 || initialStep === 4) {
               setStep(4);
             }
             foundContact = true;
@@ -252,24 +255,29 @@ export function BookingModal({
     fetchSlots();
   }, [isOpen, step, selectedDay, currentMonthIndex, currentYear, activeCampaign.id]);
 
-  // Auto-restore profile when user finishes typing email in Step 1
+  // Auto-restore or branch lead profile when user finishes typing email in Step 1
   const handleEmailBlur = async () => {
     if (contactInfo.email && contactInfo.email.includes("@")) {
       const emailPrefixId = sanitizeEmailToId(contactInfo.email);
-      const existingMatch = await findExistingLead(emailPrefixId, createdDate, activeCampaign.id);
+      const existingMatch = await findExistingLead(emailPrefixId, null, activeCampaign.id);
       if (existingMatch && existingMatch.lead) {
+        // SAME EMAIL: Match existing lead and restore details for update
         const fbLead = existingMatch.lead;
         setFirebaseLeadId(emailPrefixId);
         setCreatedDate(existingMatch.createdDate);
         setContactInfo((prev) => ({
           fullName: prev.fullName || fbLead.fullName || "",
-          email: prev.email || fbLead.email || "",
+          email: contactInfo.email,
           phone: prev.phone || fbLead.phone || "",
           countryCode: prev.countryCode || fbLead.countryCode || "+91",
         }));
         if (fbLead.survey) {
-          setQAnswers(fbLead.survey as Record<string, string>);
+          setQAnswers((prev) => ({ ...(fbLead.survey as Record<string, string>), ...prev }));
         }
+      } else {
+        // SEPARATE EMAIL: Treat as a new separate lead
+        setFirebaseLeadId(emailPrefixId);
+        setCreatedDate(new Date().toISOString().split("T")[0]);
       }
     }
   };

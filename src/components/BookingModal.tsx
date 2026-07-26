@@ -931,12 +931,21 @@ export function BookingModal({
             Confirm Slot On WhatsApp & Go Home
           </a>
 
-          <button
-            onClick={handleReset}
-            className="w-full bg-zinc-800 hover:bg-zinc-700 text-slate-200 font-bold py-2.5 px-4 rounded-xl text-xs transition-colors block"
-          >
-            Back to Home Page
-          </button>
+          <div className="flex items-center space-x-2 pt-1">
+            <button
+              onClick={() => setStep(3)}
+              className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5"
+            >
+              <i className="fa-solid fa-calendar-pen text-xs"></i>
+              <span>Change / Reselect Slot</span>
+            </button>
+            <button
+              onClick={handleReset}
+              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors"
+            >
+              Back to Home
+            </button>
+          </div>
         </div>
       )}
     </div>

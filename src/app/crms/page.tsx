@@ -497,7 +497,9 @@ export default function CRMPage() {
   const [isLoadingLeadLogs, setIsLoadingLeadLogs] = useState(false);
   const [visibleLogsCount, setVisibleLogsCount] = useState<number>(20);
 
-
+  // DELETE LEAD CONFIRMATION MODAL STATE
+  const [deleteConfirmModalLead, setDeleteConfirmModalLead] = useState<LeadData | null>(null);
+  const [deleteInputText, setDeleteInputText] = useState<string>("");
 
   const handleOpenLeadLogsModal = (lead: LeadData) => {
     setSelectedLeadForLogs(lead);
@@ -1386,21 +1388,27 @@ export default function CRMPage() {
     setOnboardConfirmModalLead(null);
   };
 
-  // Permanently Delete Lead Record
-  const handleDeleteLead = async (leadToDelete: LeadData) => {
+  // Open Delete Confirmation Modal
+  const handleDeleteLead = (leadToDelete: LeadData) => {
+    setDeleteConfirmModalLead(leadToDelete);
+    setDeleteInputText("");
+  };
+
+  // Perform Permanent Delete upon typing 'delete' in confirmation modal
+  const handleConfirmDeleteLeadAction = async () => {
+    if (!deleteConfirmModalLead) return;
+    if (deleteInputText.trim().toLowerCase() !== "delete") {
+      alert("Please type 'delete' to confirm deletion.");
+      return;
+    }
+
+    const leadToDelete = deleteConfirmModalLead;
     const targetLeadId = leadToDelete.id || (leadToDelete.email ? sanitizeEmailToId(leadToDelete.email) : "");
     if (!targetLeadId) {
       alert("Cannot delete lead: Lead ID not found.");
       return;
     }
-    const displayName = leadToDelete.fullName || "Anonymous Lead";
-    if (
-      !confirm(
-        `Are you sure you want to permanently delete lead '${displayName}' from the database? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
+
     setIsDeletingLead(true);
     try {
       const res = await deleteLead(
@@ -1417,6 +1425,8 @@ export default function CRMPage() {
           setIsDrawerOpen(false);
           setSelectedLead(null);
         }
+        setDeleteConfirmModalLead(null);
+        setDeleteInputText("");
       } else {
         alert(res.message || "Failed to delete lead from database.");
       }
@@ -6918,6 +6928,94 @@ export default function CRMPage() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PERMANENT DELETE LEAD CONFIRMATION MODAL */}
+      {deleteConfirmModalLead && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4 font-sans animate-in fade-in zoom-in duration-150">
+          <div className="fixed inset-0" onClick={() => !isDeletingLead && setDeleteConfirmModalLead(null)} />
+
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-rose-200 z-10 p-6 space-y-5">
+            {/* Header */}
+            <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
+              <div className="w-11 h-11 rounded-2xl bg-rose-100 border border-rose-200 text-rose-600 flex items-center justify-center font-black text-xl shadow-xs">
+                <i className="fa-solid fa-triangle-exclamation"></i>
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Permanently Delete Lead?
+                </h3>
+                <p className="text-xs text-rose-600 font-bold">
+                  This action CANNOT be undone!
+                </p>
+              </div>
+            </div>
+
+            {/* Target Lead Record Details */}
+            <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-4 space-y-1.5 font-sans">
+              <div className="text-[10px] font-black uppercase text-rose-700 tracking-wider">
+                Target Lead Record
+              </div>
+              <div className="text-sm font-extrabold text-slate-900">
+                👤 {deleteConfirmModalLead.fullName || "Anonymous Lead"}
+              </div>
+              <div className="text-xs font-mono font-semibold text-slate-700 flex items-center space-x-3">
+                <span>📞 {deleteConfirmModalLead.phone || "N/A"}</span>
+                <span>✉️ {deleteConfirmModalLead.email || "N/A"}</span>
+              </div>
+              {deleteConfirmModalLead.meeting?.meetingDate && (
+                <div className="text-[11px] font-bold text-slate-600">
+                  📅 Scheduled Meeting: {deleteConfirmModalLead.meeting.meetingDate} ({deleteConfirmModalLead.meeting.meetingTime})
+                </div>
+              )}
+            </div>
+
+            {/* User Typing Confirmation Form */}
+            <div className="space-y-2">
+              <label className="block text-xs font-extrabold text-slate-700">
+                To confirm deletion, type <span className="bg-rose-100 text-rose-900 font-mono px-1.5 py-0.5 rounded border border-rose-300 font-black">delete</span> below:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Type 'delete' to confirm"
+                value={deleteInputText}
+                onChange={(e) => setDeleteInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && deleteInputText.trim().toLowerCase() === "delete" && !isDeletingLead) {
+                    handleConfirmDeleteLeadAction();
+                  }
+                }}
+                className="w-full bg-slate-50 border border-slate-300 focus:border-rose-600 focus:bg-white rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 placeholder:font-sans"
+              />
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingLead}
+                onClick={() => {
+                  setDeleteConfirmModalLead(null);
+                  setDeleteInputText("");
+                }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs py-2.5 rounded-xl transition-all border border-slate-200 cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeletingLead || deleteInputText.trim().toLowerCase() !== "delete"}
+                onClick={handleConfirmDeleteLeadAction}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <i className={`fa-solid fa-trash-can ${isDeletingLead ? "fa-spin" : ""}`}></i>
+                <span>{isDeletingLead ? "Deleting..." : "Permanently Delete Lead"}</span>
+              </button>
             </div>
           </div>
         </div>

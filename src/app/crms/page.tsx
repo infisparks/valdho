@@ -603,14 +603,19 @@ export default function CRMPage() {
     setIsLoadingCloudQueue(true);
     try {
       const res = await fetch(`${SERVER_URL}/api/whatsapp/scheduled-tasks/list`);
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
       const data = await res.json();
-      if (data.success) {
+      if (data && data.success) {
         setCloudQueueList(data.tasks || []);
       } else {
-        alert("Failed to load Cloud Tasks Queue: " + data.error);
+        console.warn("Cloud Tasks Queue response:", data);
+        setCloudQueueList([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch Cloud Tasks Queue error:", err);
+      setCloudQueueList([]);
     } finally {
       setIsLoadingCloudQueue(false);
     }

@@ -86,6 +86,9 @@ export default function Home() {
   });
 
   const handleOpenBooking = useCallback(() => {
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     setBookingConfig({
       isOpen: true,
       step: 1,

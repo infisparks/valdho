@@ -128,11 +128,11 @@ export function BookingModal({
   // Synchronize initialStep when modal opens or URL parameters change
   useEffect(() => {
     if (isOpen) {
-      if (initialStep) setStep(initialStep);
+      if (initialStep && !isReselectingSlot) setStep(initialStep);
       if (initialLeadId) setFirebaseLeadId(initialLeadId);
       if (initialCreatedDate) setCreatedDate(initialCreatedDate);
     }
-  }, [isOpen, initialStep, initialLeadId, initialCreatedDate]);
+  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, isReselectingSlot]);
 
   // Dynamically sync browser URL address bar params when step changes
   useEffect(() => {
@@ -939,6 +939,9 @@ export function BookingModal({
           <div className="flex items-center space-x-2 pt-1">
             <button
               onClick={() => {
+                if (typeof window !== "undefined" && window.location.search) {
+                  window.history.replaceState({}, "", window.location.pathname);
+                }
                 setIsReselectingSlot(true);
                 setStep(3);
               }}

@@ -36,6 +36,7 @@ interface MessageLog {
 interface StepConfig {
   isEnabled: boolean;
   template: string;
+  sendWithCard?: boolean;
 }
 
 interface GoogleMeetAccount {
@@ -230,6 +231,7 @@ export default function WhatsappManagerPage() {
           },
           step3Meeting: {
             isEnabled: data.step3Meeting?.isEnabled !== false,
+            sendWithCard: data.step3Meeting?.sendWithCard !== false,
             template:
               data.step3Meeting?.template ||
               "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}",

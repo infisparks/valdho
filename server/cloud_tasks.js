@@ -157,24 +157,43 @@ async function listScheduledTasks() {
     const client = getCloudTasksClient();
     const parent = client.queuePath(projectId, location, queueName);
 
-    const [tasks] = await client.listTasks({ parent });
+    const [tasks] = await client.listTasks({ parent, responseView: "FULL" });
     
     const formattedTasks = tasks.map((task) => {
       let payload = {};
       try {
         if (task.httpRequest && task.httpRequest.body) {
-          const buff = Buffer.from(task.httpRequest.body, "base64");
-          payload = JSON.parse(buff.toString("utf-8"));
+          let rawBody = task.httpRequest.body;
+          if (Buffer.isBuffer(rawBody)) {
+            rawBody = rawBody.toString("utf-8");
+          } else if (typeof rawBody === "string") {
+            try {
+              const decoded = Buffer.from(rawBody, "base64").toString("utf-8");
+              if (decoded.startsWith("{")) rawBody = decoded;
+            } catch (e) {}
+          }
+          payload = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
         }
       } catch (e) {}
 
+      const rawTaskId = payload.taskId || task.name.split("/").pop() || "";
+      
+      // Fallback parsing from task ID structure: task_PHONE_RULEID_MEETINGKEY_TIMESTAMP
+      let extractedPhone = payload.leadPhone;
+      if (!extractedPhone && rawTaskId.startsWith("task_")) {
+        const parts = rawTaskId.split("_");
+        if (parts.length >= 2 && parts[1].length >= 10) {
+          extractedPhone = "+" + parts[1];
+        }
+      }
+
       return {
         name: task.name,
-        taskId: payload.taskId || task.name.split("/").pop(),
+        taskId: rawTaskId,
         scheduleTimeSeconds: task.scheduleTime ? parseInt(task.scheduleTime.seconds, 10) : 0,
-        leadPhone: payload.leadPhone || "Unknown Phone",
-        ruleTitle: payload.ruleTitle || "System Rule",
-        stageId: payload.stageId || "Unknown Stage",
+        leadPhone: extractedPhone || payload.leadPhone || "Unknown Phone",
+        ruleTitle: payload.ruleTitle || (rawTaskId.includes("fallback") ? "Auto Funnel Welcome" : "Stage Automation Rule"),
+        stageId: payload.stageId || "Active Pipeline Stage",
         payload: payload,
       };
     });

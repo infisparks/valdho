@@ -288,20 +288,48 @@ async function cancelAllLeadTasks(leadPhone) {
   }
 }
 
+const leadSyncLocks = new Map();
+
 /**
  * Unified Function: Sync Lead Automations
  * Calculates future execution times based on active stage rules and schedules Google Cloud Tasks.
+ * Production-grade: Serialized per phone number with in-memory mutex to prevent race conditions.
  */
 async function syncLeadAutomations(leadData, previousStage = null, previousMeetingTime = null) {
+  if (!leadData) return { success: false, error: "leadData is required" };
+
+  const cleanPhone = sanitizePhoneNumber(leadData.phone || leadData.number);
+  if (!cleanPhone || cleanPhone.length < 5) {
+    console.warn("[Cloud Tasks ⚠️] Lead has no valid phone number. Skipping automation sync.");
+    return { success: false, error: "No valid phone number" };
+  }
+
+  // Acquire per-phone lock to serialize rapid concurrent requests
+  const existingLock = leadSyncLocks.get(cleanPhone);
+  if (existingLock) {
+    try {
+      await existingLock;
+    } catch (e) {}
+  }
+
+  let resolveLock;
+  const currentLockPromise = new Promise((res) => {
+    resolveLock = res;
+  });
+  leadSyncLocks.set(cleanPhone, currentLockPromise);
+
   try {
-    if (!leadData) return { success: false, error: "leadData is required" };
-
-    const cleanPhone = sanitizePhoneNumber(leadData.phone || leadData.number);
-    if (!cleanPhone || cleanPhone.length < 5) {
-      console.warn("[Cloud Tasks ⚠️] Lead has no valid phone number. Skipping automation sync.");
-      return { success: false, error: "No valid phone number" };
+    return await _executeSyncLeadAutomationsInternal(leadData, previousStage, previousMeetingTime, cleanPhone);
+  } finally {
+    resolveLock();
+    if (leadSyncLocks.get(cleanPhone) === currentLockPromise) {
+      leadSyncLocks.delete(cleanPhone);
     }
+  }
+}
 
+async function _executeSyncLeadAutomationsInternal(leadData, previousStage, previousMeetingTime, cleanPhone) {
+  try {
     const currentStage = leadData.pipelineStage || leadData.status || leadData.stage || "raw";
     const normStage = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
@@ -367,10 +395,11 @@ async function syncLeadAutomations(leadData, previousStage = null, previousMeeti
 
     const currentEquivs = stageEquivalents[currentNorm] || [currentNorm];
 
+    // Strict Rule Matching (avoid loose substring collisions)
     let matchingRules = activeRules.filter((r) => {
       const rStgNorm = normStage(r.stageId);
       const rEquivs = stageEquivalents[rStgNorm] || [rStgNorm];
-      return rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && (rStgNorm.includes(currentNorm) || currentNorm.includes(rStgNorm)));
+      return rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && rStgNorm === currentNorm);
     });
 
     // Auto Funnel Fallback Engine

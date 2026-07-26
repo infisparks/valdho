@@ -550,7 +550,7 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
 
       const targetSeconds = scheduledSeconds < currentSeconds - 120 ? currentSeconds + 5 : Math.max(currentSeconds + 5, scheduledSeconds);
 
-      const taskId = `task_${cleanPhone}_${rule.id}_${meetingKey || "t"}_${targetSeconds}`;
+      const taskId = `task_${cleanPhone}_${rule.id}_${meetingKey || "t"}_${targetSeconds}_${Date.now().toString(36)}`;
       const webhookUrl = `${SERVER_PUBLIC_URL}/api/whatsapp/execute-task`;
 
       const webhookPayload = {

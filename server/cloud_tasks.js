@@ -88,15 +88,24 @@ async function createScheduledHttpTask({ taskId, url, payload, scheduleTimeSecon
       scheduledTimeSeconds: scheduleTimeSeconds,
     };
   } catch (err) {
-    // Error code 6 = ALREADY_EXISTS in GCP gRPC
+    // Error code 6 = ALREADY_EXISTS in GCP gRPC (tombstoned task name from deleted/executed task within 1hr)
     if (err.code === 6 || (err.message && err.message.includes("ALREADY_EXISTS"))) {
-      console.log(`[Cloud Tasks ⏩] Task '${sanitizedTaskId}' already exists in queue. Skipping duplicate creation.`);
-      return {
-        success: true,
-        taskName: fullTaskName,
-        taskId: sanitizedTaskId,
-        scheduledTimeSeconds: scheduleTimeSeconds,
-      };
+      console.warn(`[Cloud Tasks ⚠️] Task name '${sanitizedTaskId}' is tombstoned or already exists in GCP. Re-trying with unique suffix...`);
+      try {
+        const retryTaskId = `${sanitizedTaskId}_r${Date.now().toString(36)}`;
+        const retryFullTaskName = client.taskPath(projectId, location, queueName, retryTaskId);
+        task.name = retryFullTaskName;
+        const [retryResponse] = await client.createTask({ parent, task });
+        console.log(`[Cloud Tasks ✅] Successfully scheduled Cloud Task with unique suffix: ${retryResponse.name}`);
+        return {
+          success: true,
+          taskName: retryResponse.name,
+          taskId: retryTaskId,
+          scheduledTimeSeconds: scheduleTimeSeconds,
+        };
+      } catch (retryErr) {
+        console.error(`[Cloud Tasks ❌] Re-try failed for '${sanitizedTaskId}':`, retryErr.message || retryErr);
+      }
     }
 
     console.error(`[Cloud Tasks ❌] Failed to create Cloud Task '${sanitizedTaskId}':`, err.message || err);

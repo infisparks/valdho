@@ -487,9 +487,23 @@ async function syncLeadAutomations(leadData, previousStage = null, previousMeeti
           console.log(`[Cloud Tasks ⏩] Trigger '${triggerKey}' ALREADY EXECUTED for ${cleanPhone}.`);
           continue;
         }
-        if (idempotencyNode.status === "pending" || idempotencyNode.status === "scheduled") {
+
+        // Verify if task is ACTUALLY active in RTDB scheduled tasks
+        const activeTasksMap = (await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}`)) || {};
+        const isTaskStillActive = Object.values(activeTasksMap).some(
+          (t) => t && (t.triggerKey === triggerKey || t.ruleId === rule.id)
+        );
+
+        // Check if lockedAt is recent (less than 15s ago to block rapid duplicate requests)
+        const lockedAtMs = idempotencyNode.lockedAt ? new Date(idempotencyNode.lockedAt).getTime() : 0;
+        const isRecentLock = nowMs - lockedAtMs < 15000;
+
+        if (isTaskStillActive || isRecentLock) {
           console.log(`[Cloud Tasks 🛡️] Duplicate API request blocked. Trigger '${triggerKey}' is already scheduled.`);
           continue;
+        } else {
+          console.log(`[Cloud Tasks 🧹] Stale lock '${triggerKey}' detected (not active in GCP tasks). Clearing lock to re-schedule...`);
+          await firebaseDb(`whatsapp_sent_automations/${triggerKey}`, "DELETE");
         }
       }
 

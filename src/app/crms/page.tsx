@@ -3659,6 +3659,21 @@ export default function CRMPage() {
 
                                   {hasPhone && (
                                     <div className="flex items-center space-x-1.5">
+                                      {/* ☁️ NEW GCP QUEUE BUTTON */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenCloudQueueModal();
+                                        }}
+                                        className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1"
+                                        title="View Live GCP Queue"
+                                      >
+                                        <i className="fa-brands fa-google text-[9px]"></i>
+                                        <span>Queue</span>
+                                      </button>
+
+                                      {/* 📜 WHATSAPP LOGS BUTTON */}
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -4593,11 +4608,27 @@ export default function CRMPage() {
                                       <div className="flex items-center justify-end space-x-2">
                                         <button
                                           type="button"
+                                          onClick={() => handleOpenCloudQueueModal()}
+                                          className="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors border border-blue-200 shadow-sm"
+                                        >
+                                          <i className="fa-brands fa-google text-xs"></i>
+                                          <span>Queue</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenLeadLogsModal(lead)}
+                                          className="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors border border-indigo-200 shadow-sm"
+                                        >
+                                          <i className="fa-solid fa-scroll text-xs"></i>
+                                          <span>Logs</span>
+                                        </button>
+                                        <button
+                                          type="button"
                                           onClick={() => handleOpenDrawer(lead)}
-                                          className="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors border border-indigo-200"
+                                          className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors border border-slate-200"
                                         >
                                           <i className="fa-solid fa-sidebar text-xs"></i>
-                                          <span>Details & Notes</span>
+                                          <span>Details</span>
                                         </button>
 
                                         {lead.status === "partial" ? (

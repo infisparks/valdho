@@ -269,6 +269,11 @@ async function cancelAllLeadTasks(leadPhone) {
       if (!taskRecord) continue;
       const gcpTaskName = typeof taskRecord === "object" ? taskRecord.taskName : null;
       await deleteScheduledHttpTask({ taskId, taskName: gcpTaskName });
+
+      // CLEAR THE STRICT LOCKOUT SO IT CAN BE RE-SCHEDULED IF DRAGGED BACK
+      if (typeof taskRecord === "object" && taskRecord.triggerKey) {
+        await firebaseDb(`whatsapp_sent_automations/${taskRecord.triggerKey}`, "DELETE");
+      }
     }
 
     // Wipe tracking nodes in RTDB
@@ -330,6 +335,9 @@ async function syncLeadAutomations(leadData, previousStage = null, previousMeeti
       for (const [taskId, record] of Object.entries(activeTasksMap)) {
         if (record && record.triggerBase === "meeting") {
           await deleteScheduledHttpTask({ taskId, taskName: record.taskName });
+          if (record.triggerKey) {
+            await firebaseDb(`whatsapp_sent_automations/${record.triggerKey}`, "DELETE");
+          }
           await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}/${taskId}`, "DELETE");
         }
       }
@@ -536,6 +544,7 @@ async function syncLeadAutomations(leadData, previousStage = null, previousMeeti
           ruleId: rule.id,
           ruleTitle: rule.title,
           stageId: currentStage,
+          triggerKey: triggerKey,
           scheduledAt: new Date(targetSeconds * 1000).toISOString(),
           scheduledTimeMs: targetSeconds * 1000,
           triggerBase: rule.triggerBase,

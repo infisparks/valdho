@@ -497,6 +497,8 @@ export default function CRMPage() {
   const [isLoadingLeadLogs, setIsLoadingLeadLogs] = useState(false);
   const [visibleLogsCount, setVisibleLogsCount] = useState<number>(20);
 
+
+
   const handleOpenLeadLogsModal = (lead: LeadData) => {
     setSelectedLeadForLogs(lead);
     setIsLeadLogsModalOpen(true);

@@ -42,6 +42,23 @@ app.get("/", (req, res) => {
   });
 });
 
+const { generateConfirmationCardBuffer } = require("./id_card");
+
+// ID Card Server-Side Image Generation Endpoint (Pure Node.js Canvas)
+app.use("/api/generate-id-card", async (req, res) => {
+  try {
+    const body = req.method === "POST" ? req.body : req.query;
+    const imageBuffer = await generateConfirmationCardBuffer(body);
+
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.status(200).send(imageBuffer);
+  } catch (error) {
+    console.error("ID Card Generation Error:", error);
+    return res.status(500).json({ error: "Failed to generate ID card image", details: error.message });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "online",

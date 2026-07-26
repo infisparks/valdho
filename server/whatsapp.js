@@ -783,7 +783,7 @@ router.post("/auto-send-meeting", async (req, res) => {
     if (!phone) return res.status(400).json({ success: false, error: "Phone number is required" });
 
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
-    const stepConfig = config.step3Meeting || { isEnabled: true };
+    const stepConfig = config.step3Meeting || { isEnabled: true, sendWithCard: true };
 
     if (stepConfig.isEnabled === false) {
       return res.status(200).json({ success: false, disabled: true, message: "Step 3 Meeting WhatsApp confirmation is disabled." });
@@ -796,19 +796,20 @@ router.post("/auto-send-meeting", async (req, res) => {
     const autoUniqueUrl = await createUniqueGoogleMeetEvent({ fullName, email, dateStr: date, timeStr: time });
     const resolvedMeetingUrl = meetingUrl || autoUniqueUrl || config.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call";
 
-    let rawTemplate = stepConfig.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}";
-    const formattedMessage = rawTemplate
-      .replace(/\{\{\s*name\s*\}\}/gi, fullName || "Valued Client")
-      .replace(/\{\{\s*email\s*\}\}/gi, email || "N/A")
-      .replace(/\{\{\s*phone\s*\}\}/gi, phone || "N/A")
-      .replace(/\{\{\s*date\s*\}\}/gi, date || "Upcoming Date")
-      .replace(/\{\{\s*time\s*\}\}/gi, time || "Scheduled Time")
-      .replace(/\{\{\s*meeting_url\s*\}\}/gi, resolvedMeetingUrl)
-      .replace(/\{\{\s*meeting_link\s*\}\}/gi, resolvedMeetingUrl)
-      .replace(/\{\{\s*link\s*\}\}/gi, resolvedMeetingUrl);
+    // Determine if WhatsApp message should be sent WITH CARD image or WITHOUT CARD
+    const sendWithCard = stepConfig.sendWithCard !== false;
 
-    const cleanNumber = sanitizePhoneNumber(phone);
-    const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
+    const { generateAndSendWhatsAppCard } = require("./id_card");
+    const cardResult = await generateAndSendWhatsAppCard({
+      phone,
+      fullName: fullName || "Valued Client",
+      email: email || "N/A",
+      date: date || "Upcoming Date",
+      time: time || "Scheduled Time",
+      meetingUrl: resolvedMeetingUrl,
+      instanceName,
+      sendWithCard,
+    });
 
     // Save resolved meeting URL on actual lead & meeting objects in Firebase RTDB
     if (email || phone) {
@@ -874,13 +875,35 @@ router.post("/auto-send-meeting", async (req, res) => {
       }
     }
 
-    if (evoRes.ok) {
-      await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", { status: "open", qrCode: null, updatedAt: new Date().toISOString() });
+    if (cardResult && cardResult.success) {
+      await firebaseDb(`whatsapp_unofficial_instances/${instanceName}`, "PATCH", {
+        status: "open",
+        qrCode: null,
+        updatedAt: new Date().toISOString(),
+      });
       const logId = `auto_meeting_${Date.now()}`;
-      await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", { id: logId, type: "auto_meeting", number: cleanNumber, text: formattedMessage, status: "sent", timestamp: new Date().toISOString() });
+      const cleanNumber = sanitizePhoneNumber(phone);
+      await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
+        id: logId,
+        type: "auto_meeting",
+        number: cleanNumber,
+        status: "sent",
+        sendWithCard,
+        timestamp: new Date().toISOString(),
+      });
     }
 
-    return res.status(200).json({ success: evoRes.ok, meetingUrl: resolvedMeetingUrl, message: evoRes.ok ? "Meeting confirmation sent" : "Send failed", data: evoRes.data });
+    return res.status(200).json({
+      success: cardResult?.success || false,
+      meetingUrl: resolvedMeetingUrl,
+      sendWithCard,
+      message: cardResult?.success
+        ? sendWithCard
+          ? "Meeting confirmation card image sent via WhatsApp"
+          : "Meeting confirmation text sent via WhatsApp"
+        : "WhatsApp send failed",
+      data: cardResult?.result || null,
+    });
   } catch (err) {
     console.error("Auto Send Meeting Exception:", err);
     return res.status(500).json({ success: false, error: err.message });

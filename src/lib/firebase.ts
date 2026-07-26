@@ -444,10 +444,11 @@ export async function saveOrUpdateLead(
     // Merge meeting data: use new meeting if provided, otherwise keep existing meeting
     const mergedMeeting = lead.meeting || existingLead?.meeting;
 
-    // Merge staff notes, follow-up date, pipeline stage, deal value & onboard data: use new if provided, otherwise preserve existing
+    // Preserve existing pipelineStage & stageMovedAt if lead already exists in CRM, otherwise fallback to lead.pipelineStage
     const mergedNotes = lead.notes || existingLead?.notes;
     const mergedFollowUpDate = lead.followUpDate || existingLead?.followUpDate;
-    const mergedPipelineStage = lead.pipelineStage || existingLead?.pipelineStage;
+    const mergedPipelineStage = existingLead?.pipelineStage || lead.pipelineStage;
+    const mergedStageMovedAt = existingLead?.pipelineStage ? existingLead?.stageMovedAt : (lead.stageMovedAt || timestamp);
     const mergedDealValue = lead.dealValue !== undefined ? lead.dealValue : existingLead?.dealValue;
     const mergedOnboarded = lead.onboarded !== undefined ? lead.onboarded : existingLead?.onboarded;
     const mergedOnboardedAt = lead.onboardedAt || existingLead?.onboardedAt;
@@ -485,6 +486,10 @@ export async function saveOrUpdateLead(
 
     if (mergedPipelineStage) {
       leadPayload.pipelineStage = mergedPipelineStage;
+    }
+
+    if (mergedStageMovedAt) {
+      leadPayload.stageMovedAt = mergedStageMovedAt;
     }
 
     if (mergedDealValue !== undefined) {

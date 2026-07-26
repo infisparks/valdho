@@ -403,6 +403,8 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
       }
     }
 
+    
+
     // Resolve Default WhatsApp Instance
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
     let defaultInstanceName = config.selectedInstanceName;

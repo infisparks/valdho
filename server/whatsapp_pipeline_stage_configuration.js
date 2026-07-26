@@ -205,7 +205,7 @@ router.post("/stage-automations", async (req, res) => {
       title: rule.title.trim(),
       instanceName: rule.instanceName || "",
       triggerBase: rule.triggerBase || "created", // "meeting" | "created"
-      offsetType: rule.offsetType || "recurring", // "before" | "after" | "recurring"
+      offsetType: rule.offsetType || "after", // "before" | "after"
       offsetValue: Number(rule.offsetValue) || 1,
       offsetUnit: rule.offsetUnit || "minutes", // "minutes" | "hours" | "days"
       template: rule.template || "Hello {{name}}, reminder for your session at {{time}} on {{date}}!",
@@ -456,12 +456,7 @@ async function syncLeadAutomations(leadData, previousStage = null, previousMeeti
       let scheduledTriggerTimeMs = 0;
       let triggerKey = "";
 
-      if (rule.offsetType === "recurring") {
-        const elapsedMs = Math.max(0, nowMs - referenceDate.getTime());
-        const intervalIndex = Math.floor(elapsedMs / offsetMs) + 1;
-        scheduledTriggerTimeMs = referenceDate.getTime() + (intervalIndex * offsetMs);
-        triggerKey = `auto_${cleanPhone}_stg_${currentStage}_rule_${rule.id}_stg_${meetingKey || "init"}_seq_${intervalIndex}`;
-      } else if (rule.offsetType === "before") {
+      if (rule.offsetType === "before") {
         scheduledTriggerTimeMs = referenceDate.getTime() - offsetMs;
         triggerKey = `auto_${cleanPhone}_stg_${currentStage}_rule_${rule.id}_m_${meetingKey || "bef"}`;
       } else {
@@ -778,11 +773,7 @@ router.post("/execute-task", async (req, res) => {
       });
     }
 
-    // If it reaches here, the message sent successfully! Now schedule the next one.
-    if (offsetType === "recurring") {
-      console.log(`[Cloud Tasks Executor 🔄] Scheduling next iteration for recurring rule '${ruleTitle}'...`);
-      await syncLeadAutomations(currentLead);
-    }
+
 
     return res.status(200).json({
       success: true,

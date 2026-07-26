@@ -75,7 +75,7 @@ export interface StageAutomationRule {
   title: string;
   instanceName?: string;
   triggerBase: "meeting" | "created";
-  offsetType: "before" | "after" | "recurring";
+  offsetType: "before" | "after";
   offsetValue: number;
   offsetUnit: "minutes" | "hours" | "days";
   template: string;
@@ -484,7 +484,7 @@ export default function CRMPage() {
   const [ruleInstanceName, setRuleInstanceName] = useState("");
   const [whatsappInstancesList, setWhatsappInstancesList] = useState<any[]>([]);
   const [ruleTriggerBase, setRuleTriggerBase] = useState<"meeting" | "created">("created");
-  const [ruleOffsetType, setRuleOffsetType] = useState<"before" | "after" | "recurring">("recurring");
+  const [ruleOffsetType, setRuleOffsetType] = useState<"before" | "after">("after");
   const [ruleOffsetValue, setRuleOffsetValue] = useState<number>(1);
   const [ruleOffsetUnit, setRuleOffsetUnit] = useState<"minutes" | "hours" | "days">("minutes");
   const [ruleTemplate, setRuleTemplate] = useState("Hello {{name}}, reminder for your strategy session at {{time}} on {{date}}!");
@@ -3495,12 +3495,7 @@ export default function CRMPage() {
                                   if (offsetMs <= 0) offsetMs = 60000;
 
                                   let targetMs = 0;
-                                  if (rule.offsetType === "recurring") {
-                                    const elapsedMs = Math.max(0, nowTick - refDate.getTime());
-                                    let intervalIndex = Math.floor(elapsedMs / offsetMs) + 1;
-                                    if (intervalIndex < 1) intervalIndex = 1;
-                                    targetMs = refDate.getTime() + (intervalIndex * offsetMs);
-                                  } else if (rule.offsetType === "before") {
+                                  if (rule.offsetType === "before") {
                                     targetMs = refDate.getTime() - offsetMs;
                                   } else {
                                     targetMs = refDate.getTime() + offsetMs;
@@ -6442,24 +6437,7 @@ export default function CRMPage() {
                         </div>
                       </div>
 
-                      {/* Example 3 */}
-                      <div className="bg-indigo-800/80 border border-indigo-600 rounded-xl p-3.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-emerald-300 text-[11px] uppercase tracking-wide">
-                            Example 3: Re-engagement
-                          </span>
-                          <span className="text-[9px] bg-emerald-400/20 text-emerald-200 px-1.5 py-0.5 rounded font-mono font-bold">
-                            🔄 Recurring
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-indigo-100 space-y-1">
-                          <p><strong>Base:</strong> Lead Creation / Entry</p>
-                          <p><strong>Offset:</strong> Every 2 Days</p>
-                        </div>
-                        <div className="bg-indigo-950/70 p-2 rounded-lg text-[10px] font-mono text-amber-300 border border-indigo-700/50">
-                          💬 "Hi {"{{name}}"}, checking in to see if you have any questions!"
-                        </div>
-                      </div>
+
                     </div>
 
                     <div className="bg-rose-950/60 border border-rose-800/80 rounded-xl p-2.5 text-[11px] text-rose-200 flex items-start space-x-2">
@@ -6565,7 +6543,6 @@ export default function CRMPage() {
                     >
                       <option value="before">⏳ Before Event Target</option>
                       <option value="after">⏩ After Event Entry</option>
-                      <option value="recurring">🔄 Recurring Interval</option>
                     </select>
 
                     {showTimingDirectionInfo && (
@@ -6582,10 +6559,6 @@ export default function CRMPage() {
                           <p className="text-cyan-300 font-bold">
                             ⏩ After Event Entry:
                             <span className="text-slate-200 font-normal block">Triggers ONCE X time AFTER a lead enters (e.g. 1 Day After Creation).</span>
-                          </p>
-                          <p className="text-emerald-300 font-bold">
-                            🔄 Recurring Interval:
-                            <span className="text-slate-200 font-normal block">Repeats continuously EVERY X interval (e.g. Every 1 Minute, Every 2 Days) while lead stays in stage!</span>
                           </p>
                         </div>
                       </div>

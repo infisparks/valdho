@@ -162,7 +162,7 @@ export function BookingModal({
   // FALLBACK: If contact details are NOT found for this user, auto-back to Step 1 (Contact Form popup)
   useEffect(() => {
     async function restoreLead() {
-      if (!isOpen) return;
+      if (!isOpen || step === 4) return;
 
       const targetId = initialLeadId || (typeof window !== "undefined" ? localStorage.getItem("firstoption_lead_id") : null);
       const targetDate = initialCreatedDate || (typeof window !== "undefined" ? localStorage.getItem("firstoption_created_date") : null);
@@ -435,11 +435,14 @@ export function BookingModal({
   };
 
   // Step 3 Submit: Update Meeting details & Slot Booking in Firebase (status: "completed")
-  const handleSelectSlot = async (time: string) => {
+  const handleSelectSlot = (time: string) => {
     const slotKey = sanitizeSlotKey(time);
     if (bookedSlotsMap[slotKey]) return; // Block booking already booked slot
 
+    // 1. INSTANT UI TRANSITION: Transition to Step 4 immediately for zero-lag, flicker-free UX
     setSelectedTimeSlot(time);
+    setIsReselectingSlot(false);
+    setStep(4);
 
     const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
     const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");
@@ -462,11 +465,12 @@ export function BookingModal({
       },
     };
 
-    await saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, activeCampaign.id);
-    setIsReselectingSlot(false);
-    setStep(4);
+    // 2. Perform Firebase database update asynchronously in background
+    saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, activeCampaign.id).catch((err) =>
+      console.error("Async saveOrUpdateLead error:", err)
+    );
 
-    // Asynchronously trigger automatic Calendar Meeting Booked WhatsApp Message in background
+    // 3. Asynchronously trigger automatic Calendar Meeting Booked WhatsApp Message in background
     const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
     const formattedDateStr = `${MONTH_NAMES[currentMonthIndex]} ${selectedDay}, ${currentYear}`;
     fetch(`${serverUrl}/api/whatsapp/auto-send-meeting`, {
@@ -482,7 +486,7 @@ export function BookingModal({
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.meetingUrl) {
+        if (data && data.meetingUrl) {
           setGeneratedMeetUrl(data.meetingUrl);
         }
       })

@@ -402,48 +402,10 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
       return rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && rStgNorm === currentNorm);
     });
 
-    // Auto Funnel Fallback Engine
+    // Auto Funnel Fallback Engine removed to ensure ONLY user-configured rules schedule messages
     if (matchingRules.length === 0) {
-      if (currentEquivs.includes("surveycompleted")) {
-        const tpl = config.step2Survey?.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.";
-        matchingRules.push({
-          id: "fallback_step2_survey",
-          stageId: currentStage,
-          title: "Auto Funnel: Step 2 Survey Completed",
-          triggerBase: "created",
-          offsetType: "after",
-          offsetValue: 0,
-          offsetUnit: "minutes",
-          template: tpl,
-          isEnabled: true,
-        });
-      } else if (currentEquivs.includes("inprogress") || currentEquivs.includes("raw")) {
-        const tpl = config.step1Welcome?.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details. Our team will get back to you shortly.";
-        matchingRules.push({
-          id: "fallback_step1_welcome",
-          stageId: currentStage,
-          title: "Auto Funnel: Step 1 Contact Welcome",
-          triggerBase: "created",
-          offsetType: "after",
-          offsetValue: 0,
-          offsetUnit: "minutes",
-          template: tpl,
-          isEnabled: true,
-        });
-      } else if (currentEquivs.includes("meetingbooked")) {
-        const tpl = config.step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Join video call: {{meeting_url}}";
-        matchingRules.push({
-          id: "fallback_step3_meeting",
-          stageId: currentStage,
-          title: "Auto Funnel: Step 3 Meeting Confirmed",
-          triggerBase: "meeting",
-          offsetType: "before",
-          offsetValue: 10,
-          offsetUnit: "minutes",
-          template: tpl,
-          isEnabled: true,
-        });
-      }
+      console.log(`[Cloud Tasks ℹ️] No configured rules for stage '${currentStage}'. Skipping automation scheduling.`);
+      return { success: true, count: 0, tasks: [] };
     }
 
     const nowMs = Date.now();

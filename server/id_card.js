@@ -131,11 +131,11 @@ async function generateConfirmationCardBuffer(data = {}) {
 
   // 3. Draw text fields perfectly centered vertically inside white rows
   const startX = 185;
-  ctx.fillText(fullName, startX, 485);
-  ctx.fillText(formattedPhone, startX, 548);
-  ctx.fillText(email, startX, 612);
-  ctx.fillText(dateStr, startX, 676);
-  ctx.fillText(timeStr, startX, 740);
+  ctx.fillText(fullName, startX, 488);
+  ctx.fillText(formattedPhone, startX, 551);
+  ctx.fillText(email, startX, 615);
+  ctx.fillText(dateStr, startX, 679);
+  ctx.fillText(timeStr, startX, 743);
 
   return canvas.toBuffer("image/png");
 }

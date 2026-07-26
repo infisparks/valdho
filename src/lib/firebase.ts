@@ -441,8 +441,11 @@ export async function saveOrUpdateLead(
         ? { ...(existingLead?.survey || {}), ...lead.survey }
         : existingLead?.survey;
 
-    // Merge meeting data: use new meeting if provided, otherwise keep existing meeting
-    const mergedMeeting = lead.meeting || existingLead?.meeting;
+    // Preserve existing booked meeting if present; never overwrite existing meeting date & time
+    const mergedMeeting =
+      existingLead?.meeting?.meetingDate && existingLead?.meeting?.meetingTime
+        ? existingLead.meeting
+        : (lead.meeting || existingLead?.meeting);
 
     // Preserve existing pipelineStage & stageMovedAt if lead already exists in CRM, otherwise fallback to lead.pipelineStage
     const mergedNotes = lead.notes || existingLead?.notes;

@@ -151,6 +151,22 @@ export function BookingModal({
             if (fbLead.survey) {
               setQAnswers(fbLead.survey as Record<string, string>);
             }
+            // If lead already has a booked meeting, restore date/time and show confirmation
+            if (fbLead.meeting?.meetingDate && fbLead.meeting?.meetingTime) {
+              setSelectedTimeSlot(fbLead.meeting.meetingTime);
+              const parts = fbLead.meeting.meetingDate.split("-");
+              if (parts.length === 3) {
+                const y = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10) - 1;
+                const d = parseInt(parts[2], 10);
+                if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+                  setCurrentYear(y);
+                  setCurrentMonthIndex(m);
+                  setSelectedDay(d);
+                }
+              }
+              setStep(4);
+            }
             foundContact = true;
           }
         }

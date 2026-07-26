@@ -148,8 +148,49 @@ async function deleteScheduledHttpTask({ taskId, taskName }) {
   }
 }
 
+async function listScheduledTasks() {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || "firstoption-8da25";
+    const location = process.env.GCP_LOCATION || "asia-south1";
+    const queueName = process.env.GCP_QUEUE_NAME || "whatsapp-automation-queue";
+
+    const client = getCloudTasksClient();
+    const parent = client.queuePath(projectId, location, queueName);
+
+    const [tasks] = await client.listTasks({ parent });
+    
+    const formattedTasks = tasks.map((task) => {
+      let payload = {};
+      try {
+        if (task.httpRequest && task.httpRequest.body) {
+          const buff = Buffer.from(task.httpRequest.body, "base64");
+          payload = JSON.parse(buff.toString("utf-8"));
+        }
+      } catch (e) {}
+
+      return {
+        name: task.name,
+        taskId: payload.taskId || task.name.split("/").pop(),
+        scheduleTimeSeconds: task.scheduleTime ? parseInt(task.scheduleTime.seconds, 10) : 0,
+        leadPhone: payload.leadPhone || "Unknown Phone",
+        ruleTitle: payload.ruleTitle || "System Rule",
+        stageId: payload.stageId || "Unknown Stage",
+        payload: payload,
+      };
+    });
+
+    formattedTasks.sort((a, b) => a.scheduleTimeSeconds - b.scheduleTimeSeconds);
+    return { success: true, tasks: formattedTasks };
+  } catch (err) {
+    console.error(`[Cloud Tasks ⚠️] Error listing tasks:`, err.message || err);
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
 module.exports = {
   getCloudTasksClient,
   createScheduledHttpTask,
   deleteScheduledHttpTask,
+  listScheduledTasks,
 };
+

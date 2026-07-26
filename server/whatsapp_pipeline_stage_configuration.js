@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createScheduledHttpTask, deleteScheduledHttpTask } = require("./cloud_tasks");
+const { createScheduledHttpTask, deleteScheduledHttpTask, listScheduledTasks } = require("./cloud_tasks");
 
 // Configuration from Environment
 const API_KEY = process.env.WHATSAPP_API_KEY || "vR39h6avY69g7kAU3YQbS6V6XEvudson";
@@ -892,6 +892,19 @@ router.post("/scheduled-message/delete", async (req, res) => {
     return res.status(200).json({ success: true, message: "Scheduled message deleted successfully" });
   } catch (err) {
     console.error("Delete Scheduled Message Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/whatsapp/scheduled-tasks/list
+ */
+router.get("/scheduled-tasks/list", async (req, res) => {
+  try {
+    const result = await listScheduledTasks();
+    if (!result.success) return res.status(500).json(result);
+    return res.status(200).json(result);
+  } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
 });

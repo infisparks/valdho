@@ -590,6 +590,33 @@ export default function CRMPage() {
   const [newSchText, setNewSchText] = useState<string>("");
   const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
 
+  // LIVE GCP QUEUE MODAL STATE
+  const [isCloudQueueModalOpen, setIsCloudQueueModalOpen] = useState(false);
+  const [cloudQueueList, setCloudQueueList] = useState<any[]>([]);
+  const [isLoadingCloudQueue, setIsLoadingCloudQueue] = useState(false);
+
+  const fetchCloudTasksQueue = async () => {
+    setIsLoadingCloudQueue(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/whatsapp/scheduled-tasks/list`);
+      const data = await res.json();
+      if (data.success) {
+        setCloudQueueList(data.tasks || []);
+      } else {
+        alert("Failed to load Cloud Tasks Queue: " + data.error);
+      }
+    } catch (err) {
+      console.error("Fetch Cloud Tasks Queue error:", err);
+    } finally {
+      setIsLoadingCloudQueue(false);
+    }
+  };
+
+  const handleOpenCloudQueueModal = () => {
+    setIsCloudQueueModalOpen(true);
+    fetchCloudTasksQueue();
+  };
+
   const handleAddScheduledMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead || !newSchDateTime || !newSchText.trim()) return;
@@ -5347,6 +5374,15 @@ export default function CRMPage() {
                   </span>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={handleOpenCloudQueueModal}
+                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center space-x-1.5 shadow-2xs mt-2"
+                >
+                  <i className="fa-brands fa-google"></i>
+                  <span>View Live GCP Queue</span>
+                </button>
+
                 {/* Form to Add Scheduled Date Message */}
                 <form onSubmit={handleAddScheduledMessage} className="space-y-2.5 bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -6782,6 +6818,70 @@ export default function CRMPage() {
               >
                 Close Logs
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIVE GOOGLE CLOUD TASKS QUEUE MODAL */}
+      {isCloudQueueModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
+          <div className="fixed inset-0" onClick={() => setIsCloudQueueModalOpen(false)} />
+          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 z-10 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 sticky top-0">
+              <div className="flex items-center space-x-3">
+                <i className="fa-brands fa-google text-2xl text-indigo-600"></i>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Live Google Cloud Tasks Queue</h3>
+                  <p className="text-xs text-slate-500 font-medium">Raw execution queue pulled directly from GCP</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button onClick={fetchCloudTasksQueue} disabled={isLoadingCloudQueue} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all">
+                  <i className={`fa-solid fa-rotate-right ${isLoadingCloudQueue ? "fa-spin" : ""}`}></i>
+                  <span>Refresh</span>
+                </button>
+                <button onClick={() => setIsCloudQueueModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold">✕</button>
+              </div>
+            </div>
+            <div className="p-6 bg-slate-50/50 h-[60vh] overflow-y-auto">
+              {isLoadingCloudQueue ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-3 text-slate-500">
+                  <i className="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-600"></i>
+                  <p className="text-xs font-extrabold tracking-wider uppercase">Connecting to Google Cloud...</p>
+                </div>
+              ) : cloudQueueList.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-slate-400">
+                  <i className="fa-solid fa-check-double text-4xl text-emerald-400"></i>
+                  <p className="text-xs font-extrabold text-slate-500">Queue is empty.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {cloudQueueList.map((task, idx) => {
+                    const scheduledDate = new Date(task.scheduleTimeSeconds * 1000);
+                    const now = new Date();
+                    const isPast = scheduledDate < now;
+                    return (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                        <div className="flex justify-between gap-4">
+                          <div className="space-y-1">
+                            <span className="bg-indigo-100 text-indigo-800 text-[10px] font-black px-2 py-0.5 rounded border border-indigo-200">{task.stageId}</span>
+                            <span className="font-extrabold text-slate-900 text-sm ml-2">{task.ruleTitle}</span>
+                            <div className="text-[11px] font-mono text-slate-500">ID: {task.taskId}</div>
+                            <div className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md">📞 Target: {task.leadPhone}</div>
+                          </div>
+                          <div className="text-right space-y-1">
+                            <div className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${isPast ? "bg-amber-50 text-amber-800 border-amber-300" : "bg-emerald-50 text-emerald-800 border-emerald-300"}`}>
+                              {isPast ? "⚡ Dispatching..." : "⏱️ Pending"}
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-500 font-bold block">{scheduledDate.toLocaleString('en-IN')}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -38,6 +38,40 @@ const DAILY_TIME_SLOTS = [
   "09:00 PM",
 ];
 
+/**
+ * Helper: Check if a specific time slot string (e.g. "09:00 AM") has already passed for a given date.
+ */
+export function isSlotTimePassed(
+  timeStr: string,
+  day: number,
+  month: number,
+  year: number
+): boolean {
+  const now = new Date();
+
+  // Past dates
+  if (year < now.getFullYear()) return true;
+  if (year === now.getFullYear() && month < now.getMonth()) return true;
+  if (year === now.getFullYear() && month === now.getMonth() && day < now.getDate()) return true;
+
+  // Future dates (tomorrow or later)
+  if (year > now.getFullYear() || month > now.getMonth() || day > now.getDate()) return false;
+
+  // Selected date is TODAY: parse slot time
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return false;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = match[3].toUpperCase();
+
+  if (period === "PM" && hours < 12) hours += 12;
+  if (period === "AM" && hours === 12) hours = 0;
+
+  const slotDate = new Date(year, month, day, hours, minutes, 0, 0);
+  return slotDate.getTime() <= now.getTime();
+}
+
 export function BookingModal({
   isOpen,
   onClose,
@@ -790,36 +824,58 @@ export function BookingModal({
               </div>
             </div>
 
-            {/* Time Slot Picker for Selected Date with Real-time Disabling */}
+            {/* Time Slot Picker for Selected Date with Real-time Disabling & Past Slot Hiding */}
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between text-xs font-bold text-slate-200">
                 <span>📅 {formattedBookingDate}</span>
                 <span className="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
               </div>
 
-              {/* Daily Time Slots Grid matching user image */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
-                {DAILY_TIME_SLOTS.map((time) => {
-                  const slotKey = sanitizeSlotKey(time);
-                  const isBooked = bookedSlotsMap[slotKey] === true;
+              {/* Filter out slots that have already passed for the selected date */}
+              {(() => {
+                const activeSlots = DAILY_TIME_SLOTS.filter(
+                  (time) => !isSlotTimePassed(time, selectedDay, currentMonthIndex, currentYear)
+                );
 
+                if (activeSlots.length === 0) {
                   return (
-                    <button
-                      key={time}
-                      disabled={isBooked}
-                      onClick={() => handleSelectSlot(time)}
-                      className={`w-full p-2.5 rounded-xl text-xs font-bold transition-all shadow ${
-                        isBooked
-                          ? "bg-zinc-800/80 border border-zinc-700 text-zinc-500 cursor-not-allowed line-through flex items-center justify-center space-x-1 opacity-60"
-                          : "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1"
-                      }`}
-                    >
-                      <i className="fa-regular fa-clock text-[11px]"></i>
-                      <span>{isBooked ? `${time} (Booked)` : time}</span>
-                    </button>
+                    <div className="p-3 text-center rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5 my-1">
+                      <p className="text-xs text-amber-400 font-bold flex items-center justify-center space-x-1">
+                        <span>⏰</span>
+                        <span>All time slots for today have passed.</span>
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Please select tomorrow or an upcoming date from the calendar above.
+                      </p>
+                    </div>
                   );
-                })}
-              </div>
+                }
+
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                    {activeSlots.map((time) => {
+                      const slotKey = sanitizeSlotKey(time);
+                      const isBooked = bookedSlotsMap[slotKey] === true;
+
+                      return (
+                        <button
+                          key={time}
+                          disabled={isBooked}
+                          onClick={() => handleSelectSlot(time)}
+                          className={`w-full p-2.5 rounded-xl text-xs font-bold transition-all shadow ${
+                            isBooked
+                              ? "bg-zinc-800/80 border border-zinc-700 text-zinc-500 cursor-not-allowed line-through flex items-center justify-center space-x-1 opacity-60"
+                              : "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1"
+                          }`}
+                        >
+                          <i className="fa-regular fa-clock text-[11px]"></i>
+                          <span>{isBooked ? `${time} (Booked)` : time}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

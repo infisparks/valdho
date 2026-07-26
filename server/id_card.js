@@ -116,18 +116,18 @@ async function generateAndSendWhatsAppCard({
         },
         body: JSON.stringify({
           number: recipientPhone,
-          mediaMessage: {
-            mediatype: "image",
-            fileName: `Confirmation_Card_${(fullName || "Client").replace(/\s+/g, "_")}.png`,
-            caption: captionText,
-            media: `data:image/png;base64,${base64Image}`,
-          },
+          mediatype: "image",
+          mimetype: "image/png",
+          caption: captionText,
+          media: `data:image/png;base64,${base64Image}`,
+          fileName: `Confirmation_Card_${(fullName || "Client").replace(/\s+/g, "_")}.png`,
         }),
       });
 
       const resData = await mediaResponse.json();
       console.log(`✅ [ID CARD SERVER]: WhatsApp Media Card Dispatch Result:`, resData);
-      return { success: true, sendWithCard: true, result: resData };
+      const isSuccess = mediaResponse.ok && !resData.error;
+      return { success: isSuccess, sendWithCard: true, result: resData };
     } else {
       console.log(`💬 [ID CARD SERVER]: Sending WhatsApp Text Notification (without card) to ${recipientPhone}...`);
       const textResponse = await fetch(`${evoApiUrl}/message/sendText/${activeInstance}`, {

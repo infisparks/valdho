@@ -89,6 +89,9 @@ export function BookingModal({
   // Step 4: Final Success Confirmation & WhatsApp redirect
   const [step, setStep] = useState<1 | 2 | 3 | 4>(initialStep);
 
+  // User explicitly reselecting slot override flag
+  const [isReselectingSlot, setIsReselectingSlot] = useState<boolean>(false);
+
   // Lead ID & Creation Date in Firebase & LocalStorage
   const [firebaseLeadId, setFirebaseLeadId] = useState<string | null>(initialLeadId);
   const [createdDate, setCreatedDate] = useState<string | null>(initialCreatedDate);
@@ -109,19 +112,16 @@ export function BookingModal({
   // Qualification Question Index (0 based)
   const [activeQIndex, setActiveQIndex] = useState<number>(0);
 
-  // Get current real-world date for past date prevention
-  const today = new Date();
-  const realTodayYear = today.getFullYear();
-  const realTodayMonth = today.getMonth(); // 0-based
-  const realTodayDay = today.getDate();
+  // Realtime slots state
+  const realToday = new Date();
+  const realTodayYear = realToday.getFullYear();
+  const realTodayMonth = realToday.getMonth();
+  const realTodayDay = realToday.getDate();
 
-  // Dynamic Interactive Calendar State
-  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(realTodayMonth);
   const [currentYear, setCurrentYear] = useState<number>(realTodayYear);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(realTodayMonth);
   const [selectedDay, setSelectedDay] = useState<number>(realTodayDay);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
-
-  // Real-time booked slots map for the selected date
   const [bookedSlotsMap, setBookedSlotsMap] = useState<Record<string, boolean>>({});
   const [generatedMeetUrl, setGeneratedMeetUrl] = useState<string | null>(null);
 
@@ -200,8 +200,8 @@ export function BookingModal({
                 }
               }
             }
-            // ONLY jump to step 4 if initialStep was explicitly passed as step 3 or 4 (e.g. direct meeting URL)
-            if (initialStep === 3 || initialStep === 4) {
+            // ONLY jump to step 4 if user is NOT actively re-selecting a slot AND initialStep was passed as step 3 or 4
+            if (!isReselectingSlot && (initialStep === 3 || initialStep === 4)) {
               setStep(4);
             }
             foundContact = true;
@@ -379,6 +379,7 @@ export function BookingModal({
 
   const handleReset = () => {
     setStep(1);
+    setIsReselectingSlot(false);
     setActiveQIndex(0);
     setSelectedTimeSlot(null);
     setPhoneError(null);
@@ -462,6 +463,7 @@ export function BookingModal({
     };
 
     await saveOrUpdateLead(completedPayload, emailPrefixId, createdDate, activeCampaign.id);
+    setIsReselectingSlot(false);
     setStep(4);
 
     // Asynchronously trigger automatic Calendar Meeting Booked WhatsApp Message in background
@@ -539,7 +541,10 @@ export function BookingModal({
                 autoComplete="name"
                 placeholder="Enter your full name"
                 value={contactInfo.fullName}
-                onChange={(e) => setContactInfo({ ...contactInfo, fullName: e.target.value })}
+                onChange={(e) => {
+                  const capitalized = e.target.value.replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+                  setContactInfo({ ...contactInfo, fullName: capitalized });
+                }}
                 className="w-full bg-zinc-900/90 border border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors"
               />
             </div>
@@ -933,7 +938,10 @@ export function BookingModal({
 
           <div className="flex items-center space-x-2 pt-1">
             <button
-              onClick={() => setStep(3)}
+              onClick={() => {
+                setIsReselectingSlot(true);
+                setStep(3);
+              }}
               className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5"
             >
               <i className="fa-solid fa-calendar-pen text-xs"></i>

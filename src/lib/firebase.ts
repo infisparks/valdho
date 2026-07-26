@@ -455,13 +455,16 @@ export async function saveOrUpdateLead(
     const mergedOnboardCount = lead.onboardCount !== undefined ? lead.onboardCount : existingLead?.onboardCount;
 
     // Base Master Lead Payload
+    const rawFullName = lead.fullName || existingLead?.fullName || "";
+    const formattedFullName = rawFullName.replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+
     const leadPayload: LeadData = {
       id: leadId,
       campaign: campaignName,
       createdDate: createdDate,
       createdAt: existingLead?.createdAt || lead.createdAt || timestamp,
       updatedAt: timestamp,
-      fullName: lead.fullName || existingLead?.fullName || "",
+      fullName: formattedFullName,
       email: lead.email || existingLead?.email || "",
       phone: lead.phone || existingLead?.phone || "",
       countryCode: lead.countryCode || existingLead?.countryCode || "+91",

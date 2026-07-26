@@ -1,6 +1,20 @@
 const path = require("path");
 const fs = require("fs");
-const { createCanvas, loadImage } = require("@napi-rs/canvas");
+const { createCanvas, loadImage, GlobalFonts } = require("@napi-rs/canvas");
+
+// Register embedded TTF font family for server-side Canvas rendering (fixes blank text on Linux/Docker servers)
+try {
+  const poppinsPath = path.join(__dirname, "fonts/Poppins-Bold.ttf");
+  const robotoPath = path.join(__dirname, "fonts/Roboto-Bold.ttf");
+  if (fs.existsSync(poppinsPath)) {
+    GlobalFonts.registerFromPath(poppinsPath, "Poppins");
+  }
+  if (fs.existsSync(robotoPath)) {
+    GlobalFonts.registerFromPath(robotoPath, "Roboto");
+  }
+} catch (fontErr) {
+  console.error("GlobalFonts registration exception:", fontErr);
+}
 
 /**
  * Server-Side ID / Confirmation Card Image Generator
@@ -113,7 +127,7 @@ async function generateConfirmationCardBuffer(data = {}) {
 
   // 2. Configure bold, crisp professional typography
   ctx.fillStyle = "#0f172a"; // Deep slate text
-  ctx.font = "bold 26px sans-serif";
+  ctx.font = "bold 26px Poppins, Roboto, Arial, sans-serif";
 
   // 3. Draw text fields perfectly centered vertically inside white rows
   const startX = 185;

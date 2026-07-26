@@ -119,7 +119,7 @@ async function generateAndSendWhatsAppCard({
           mediatype: "image",
           mimetype: "image/png",
           caption: captionText,
-          media: `data:image/png;base64,${base64Image}`,
+          media: base64Image,
           fileName: `Confirmation_Card_${(fullName || "Client").replace(/\s+/g, "_")}.png`,
         }),
       });

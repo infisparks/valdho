@@ -410,15 +410,17 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
     const allStageRulesObj = (await firebaseDb("whatsapp_stage_automations/firstoptionagency")) || {};
     const activeRules = [];
     for (const [sId, rulesMap] of Object.entries(allStageRulesObj)) {
-      if (!rulesMap) continue;
-      for (const rule of Object.values(rulesMap)) {
-        if (rule && rule.isEnabled) {
-          activeRules.push(rule);
+      if (!rulesMap || typeof rulesMap !== "object") continue;
+      for (const [rId, rule] of Object.entries(rulesMap)) {
+        if (rule && typeof rule === "object" && rule.isEnabled !== false) {
+          activeRules.push({
+            id: rule.id || rId,
+            stageId: rule.stageId || sId,
+            ...rule,
+          });
         }
       }
     }
-
-    
 
     // Resolve Default WhatsApp Instance
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
@@ -432,13 +434,11 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
 
     const currentEquivs = stageEquivalents[currentNorm] || [currentNorm];
 
-    // Strict Rule Matching (avoid loose substring collisions)
+    // Strict Stage Rule Matching (only schedule rules that match current stage)
     let matchingRules = activeRules.filter((r) => {
       const rStgNorm = normStage(r.stageId);
       const rEquivs = stageEquivalents[rStgNorm] || [rStgNorm];
-      const isStageMatch = rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && rStgNorm === currentNorm);
-      const isMeetingRule = r.triggerBase === "meeting" && (currentNorm === "meetingbooked" || Boolean(currentMeetingDate));
-      return isStageMatch || isMeetingRule;
+      return rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && rStgNorm === currentNorm);
     });
 
     // Auto Funnel Fallback Engine removed to ensure ONLY user-configured rules schedule messages

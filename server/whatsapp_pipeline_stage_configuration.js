@@ -540,10 +540,11 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
         triggerKey = `auto_${cleanPhone}_stg_${currentStage}_rule_${rule.id}_aft_${meetingKey || "aft"}`;
       }
 
-      // Guard against Late Reminder Blast: Skip 'before meeting' rules if the meeting is already in the past
+      // Guard against Past/Expired Reminders:
+      // Skip 'before meeting' rules if the calculated trigger time has already passed (e.g. 1-day before rule when meeting is in 5 hours)
       if (rule.triggerBase === "meeting" && rule.offsetType === "before") {
-        if (nowMs > referenceDate.getTime()) {
-          console.log(`[Cloud Tasks ⏭️] Skipping 'before' rule '${rule.title}' because meeting is in the past.`);
+        if (scheduledTriggerTimeMs <= nowMs) {
+          console.log(`[Cloud Tasks ⏭️] Skipping 'before' rule '${rule.title}' for lead ${cleanPhone}: trigger time (${new Date(scheduledTriggerTimeMs).toLocaleString("en-IN")}) has already passed for meeting at ${referenceDate.toLocaleString("en-IN")}.`);
           continue;
         }
       }

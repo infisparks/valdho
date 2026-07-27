@@ -366,9 +366,12 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
     const currentNorm = normStage(currentStage);
     const prevNorm = previousStage ? normStage(previousStage) : null;
 
-    // Condition 1: Changing Pipeline Stages (Ghost Tasks)
-    if (previousStage && prevNorm !== currentNorm) {
-      console.log(`[Cloud Tasks 🔄] Stage change detected for lead ${cleanPhone}: '${previousStage}' -> '${currentStage}'. Purging ghost tasks...`);
+    // Condition 1: Changing Pipeline Stages or Funnel Progression (Ghost Tasks Purge)
+    const isStageChanged = previousStage && prevNorm !== currentNorm;
+    const isAdvancedStage = currentNorm === "meetingbooked" || currentNorm === "surveycompleted";
+
+    if (isStageChanged || isAdvancedStage) {
+      console.log(`[Cloud Tasks 🔄] Funnel stage progression detected for lead ${cleanPhone}: '${previousStage || "start"}' -> '${currentStage}'. Purging old stage task queue...`);
       await cancelAllLeadTasks(cleanPhone);
     }
 
@@ -704,12 +707,17 @@ router.post("/execute-task", async (req, res) => {
 
     const isCustomMessage = stageId === "custom_scheduled_message" || triggerBase === "custom" || (ruleId && String(ruleId).startsWith("sch_"));
 
-    const isStageMatching = isCustomMessage || leadEquivs.some((eq) => ruleEquivs.includes(eq)) || (ruleStageNorm && currentLeadNorm && (ruleStageNorm.includes(currentLeadNorm) || currentLeadNorm.includes(ruleStageNorm)));
+    const isStageMatching = isCustomMessage || leadEquivs.some((eq) => ruleEquivs.includes(eq));
 
-    if (!isStageMatching) {
-      console.warn(`[Cloud Tasks Executor 🛑 ABORT] Lead '${cleanNumber}' stage in RTDB ('${currentLeadStage}') no longer matches rule stage ('${stageId}'). Aborting task execution.`);
+    // Abort previous stage tasks if lead has moved forward in funnel (e.g. to meeting_booked or survey_completed)
+    const isLeadInMeeting = currentLeadNorm === "meetingbooked";
+    const isLeadInSurvey = currentLeadNorm === "surveycompleted";
+    const isEarlierStageTask = ruleStageNorm === "inprogress" || ruleStageNorm === "raw" || (isLeadInMeeting && ruleStageNorm === "surveycompleted");
+
+    if (!isStageMatching || (isEarlierStageTask && !isCustomMessage)) {
+      console.warn(`[Cloud Tasks Executor 🛑 ABORT] Lead '${cleanNumber}' stage in RTDB ('${currentLeadStage}') is past rule stage ('${stageId}'). Aborting task execution.`);
       if (taskId) await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
-      return res.status(200).json({ success: true, skipped: true, reason: `Stage mismatch: current stage is ${currentLeadStage}, rule stage is ${stageId}` });
+      return res.status(200).json({ success: true, skipped: true, reason: `Stage mismatch/funnel advanced: current stage is ${currentLeadStage}, rule stage is ${stageId}` });
     }
 
     // 3. Double-Send Check (Idempotency Check)

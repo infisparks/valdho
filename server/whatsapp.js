@@ -758,6 +758,19 @@ router.post("/auto-send-survey", async (req, res) => {
       .replace(/\{\{\s*phone\s*\}\}/gi, phone || "N/A");
 
     const cleanNumber = sanitizePhoneNumber(phone);
+
+    // Purge pending message queues from Step 1 (1st Connection)
+    try {
+      const { cancelAllLeadTasks, syncLeadAutomations } = require("./whatsapp_pipeline_stage_configuration");
+      await cancelAllLeadTasks(cleanNumber);
+      syncLeadAutomations(
+        { fullName, email, phone: cleanNumber, pipelineStage: "survey_completed", status: "survey_completed" },
+        "in_progress"
+      ).catch(() => {});
+    } catch (err) {
+      console.error("[Auto Send Survey] Task queue purge exception:", err);
+    }
+
     const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
 
     if (evoRes.ok) {
@@ -826,6 +839,25 @@ router.post("/auto-send-meeting", async (req, res) => {
       instanceName,
       sendWithCard,
     });
+
+    // Purge pending message queues from Step 1 (1st Connection) and Step 2 (Survey) when meeting is booked
+    try {
+      const { cancelAllLeadTasks, syncLeadAutomations } = require("./whatsapp_pipeline_stage_configuration");
+      await cancelAllLeadTasks(phone);
+      syncLeadAutomations(
+        {
+          fullName,
+          email,
+          phone: sanitizePhoneNumber(phone),
+          pipelineStage: "meeting_booked",
+          status: "completed",
+          meeting: { meetingDate: date, meetingTime: time },
+        },
+        "survey_completed"
+      ).catch(() => {});
+    } catch (err) {
+      console.error("[Auto Send Meeting] Task queue purge exception:", err);
+    }
 
     // Save resolved meeting URL on actual lead & meeting objects in Firebase RTDB
     if (email || phone) {

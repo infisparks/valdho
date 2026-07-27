@@ -223,7 +223,9 @@ export async function getLeadById(
     }
     return null;
   } catch (error) {
-    console.error("Firebase getLeadById Error:", error);
+    if (!String(error).includes("Permission denied")) {
+      console.error("Firebase getLeadById Error:", error);
+    }
     return null;
   }
 }
@@ -268,7 +270,9 @@ export async function findExistingLead(
     }
     return null;
   } catch (error) {
-    console.error("Firebase findExistingLead Error:", error);
+    if (!String(error).includes("Permission denied")) {
+      console.error("Firebase findExistingLead Error:", error);
+    }
     return null;
   }
 }

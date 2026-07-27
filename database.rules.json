@@ -26,7 +26,7 @@
       ".write": true
     },
     "slots": {
-      ".read": "auth != null",
+      ".read": true,
       ".write": true
     },
     "onboards": {

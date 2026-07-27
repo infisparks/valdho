@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { event as fbEvent, customEvent as fbCustomEvent } from "@/lib/fpixel";
 import { UrgencyBar } from "@/components/UrgencyBar";
 import { HeaderBadge } from "@/components/HeaderBadge";
 import { HeroSection } from "@/components/HeroSection";
@@ -89,6 +90,17 @@ export default function Home() {
     if (typeof window !== "undefined" && window.location.search) {
       window.history.replaceState({}, "", window.location.pathname);
     }
+
+    // Fire Meta Pixel Lead event on CTA button click
+    fbEvent("Lead", {
+      content_name: "CTA Button Click",
+      currency: "INR",
+      value: 0,
+    });
+    fbCustomEvent("ButtonClick", {
+      button_name: "Book Consultation CTA",
+    });
+
     setBookingConfig({
       isOpen: true,
       step: 1,

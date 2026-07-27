@@ -4,6 +4,7 @@ const router = express.Router();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "https://first.infiplus.in/api/google/callback";
+const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN || "";
 
 const FIREBASE_DB_URL = (
   process.env.FIREBASE_DATABASE_URL ||
@@ -66,17 +67,21 @@ async function getGoogleAccessToken(account) {
     const data = await res.json();
     if (data.access_token) {
       const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000).toISOString();
-      await firebaseDb(`google_meet_integrations/global/${account.id}`, "PATCH", {
-        accessToken: data.access_token,
-        expiresAt,
-        updatedAt: new Date().toISOString(),
-      });
-      await firebaseDb(`google_meet_integrations/firstoptionagency/${account.id}`, "PATCH", {
-        accessToken: data.access_token,
-        expiresAt,
-        updatedAt: new Date().toISOString(),
-      });
+      if (account.id) {
+        await firebaseDb(`google_meet_integrations/global/${account.id}`, "PATCH", {
+          accessToken: data.access_token,
+          expiresAt,
+          updatedAt: new Date().toISOString(),
+        });
+        await firebaseDb(`google_meet_integrations/firstoptionagency/${account.id}`, "PATCH", {
+          accessToken: data.access_token,
+          expiresAt,
+          updatedAt: new Date().toISOString(),
+        });
+      }
       return data.access_token;
+    } else {
+      console.error("[Google OAuth Token Refresh Error]:", data);
     }
   } catch (err) {
     console.error("[Google OAuth] Refresh Token Exception:", err);
@@ -95,7 +100,20 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
     const integrationsObj = { ...agencyObj, ...globalObj };
 
     const accounts = Object.values(integrationsObj).filter(Boolean);
-    const activeOAuthAcc = accounts.find((a) => a.refreshToken || a.accessToken) || accounts[0];
+
+    // Fallback to process.env credentials if GOOGLE_REFRESH_TOKEN exists and no accounts found
+    if ((GOOGLE_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN) && accounts.length === 0) {
+      accounts.push({
+        id: "env_google_oauth_account",
+        name: process.env.GOOGLE_ACCOUNT_NAME || "First Option Agency",
+        email: process.env.GOOGLE_ACCOUNT_EMAIL || "booking@firstoption.agency",
+        refreshToken: GOOGLE_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN,
+        clientId: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+      });
+    }
+
+    const activeOAuthAcc = accounts.find((a) => a && (a.refreshToken || a.accessToken)) || accounts[0];
 
     if (!activeOAuthAcc) {
       console.warn("[Google Meet ⚠️] No Google OAuth account connected. Unable to create dynamic Meet link.");
@@ -103,7 +121,10 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
     }
 
     const accessToken = await getGoogleAccessToken(activeOAuthAcc);
-    if (!accessToken) return null;
+    if (!accessToken) {
+      console.warn("[Google Meet ⚠️] Could not acquire valid access token for account:", activeOAuthAcc.email || activeOAuthAcc.id);
+      return null;
+    }
 
     // Parse start date & time robustly for IST (+05:30) timezone
     let year = new Date().getFullYear();
@@ -172,11 +193,9 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
     const startIso = `${year}-${pad(month)}-${pad(day)}T${pad(startHour)}:${pad(startMin)}:00+05:30`;
     const endIso = `${endYear}-${pad(endMonth)}-${pad(endDay)}T${pad(endHour)}:${pad(endMin)}:00+05:30`;
 
-    const cleanLeadName = fullName || "Faiz Ansari";
-    const organizerObj = activeOAuthAcc.email
-      ? { email: activeOAuthAcc.email, displayName: activeOAuthAcc.name || "First Option Agency" }
-      : { email: "booking@firstoption.agency", displayName: "First Option Agency" };
+    const cleanLeadName = fullName || "Valued Client";
 
+    // Note: Do NOT set `organizer` in eventPayload because Google Calendar API treats `organizer` as read-only on events.insert.
     const eventPayload = {
       summary: `Strategy Session with ${cleanLeadName}`,
       description: `1-on-1 Business Growth Strategy Session with First Option Agency.\n\nClient Name: ${cleanLeadName}\nClient Email: ${email || "N/A"}`,
@@ -188,8 +207,7 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
         dateTime: endIso,
         timeZone: "Asia/Kolkata",
       },
-      organizer: organizerObj,
-      attendees: email ? [{ email, displayName: cleanLeadName, responseStatus: "accepted" }] : [],
+      attendees: email ? [{ email, displayName: cleanLeadName }] : [],
       conferenceData: {
         createRequest: {
           requestId: `valdho_meet_${Date.now()}_${Math.random().toString(36).substring(7)}`,
@@ -198,7 +216,7 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
       },
     };
 
-    const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all", {
+    const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -212,9 +230,11 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
       console.log(`[Google Meet 🎥] Generated Dynamic Unique Meet Link for ${fullName}: ${data.hangoutLink}`);
       return data.hangoutLink;
     } else if (data.conferenceData?.entryPoints?.[0]?.uri) {
-      return data.conferenceData.entryPoints[0].uri;
+      const meetUri = data.conferenceData.entryPoints[0].uri;
+      console.log(`[Google Meet 🎥] Generated Dynamic Unique Meet Link from entry points: ${meetUri}`);
+      return meetUri;
     } else {
-      console.error("[Google Meet API Response]:", data);
+      console.error("[Google Meet API Response Error]:", data);
     }
   } catch (err) {
     console.error("[Google Calendar API Exception]:", err);

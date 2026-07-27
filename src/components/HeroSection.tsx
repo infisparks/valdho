@@ -10,7 +10,7 @@ interface HeroSectionProps {
 export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
   const youtubeVideoId = "yC2-mbXI_ZE";
   const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
-  const thumbnailUrl = `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`;
+  const thumbnailUrl = "/hero.png";
 
   return (
     <section className="hero-border-card rounded-3xl p-3 sm:p-6 md:p-8 lg:p-10 my-1 text-center relative overflow-hidden">
@@ -47,11 +47,11 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
         className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-zinc-950 border border-zinc-800 shadow-2xl mb-3.5 sm:mb-6 cursor-pointer group"
         onClick={() => onVideoClick("Why We Are Different", "First Option Agency", youtubeVideoId)}
       >
-        <div className="relative aspect-video w-full bg-slate-950 flex items-center justify-center">
+        <div className="relative w-full bg-slate-950 flex items-center justify-center">
           <img
             src={thumbnailUrl}
             alt="Why We Are Different - YouTube Video"
-            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity scale-[1.01] group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-auto object-contain block transition-opacity duration-300"
           />
 
           {/* Top YouTube Overlay Header */}

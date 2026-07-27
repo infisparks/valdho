@@ -92,6 +92,9 @@ export function BookingModal({
   // User explicitly reselecting slot override flag
   const [isReselectingSlot, setIsReselectingSlot] = useState<boolean>(false);
 
+  // Show "Already Submitted" popup if user has already filled contact form
+  const [showAlreadySubmittedPopup, setShowAlreadySubmittedPopup] = useState<boolean>(false);
+
   // Lead ID & Creation Date in Firebase & LocalStorage
   const [firebaseLeadId, setFirebaseLeadId] = useState<string | null>(initialLeadId);
   const [createdDate, setCreatedDate] = useState<string | null>(initialCreatedDate);
@@ -234,10 +237,15 @@ export function BookingModal({
       if (!foundContact && (initialStep === 2 || initialStep === 3)) {
         setStep(1);
       }
+
+      // If user already filled contact details previously and opens modal on Step 1 -> Show Already Submitted Popup
+      if (foundContact && !isReselectingSlot && initialStep === 1) {
+        setShowAlreadySubmittedPopup(true);
+      }
     }
 
     restoreLead();
-  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, activeCampaign.id]);
+  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, activeCampaign.id, isReselectingSlot]);
 
   // Realtime Booked Slots Listener whenever selected date changes
   useEffect(() => {
@@ -380,6 +388,7 @@ export function BookingModal({
   const handleReset = () => {
     setStep(1);
     setIsReselectingSlot(false);
+    setShowAlreadySubmittedPopup(false);
     setActiveQIndex(0);
     setSelectedTimeSlot(null);
     setPhoneError(null);
@@ -503,8 +512,136 @@ export function BookingModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 animate-toast-in overflow-y-auto">
-      {/* Step 1: Executive Dark Form Modal (Fast Mobile Filing) */}
-      {step === 1 && (
+      {/* Popup: Already Filled Form Notice & Instant WhatsApp / Call Support */}
+      {showAlreadySubmittedPopup ? (
+        <div className="bg-gradient-to-b from-zinc-950 via-[#0e1017] to-zinc-950 text-white border border-amber-500/40 w-full max-w-md sm:max-w-lg rounded-3xl p-5 sm:p-7 shadow-[0_0_50px_rgba(245,166,35,0.25)] relative max-h-[92vh] overflow-y-auto font-sans text-center my-auto animate-toast-in">
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm transition-colors cursor-pointer"
+          >
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+
+          {/* Badge & Icon */}
+          <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 text-amber-400 flex items-center justify-center text-3xl mx-auto shadow-lg mb-3">
+            <i className="fa-solid fa-circle-check"></i>
+          </div>
+
+          <div className="inline-flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-amber-400 text-xs font-bold mb-3">
+            <i className="fa-solid fa-shield-halved"></i>
+            <span>Form Already Submitted</span>
+          </div>
+
+          {/* Title */}
+          <h3 className="text-xl sm:text-2xl font-black text-white leading-tight">
+            You've Already Registered!
+          </h3>
+
+          {/* Subtext */}
+          <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed mt-2 max-w-sm mx-auto">
+            We already have your contact details on file. For any query, assistance, or urgent strategy updates, contact us directly:
+          </p>
+
+          {/* Display Existing Contact Details Card */}
+          {contactInfo.fullName && (
+            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 mt-4 text-left text-xs space-y-1.5 font-mono shadow-inner">
+              <div className="flex justify-between items-center text-slate-400">
+                <span>Registered Name:</span>
+                <span className="text-white font-bold font-sans">{contactInfo.fullName}</span>
+              </div>
+              {contactInfo.email && (
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Registered Email:</span>
+                  <span className="text-amber-400 font-bold">{contactInfo.email}</span>
+                </div>
+              )}
+              {contactInfo.phone && (
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Registered Phone:</span>
+                  <span className="text-white font-bold">{contactInfo.countryCode} {contactInfo.phone}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Phone Number Display Card */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-zinc-900 to-emerald-500/10 border border-amber-500/30 rounded-2xl p-3.5 mt-4 flex items-center justify-between shadow-md">
+            <div className="flex items-center space-x-3 text-left">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-400 flex items-center justify-center text-lg flex-shrink-0">
+                <i className="fa-solid fa-headset"></i>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">Direct Support Line</p>
+                <p className="text-base sm:text-lg font-black text-white font-mono tracking-wide">+91 832 949 4445</p>
+              </div>
+            </div>
+            <a
+              href="tel:+918329494445"
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-2 rounded-xl text-xs flex items-center space-x-1 shadow transition-transform active:scale-95 cursor-pointer"
+            >
+              <i className="fa-solid fa-phone text-xs"></i>
+              <span>Call</span>
+            </a>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-2.5 mt-5">
+            {/* WhatsApp Support Button */}
+            <a
+              href={`https://wa.me/918329494445?text=${encodeURIComponent(
+                `Hi First Option Agency, I have already submitted the form and have a query.\nName: ${contactInfo.fullName || "User"}\nEmail: ${contactInfo.email || "N/A"}\nPhone: ${contactInfo.phone || "N/A"}`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black p-3.5 rounded-2xl text-xs sm:text-sm uppercase tracking-wide flex items-center justify-center space-x-2 shadow-xl hover:shadow-emerald-900/40 transition-all cursor-pointer"
+            >
+              <i className="fa-brands fa-whatsapp text-lg"></i>
+              <span>Chat on WhatsApp (+91 832 949 4445)</span>
+            </a>
+
+            {/* Direct Phone Call Button */}
+            <a
+              href="tel:+918329494445"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black p-3.5 rounded-2xl text-xs sm:text-sm uppercase tracking-wide flex items-center justify-center space-x-2 shadow-xl hover:shadow-indigo-900/40 transition-all cursor-pointer"
+            >
+              <i className="fa-solid fa-phone text-sm"></i>
+              <span>Call Support (+91 832 949 4445)</span>
+            </a>
+
+            {/* Secondary Options Grid */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAlreadySubmittedPopup(false);
+                  setIsReselectingSlot(true);
+                  setStep(3);
+                }}
+                className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <i className="fa-solid fa-calendar-days text-xs"></i>
+                <span>Book / Change Slot</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAlreadySubmittedPopup(false);
+                  setStep(1);
+                }}
+                className="bg-zinc-800 hover:bg-zinc-700 text-slate-300 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <i className="fa-solid fa-pen-to-square text-xs"></i>
+                <span>Fill New Details</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Step 1: Executive Dark Form Modal (Fast Mobile Filing) */}
+          {step === 1 && (
         <div className="bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 text-white border border-amber-500/40 w-full max-w-md sm:max-w-lg rounded-3xl p-4 sm:p-7 shadow-[0_0_50px_rgba(245,166,35,0.2)] relative max-h-[92vh] overflow-y-auto font-sans my-auto">
           {/* Header Bar */}
           <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
@@ -962,6 +1099,8 @@ export function BookingModal({
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

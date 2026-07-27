@@ -90,7 +90,7 @@ function parseMeetingDateTime(dateStr, timeStr) {
 
     let year = 0, month = 0, day = 0;
 
-    if (dateParts.length === 3) {
+    if (dateParts.length === 3 && !isNaN(parseInt(dateParts[0], 10))) {
       const p0 = parseInt(dateParts[0], 10);
       const p1 = parseInt(dateParts[1], 10);
       const p2 = parseInt(dateParts[2], 10);
@@ -116,6 +116,18 @@ function parseMeetingDateTime(dateStr, timeStr) {
       }
     }
 
+    // Robust fallback parsing for text formatted dates like "July 27, 2026" or "27 July 2026"
+    if (!year || isNaN(year)) {
+      const dObj = new Date(rawDate);
+      if (!isNaN(dObj.getTime())) {
+        year = dObj.getFullYear();
+        month = dObj.getMonth();
+        day = dObj.getDate();
+      }
+    }
+
+    if (!year || year <= 1900) return null;
+
     let hour = 12;
     let minute = 0;
 
@@ -136,16 +148,13 @@ function parseMeetingDateTime(dateStr, timeStr) {
       }
     }
 
-    if (year > 1900 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
-      const pad = (n) => String(n).padStart(2, "0");
-      // Explicitly construct IST (+05:30) date object so server timezone doesn't offset it
-      const isoString = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
-      const dt = new Date(isoString);
-      return isNaN(dt.getTime()) ? null : dt;
-    }
-
-    return null;
+    const pad = (n) => String(n).padStart(2, "0");
+    // Explicitly construct IST (+05:30) date object so server timezone doesn't offset it
+    const isoString = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
+    const dt = new Date(isoString);
+    return isNaN(dt.getTime()) ? new Date(year, month, day, hour, minute) : dt;
   } catch (err) {
+    console.error("[parseMeetingDateTime Exception]:", err);
     return null;
   }
 }
@@ -418,13 +427,37 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
       if (openInst) defaultInstanceName = openInst.instanceName;
     }
 
-    const currentEquivs = stageEquivalents[currentNorm] || [currentNorm];
+    // Fetch pipeline stage names map from RTDB (maps custom IDs like stage_1737... to "Meeting Booked")
+    const dbPipelineStages = (await firebaseDb("pipeline_stages/firstoptionagency")) || (await firebaseDb("pipeline_stages")) || {};
+    const stageIdToNameMap = {};
+    if (typeof dbPipelineStages === "object") {
+      Object.values(dbPipelineStages).forEach((st) => {
+        if (st && st.id && st.name) {
+          stageIdToNameMap[normStage(st.id)] = normStage(st.name);
+        }
+      });
+    }
 
-    // Strict Rule Matching (avoid loose substring collisions)
+    const currentNameNorm = stageIdToNameMap[currentNorm] || "";
+    const currentEquivs = stageEquivalents[currentNorm] || stageEquivalents[currentNameNorm] || [currentNorm];
+
+    // Rule Matching Engine
     let matchingRules = activeRules.filter((r) => {
+      // 1. Meeting Trigger Rules: If rule.triggerBase === "meeting" and lead has a meeting booked, match it!
+      if (r.triggerBase === "meeting" && currentMeetingDate) {
+        return true;
+      }
+
       const rStgNorm = normStage(r.stageId);
-      const rEquivs = stageEquivalents[rStgNorm] || [rStgNorm];
-      return rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && rStgNorm === currentNorm);
+      const rStgNameNorm = stageIdToNameMap[rStgNorm] || "";
+      const rEquivs = stageEquivalents[rStgNorm] || stageEquivalents[rStgNameNorm] || [rStgNorm];
+
+      return (
+        r.stageId === currentStage ||
+        rStgNorm === currentNorm ||
+        (rStgNameNorm && (rStgNameNorm === currentNorm || rStgNameNorm === currentNameNorm)) ||
+        rEquivs.some((eq) => currentEquivs.includes(eq))
+      );
     });
 
     // Auto Funnel Fallback Engine removed to ensure ONLY user-configured rules schedule messages

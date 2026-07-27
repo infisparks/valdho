@@ -85,49 +85,6 @@ function parseMeetingDateTime(dateStr, timeStr) {
   if (!dateStr) return null;
   try {
     const rawDate = String(dateStr).trim();
-    const cleanDate = rawDate.split("T")[0];
-    const dateParts = cleanDate.split(/[-/]/);
-
-    let year = 0, month = 0, day = 0;
-
-    if (dateParts.length === 3 && !isNaN(parseInt(dateParts[0], 10))) {
-      const p0 = parseInt(dateParts[0], 10);
-      const p1 = parseInt(dateParts[1], 10);
-      const p2 = parseInt(dateParts[2], 10);
-
-      if (p0 > 1000) {
-        // YYYY-MM-DD or YYYY/MM/DD
-        year = p0;
-        month = p1 - 1;
-        day = p2;
-      } else if (p2 > 1000) {
-        // DD-MM-YYYY or MM-DD-YYYY or DD/MM/YYYY
-        year = p2;
-        if (p0 > 12) {
-          day = p0;
-          month = p1 - 1;
-        } else if (p1 > 12) {
-          month = p0 - 1;
-          day = p1;
-        } else {
-          day = p0;
-          month = p1 - 1;
-        }
-      }
-    }
-
-    // Robust fallback parsing for text formatted dates like "July 27, 2026" or "27 July 2026"
-    if (!year || isNaN(year)) {
-      const dObj = new Date(rawDate);
-      if (!isNaN(dObj.getTime())) {
-        year = dObj.getFullYear();
-        month = dObj.getMonth();
-        day = dObj.getDate();
-      }
-    }
-
-    if (!year || year <= 1900) return null;
-
     let hour = 12;
     let minute = 0;
 
@@ -148,15 +105,61 @@ function parseMeetingDateTime(dateStr, timeStr) {
       }
     }
 
-    const pad = (n) => String(n).padStart(2, "0");
-    // Explicitly construct IST (+05:30) date object so server timezone doesn't offset it
-    const isoString = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
-    const dt = new Date(isoString);
-    return isNaN(dt.getTime()) ? new Date(year, month, day, hour, minute) : dt;
+    let year = 0, month = 0, day = 0;
+
+    // Check if numeric YYYY-MM-DD or DD-MM-YYYY
+    const cleanDate = rawDate.split("T")[0];
+    const dateParts = cleanDate.split(/[-/]/);
+
+    if (dateParts.length === 3 && dateParts.every((p) => /^\d+$/.test(p.trim()))) {
+      const p0 = parseInt(dateParts[0], 10);
+      const p1 = parseInt(dateParts[1], 10);
+      const p2 = parseInt(dateParts[2], 10);
+
+      if (p0 > 1000) {
+        // YYYY-MM-DD
+        year = p0;
+        month = p1 - 1;
+        day = p2;
+      } else if (p2 > 1000) {
+        // DD-MM-YYYY or MM-DD-YYYY
+        year = p2;
+        if (p0 > 12) {
+          day = p0;
+          month = p1 - 1;
+        } else if (p1 > 12) {
+          month = p0 - 1;
+          day = p1;
+        } else {
+          day = p0;
+          month = p1 - 1;
+        }
+      }
+    } else {
+      // Named date format e.g. "July 27, 2026" or "27 July 2026"
+      const dObj = new Date(rawDate);
+      if (!isNaN(dObj.getTime())) {
+        year = dObj.getFullYear();
+        month = dObj.getMonth();
+        day = dObj.getDate();
+      }
+    }
+
+    if (year > 1900 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      const pad = (n) => String(n).padStart(2, "0");
+      const isoString = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
+      const dt = new Date(isoString);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+
+    // Direct fallback using combined Date parsing
+    const fullCombined = `${rawDate} ${timeStr || "12:00 PM"}`;
+    const directDate = new Date(fullCombined);
+    if (!isNaN(directDate.getTime())) return directDate;
   } catch (err) {
-    console.error("[parseMeetingDateTime Exception]:", err);
-    return null;
+    console.error("parseMeetingDateTime Exception:", err);
   }
+  return null;
 }
 
 /**
@@ -364,8 +367,8 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
 
     const stageEquivalents = {
       surveycompleted: ["surveycompleted", "survey", "step2", "qualificationsurvey"],
-      inprogress: ["inprogress", "1stconnection", "firstconnection", "step1", "connection"],
-      meetingbooked: ["meetingbooked", "meeting", "step3", "booking"],
+      inprogress: ["inprogress", "1stconnection", "firstconnection", "step1", "connection", "partial"],
+      meetingbooked: ["meetingbooked", "meeting", "step3", "booking", "completed", "booked"],
       raw: ["raw", "leads", "newlead"],
       proposalsent: ["proposalsent", "proposal"],
       won: ["won", "closedwon"],
@@ -427,37 +430,15 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
       if (openInst) defaultInstanceName = openInst.instanceName;
     }
 
-    // Fetch pipeline stage names map from RTDB (maps custom IDs like stage_1737... to "Meeting Booked")
-    const dbPipelineStages = (await firebaseDb("pipeline_stages/firstoptionagency")) || (await firebaseDb("pipeline_stages")) || {};
-    const stageIdToNameMap = {};
-    if (typeof dbPipelineStages === "object") {
-      Object.values(dbPipelineStages).forEach((st) => {
-        if (st && st.id && st.name) {
-          stageIdToNameMap[normStage(st.id)] = normStage(st.name);
-        }
-      });
-    }
+    const currentEquivs = stageEquivalents[currentNorm] || [currentNorm];
 
-    const currentNameNorm = stageIdToNameMap[currentNorm] || "";
-    const currentEquivs = stageEquivalents[currentNorm] || stageEquivalents[currentNameNorm] || [currentNorm];
-
-    // Rule Matching Engine
+    // Strict Rule Matching (avoid loose substring collisions)
     let matchingRules = activeRules.filter((r) => {
-      // 1. Meeting Trigger Rules: If rule.triggerBase === "meeting" and lead has a meeting booked, match it!
-      if (r.triggerBase === "meeting" && currentMeetingDate) {
-        return true;
-      }
-
       const rStgNorm = normStage(r.stageId);
-      const rStgNameNorm = stageIdToNameMap[rStgNorm] || "";
-      const rEquivs = stageEquivalents[rStgNorm] || stageEquivalents[rStgNameNorm] || [rStgNorm];
-
-      return (
-        r.stageId === currentStage ||
-        rStgNorm === currentNorm ||
-        (rStgNameNorm && (rStgNameNorm === currentNorm || rStgNameNorm === currentNameNorm)) ||
-        rEquivs.some((eq) => currentEquivs.includes(eq))
-      );
+      const rEquivs = stageEquivalents[rStgNorm] || [rStgNorm];
+      const isStageMatch = rEquivs.some((eq) => currentEquivs.includes(eq)) || (rStgNorm && currentNorm && rStgNorm === currentNorm);
+      const isMeetingRule = r.triggerBase === "meeting" && (currentNorm === "meetingbooked" || Boolean(currentMeetingDate));
+      return isStageMatch || isMeetingRule;
     });
 
     // Auto Funnel Fallback Engine removed to ensure ONLY user-configured rules schedule messages

@@ -54,6 +54,19 @@ export function HeroSection({ onBookClick, onVideoClick }: HeroSectionProps) {
             className="w-full h-auto object-contain block transition-opacity duration-300"
           />
 
+          {/* Center Red YouTube Play Button Overlay */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="relative flex items-center justify-center">
+              {/* Pulsing Red Outer Glow */}
+              <div className="absolute w-16 h-11 sm:w-24 sm:h-16 md:w-28 md:h-20 bg-red-600/50 rounded-2xl sm:rounded-3xl blur-md group-hover:scale-125 transition-all duration-300 animate-pulse"></div>
+
+              {/* Red YouTube Play Button Badge */}
+              <div className="relative w-14 h-10 sm:w-20 sm:h-14 md:w-24 md:h-16 bg-red-600 group-hover:bg-red-700 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-2xl shadow-red-600/70 border border-white/20 group-hover:scale-110 transition-all duration-300">
+                <i className="fa-solid fa-play text-white text-base sm:text-2xl md:text-3xl ml-1 drop-shadow-md"></i>
+              </div>
+            </div>
+          </div>
+
           {/* Top YouTube Overlay Header */}
           <div className="absolute top-0 left-0 right-0 p-2.5 sm:p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center space-x-2.5 sm:space-x-3 text-left">
             <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-full overflow-hidden border-2 border-amber-400 shadow-md flex-shrink-0">

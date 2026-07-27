@@ -12,12 +12,15 @@ const FIREBASE_DB_URL = (
   "https://firstoption-8da25-default-rtdb.firebaseio.com"
 ).replace(/\/$/, "");
 
+const FIREBASE_DB_SECRET = process.env.FIREBASE_DB_SECRET || process.env.FIREBASE_DATABASE_SECRET || "";
+
 /**
  * Firebase Realtime Database REST API Helper
  */
 async function firebaseDb(path, method = "GET", body = null) {
   try {
-    const url = `${FIREBASE_DB_URL}/${path}.json`;
+    const authQuery = FIREBASE_DB_SECRET ? `?auth=${encodeURIComponent(FIREBASE_DB_SECRET)}` : "";
+    const url = `${FIREBASE_DB_URL}/${path}.json${authQuery}`;
     const options = {
       method,
       headers: { "Content-Type": "application/json" },
@@ -26,7 +29,10 @@ async function firebaseDb(path, method = "GET", body = null) {
       options.body = JSON.stringify(body);
     }
     const res = await fetch(url, options);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[Google Calendar] Firebase DB Error ${res.status} (${res.statusText}) on ${path}`);
+      return null;
+    }
     return await res.json();
   } catch (err) {
     console.error("[Google Calendar] Firebase DB Exception:", err);
@@ -97,9 +103,22 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
   try {
     const globalObj = (await firebaseDb("google_meet_integrations/global")) || {};
     const agencyObj = (await firebaseDb("google_meet_integrations/firstoptionagency")) || {};
-    const integrationsObj = { ...agencyObj, ...globalObj };
+    const rootObj = (await firebaseDb("google_meet_integrations")) || {};
 
-    const accounts = Object.values(integrationsObj).filter(Boolean);
+    const rawObjects = [globalObj, agencyObj, rootObj];
+    let accounts = [];
+
+    for (const obj of rawObjects) {
+      if (!obj || typeof obj !== "object") continue;
+      for (const val of Object.values(obj)) {
+        if (val && typeof val === "object" && (val.refreshToken || val.accessToken || val.type === "google_oauth")) {
+          // Avoid duplicate accounts by id or email
+          if (!accounts.some((a) => (a.id && a.id === val.id) || (a.email && a.email === val.email))) {
+            accounts.push(val);
+          }
+        }
+      }
+    }
 
     // Fallback to process.env credentials if GOOGLE_REFRESH_TOKEN exists and no accounts found
     if ((GOOGLE_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN) && accounts.length === 0) {

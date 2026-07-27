@@ -247,7 +247,24 @@ router.delete("/stage-automations/:stageId/:ruleId", async (req, res) => {
   try {
     const { stageId, ruleId } = req.params;
     await firebaseDb(`whatsapp_stage_automations/firstoptionagency/${stageId}/${ruleId}`, "DELETE");
-    return res.status(200).json({ success: true, message: "Rule deleted successfully" });
+
+    // Purge all scheduled tasks matching this deleted ruleId across all leads
+    const allScheduledObj = (await firebaseDb("whatsapp_scheduled_tasks")) || {};
+    for (const [phone, tasksMap] of Object.entries(allScheduledObj)) {
+      if (!tasksMap || typeof tasksMap !== "object") continue;
+      for (const [taskId, record] of Object.entries(tasksMap)) {
+        if (record && (String(record.ruleId) === String(ruleId) || taskId.includes(ruleId))) {
+          const gcpTaskName = typeof record === "object" ? record.taskName : null;
+          await deleteScheduledHttpTask({ taskId, taskName: gcpTaskName });
+          if (record.triggerKey) {
+            await firebaseDb(`whatsapp_sent_automations/${record.triggerKey}`, "DELETE");
+          }
+          await firebaseDb(`whatsapp_scheduled_tasks/${phone}/${taskId}`, "DELETE");
+        }
+      }
+    }
+
+    return res.status(200).json({ success: true, message: "Rule deleted and pending tasks purged successfully" });
   } catch (err) {
     console.error("Delete Stage Automation Error:", err);
     return res.status(500).json({ success: false, error: err.message });
@@ -269,50 +286,49 @@ async function cancelAllLeadTasks(leadPhone, options = { cancelCustom: false }) 
     const cleanPhone = sanitizePhoneNumber(leadPhone);
     if (!cleanPhone) return { success: false, error: "Invalid phone number" };
 
-    console.log(`[Cloud Tasks 🧹] Purging pipeline automation tasks for lead '${cleanPhone}' (Preserve custom broadcasts: ${!options.cancelCustom})...`);
+    const raw10 = cleanPhone.replace(/^91/, "");
+    const possibleKeys = Array.from(new Set([cleanPhone, raw10, `+91${raw10}`, `91${raw10}`]));
 
-    const activeTasksMap = (await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}`)) || {};
-    const taskEntries = Object.entries(activeTasksMap);
-
-    if (taskEntries.length === 0) {
-      console.log(`[Cloud Tasks ℹ️] No pending tasks found for lead '${cleanPhone}'.`);
-      return { success: true, count: 0 };
-    }
+    console.log(`[Cloud Tasks 🧹] Purging pipeline automation tasks for lead '${cleanPhone}' across keys (${possibleKeys.join(", ")})...`);
 
     let canceledCount = 0;
 
-    for (const [taskId, taskRecord] of taskEntries) {
-      if (!taskRecord) continue;
+    for (const key of possibleKeys) {
+      const activeTasksMap = (await firebaseDb(`whatsapp_scheduled_tasks/${key}`)) || {};
+      const taskEntries = Object.entries(activeTasksMap);
 
-      const isCustomBroadcast =
-        taskId.startsWith("task_sch_") ||
-        (typeof taskRecord === "object" && (taskRecord.ruleId?.startsWith("sch_") || taskRecord.triggerBase === "custom"));
+      for (const [taskId, taskRecord] of taskEntries) {
+        if (!taskRecord) continue;
 
-      // Preserve custom scheduled broadcasts during pipeline stage transitions
-      if (isCustomBroadcast && !options.cancelCustom) {
-        console.log(`[Cloud Tasks 🛡️] Preserving custom scheduled broadcast '${taskId}' for lead '${cleanPhone}'.`);
-        continue;
+        const isCustomBroadcast =
+          taskId.startsWith("task_sch_") ||
+          (typeof taskRecord === "object" && (taskRecord.ruleId?.startsWith("sch_") || taskRecord.triggerBase === "custom"));
+
+        // Preserve custom scheduled broadcasts during pipeline stage transitions
+        if (isCustomBroadcast && !options.cancelCustom) {
+          console.log(`[Cloud Tasks 🛡️] Preserving custom scheduled broadcast '${taskId}' for lead '${cleanPhone}'.`);
+          continue;
+        }
+
+        const gcpTaskName = typeof taskRecord === "object" ? taskRecord.taskName : null;
+        await deleteScheduledHttpTask({ taskId, taskName: gcpTaskName });
+
+        // CLEAR THE STRICT LOCKOUT SO IT CAN BE RE-SCHEDULED IF DRAGGED BACK
+        if (typeof taskRecord === "object" && taskRecord.triggerKey) {
+          await firebaseDb(`whatsapp_sent_automations/${taskRecord.triggerKey}`, "DELETE");
+        }
+
+        // Remove individual pipeline task node from tracking
+        await firebaseDb(`whatsapp_scheduled_tasks/${key}/${taskId}`, "DELETE");
+        canceledCount++;
       }
 
-      const gcpTaskName = typeof taskRecord === "object" ? taskRecord.taskName : null;
-      await deleteScheduledHttpTask({ taskId, taskName: gcpTaskName });
-
-      // CLEAR THE STRICT LOCKOUT SO IT CAN BE RE-SCHEDULED IF DRAGGED BACK
-      if (typeof taskRecord === "object" && taskRecord.triggerKey) {
-        await firebaseDb(`whatsapp_sent_automations/${taskRecord.triggerKey}`, "DELETE");
+      if (canceledCount > 0) {
+        await firebaseDb(`whatsapp_lead_timers/${key}`, "DELETE");
       }
-
-      // Remove individual pipeline task node from tracking
-      await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}/${taskId}`, "DELETE");
-      canceledCount++;
     }
 
-    // Only clear lead_timers node if pipeline tasks were purged
-    if (canceledCount > 0) {
-      await firebaseDb(`whatsapp_lead_timers/${cleanPhone}`, "DELETE");
-    }
-
-    console.log(`[Cloud Tasks ✅] Canceled ${canceledCount} pipeline tasks (preserved custom broadcasts) for lead '${cleanPhone}'.`);
+    console.log(`[Cloud Tasks ✅] Canceled ${canceledCount} pipeline tasks for lead '${cleanPhone}'.`);
     return { success: true, count: canceledCount };
   } catch (err) {
     console.error("[Cloud Tasks ❌] cancelAllLeadTasks Exception:", err);
@@ -419,6 +435,25 @@ async function _executeSyncLeadAutomationsInternal(leadData, previousStage, prev
             ...rule,
           });
         }
+      }
+    }
+
+    // Purge any orphan tasks for rules that were deleted from RTDB
+    const currentTasksMap = (await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}`)) || {};
+    for (const [taskId, record] of Object.entries(currentTasksMap)) {
+      if (!record || typeof record !== "object") continue;
+      const isCustom = taskId.startsWith("task_sch_") || record.triggerBase === "custom" || String(record.ruleId).startsWith("sch_");
+      if (isCustom) continue;
+
+      const ruleExists = activeRules.some((r) => String(r.id) === String(record.ruleId));
+      if (!ruleExists) {
+        console.log(`[Cloud Tasks 🧹] Purging task '${taskId}' for lead '${cleanPhone}' because rule '${record.ruleId}' was deleted.`);
+        const gcpTaskName = typeof record === "object" ? record.taskName : null;
+        await deleteScheduledHttpTask({ taskId, taskName: gcpTaskName });
+        if (record.triggerKey) {
+          await firebaseDb(`whatsapp_sent_automations/${record.triggerKey}`, "DELETE");
+        }
+        await firebaseDb(`whatsapp_scheduled_tasks/${cleanPhone}/${taskId}`, "DELETE");
       }
     }
 
@@ -724,11 +759,11 @@ router.post("/execute-task", async (req, res) => {
     const isStageMatching = isCustomMessage || leadEquivs.some((eq) => ruleEquivs.includes(eq));
 
     // Abort previous stage tasks if lead has moved forward in funnel (e.g. to meeting_booked or survey_completed)
-    const isLeadInMeeting = currentLeadNorm === "meetingbooked";
-    const isLeadInSurvey = currentLeadNorm === "surveycompleted";
+    const isLeadInMeeting = leadEquivs.some((eq) => stageEquivalents.meetingbooked.includes(eq));
+    const isLeadInSurvey = leadEquivs.some((eq) => stageEquivalents.surveycompleted.includes(eq));
     const isEarlierStageTask = ruleStageNorm === "inprogress" || ruleStageNorm === "raw" || (isLeadInMeeting && ruleStageNorm === "surveycompleted");
 
-    if (!isStageMatching || (isEarlierStageTask && !isCustomMessage)) {
+    if (!isStageMatching || ((isLeadInMeeting || isLeadInSurvey) && isEarlierStageTask && !isCustomMessage)) {
       console.warn(`[Cloud Tasks Executor 🛑 ABORT] Lead '${cleanNumber}' stage in RTDB ('${currentLeadStage}') is past rule stage ('${stageId}'). Aborting task execution.`);
       if (taskId) await firebaseDb(`whatsapp_scheduled_tasks/${cleanNumber}/${taskId}`, "DELETE");
       return res.status(200).json({ success: true, skipped: true, reason: `Stage mismatch/funnel advanced: current stage is ${currentLeadStage}, rule stage is ${stageId}` });

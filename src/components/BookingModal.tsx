@@ -11,6 +11,7 @@ import {
   LeadData,
 } from "@/lib/firebase";
 import { getCampaignConfig, DEFAULT_CAMPAIGN_ID } from "@/config/campaigns";
+import { event as fbEvent, customEvent as fbCustomEvent } from "@/lib/fpixel";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -341,6 +342,17 @@ export function BookingModal({
 
     setStep(2);
 
+    // Track Meta Pixel Lead & FormSubmit event when user completes Step 1 Form
+    fbEvent("Lead", {
+      content_name: activeCampaign.title || "Growth Consultation Lead Form",
+      currency: "INR",
+      value: 0,
+    });
+    fbCustomEvent("FormSubmit", {
+      form_name: "Step 1 Contact Form",
+      campaign: activeCampaign.id,
+    });
+
     // Asynchronously trigger automatic WhatsApp Welcome Message in background (no user wait / zero lag)
     const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
     fetch(`${serverUrl}/api/whatsapp/auto-send-welcome`, {
@@ -371,6 +383,12 @@ export function BookingModal({
 
     await saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, activeCampaign.id);
     setStep(3);
+
+    // Track Meta Pixel CompleteRegistration event for Survey completion
+    fbEvent("CompleteRegistration", {
+      content_name: "Growth Consultation Survey",
+      campaign: activeCampaign.id,
+    });
 
     // Asynchronously trigger automatic Survey WhatsApp Message in background (no user wait)
     const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
@@ -452,6 +470,12 @@ export function BookingModal({
     setSelectedTimeSlot(time);
     setIsReselectingSlot(false);
     setStep(4);
+
+    // Track Meta Pixel Schedule event for Consultation Call booking
+    fbEvent("Schedule", {
+      content_name: "Growth Consultation Booking",
+      campaign: activeCampaign.id,
+    });
 
     const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
     const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");

@@ -99,13 +99,13 @@ async function getGoogleAccessToken(account) {
 /**
  * Helper to Create Unique Google Meet Meeting Event on Google Calendar
  */
-async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }) {
+async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr, hostEmail }) {
   try {
     const globalObj = (await firebaseDb("google_meet_integrations/global")) || {};
     const agencyObj = (await firebaseDb("google_meet_integrations/firstoptionagency")) || {};
     const rootObj = (await firebaseDb("google_meet_integrations")) || {};
 
-    const rawObjects = [globalObj, agencyObj, rootObj];
+    const rawObjects = [agencyObj, globalObj, rootObj];
     let accounts = [];
 
     for (const obj of rawObjects) {
@@ -125,19 +125,56 @@ async function createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr }
       accounts.push({
         id: "env_google_oauth_account",
         name: process.env.GOOGLE_ACCOUNT_NAME || "First Option Agency",
-        email: process.env.GOOGLE_ACCOUNT_EMAIL || "booking@firstoption.agency",
+        email: process.env.GOOGLE_ACCOUNT_EMAIL || "firstoptionagency@gmail.com",
         refreshToken: GOOGLE_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN,
         clientId: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
       });
     }
 
-    const activeOAuthAcc = accounts.find((a) => a && (a.refreshToken || a.accessToken)) || accounts[0];
+    // Target specifically First Option Agency account (firstoptionagency@gmail.com) as host
+    let activeOAuthAcc = null;
+
+    if (hostEmail && typeof hostEmail === "string" && hostEmail.trim()) {
+      const target = hostEmail.trim().toLowerCase();
+      activeOAuthAcc = accounts.find(
+        (a) => a && (a.refreshToken || a.accessToken) && a.email && a.email.toLowerCase() === target
+      );
+    }
+
+    if (!activeOAuthAcc) {
+      // Prioritize firstoptionagency@gmail.com or email containing firstoptionagency
+      activeOAuthAcc = accounts.find(
+        (a) =>
+          a &&
+          (a.refreshToken || a.accessToken) &&
+          a.email &&
+          a.email.toLowerCase().includes("firstoptionagency")
+      );
+    }
+
+    if (!activeOAuthAcc) {
+      // Priority 2: Account name containing First Option Agency
+      activeOAuthAcc = accounts.find(
+        (a) =>
+          a &&
+          (a.refreshToken || a.accessToken) &&
+          a.name &&
+          a.name.toLowerCase().includes("first option agency")
+      );
+    }
+
+    if (!activeOAuthAcc) {
+      // Fallback: Pick any active connected OAuth account
+      activeOAuthAcc = accounts.find((a) => a && (a.refreshToken || a.accessToken)) || accounts[0];
+    }
 
     if (!activeOAuthAcc) {
       console.warn("[Google Meet ⚠️] No Google OAuth account connected. Unable to create dynamic Meet link.");
       return null;
     }
+
+    console.log(`[Google Meet 🎙️] Selected Host Account: ${activeOAuthAcc.email || activeOAuthAcc.name} (${activeOAuthAcc.id})`);
 
     const accessToken = await getGoogleAccessToken(activeOAuthAcc);
     if (!accessToken) {
@@ -433,8 +470,8 @@ router.post("/connect-oauth", async (req, res) => {
  */
 router.post("/generate-meet-link", async (req, res) => {
   try {
-    const { fullName, email, dateStr, timeStr } = req.body;
-    const uniqueUrl = await createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr });
+    const { fullName, email, dateStr, timeStr, hostEmail } = req.body;
+    const uniqueUrl = await createUniqueGoogleMeetEvent({ fullName, email, dateStr, timeStr, hostEmail });
 
     if (uniqueUrl) {
       return res.status(200).json({ success: true, meetingUrl: uniqueUrl });

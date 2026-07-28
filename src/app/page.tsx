@@ -36,15 +36,21 @@ function URLParamsHandler({
 
   useEffect(() => {
     const stepParam = searchParams.get("step");
+    const bookingParam =
+      searchParams.get("booking") ||
+      searchParams.get("book") ||
+      searchParams.get("form") ||
+      searchParams.get("openBooking");
     const leadIdParam = searchParams.get("leadId");
     const createdDateParam = searchParams.get("createdDate");
     const campaignParam = searchParams.get("campaign");
 
-    if (stepParam || campaignParam) {
+    if (stepParam || campaignParam || bookingParam) {
       let targetStep: 1 | 2 | 3 | 4 = 1;
       if (stepParam === "survey" || stepParam === "2") targetStep = 2;
       else if (stepParam === "meeting" || stepParam === "3") targetStep = 3;
       else if (stepParam === "4" || stepParam === "success") targetStep = 4;
+      else targetStep = 1;
 
       onConfigureBooking({
         isOpen: true,

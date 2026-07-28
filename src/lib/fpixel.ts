@@ -28,3 +28,20 @@ export const customEvent = (name: string, options: Record<string, any> = {}) => 
     window.fbq("trackCustom", name, options);
   }
 };
+
+// Helper to preserve test_event_code & fbclid for Meta Test Events tool
+export const getPreservedQueryString = (): string => {
+  if (typeof window === "undefined") return "";
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const testCode = params.get("test_event_code") || params.get("fbtest");
+    const fbclid = params.get("fbclid");
+    const preserved = new URLSearchParams();
+    if (testCode) preserved.set("test_event_code", testCode);
+    if (fbclid) preserved.set("fbclid", fbclid);
+    const str = preserved.toString();
+    return str ? `?${str}` : "";
+  } catch (e) {
+    return "";
+  }
+};

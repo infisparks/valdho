@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { event as fbEvent, customEvent as fbCustomEvent } from "@/lib/fpixel";
+import { event as fbEvent, customEvent as fbCustomEvent, getPreservedQueryString } from "@/lib/fpixel";
 import { UrgencyBar } from "@/components/UrgencyBar";
 import { HeaderBadge } from "@/components/HeaderBadge";
 import { HeroSection } from "@/components/HeroSection";
@@ -108,8 +108,9 @@ export default function Home({
   });
 
   const handleOpenBooking = useCallback(() => {
-    if (typeof window !== "undefined" && window.location.search) {
-      window.history.replaceState({}, "", window.location.pathname);
+    if (typeof window !== "undefined") {
+      const preserved = getPreservedQueryString();
+      window.history.replaceState({}, "", window.location.pathname + preserved);
     }
 
     // Fire Meta Pixel Lead event on CTA button click

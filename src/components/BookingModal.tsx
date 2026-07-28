@@ -12,7 +12,7 @@ import {
   LeadData,
 } from "@/lib/firebase";
 import { getCampaignConfig, DEFAULT_CAMPAIGN_ID } from "@/config/campaigns";
-import { event as fbEvent, customEvent as fbCustomEvent } from "@/lib/fpixel";
+import { event as fbEvent, customEvent as fbCustomEvent, getPreservedQueryString } from "@/lib/fpixel";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -150,10 +150,12 @@ export function BookingModal({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const preservedQuery = getPreservedQueryString();
+
     if (!isOpen) {
-      // When modal is closed, return URL back to root domain "/" without params
+      // When modal is closed, return URL back to root domain "/" preserving test params
       if (window.location.pathname !== "/") {
-        window.history.replaceState({}, "", "/");
+        window.history.replaceState({}, "", "/" + preservedQuery);
       }
       return;
     }
@@ -165,7 +167,7 @@ export function BookingModal({
     else if (step === 4) targetPath = "/success";
 
     if (window.location.pathname !== targetPath) {
-      window.history.replaceState({}, "", targetPath);
+      window.history.replaceState({}, "", targetPath + preservedQuery);
       // Fire Meta Pixel PageView on step path change for URL-based Facebook Lead & Conversion tracking
       if (typeof window.fbq === "function") {
         window.fbq("track", "PageView");

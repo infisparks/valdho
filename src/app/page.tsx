@@ -35,6 +35,9 @@ function URLParamsHandler({
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const pathname = window.location.pathname;
     const stepParam = searchParams.get("step");
     const bookingParam =
       searchParams.get("booking") ||
@@ -45,13 +48,19 @@ function URLParamsHandler({
     const createdDateParam = searchParams.get("createdDate");
     const campaignParam = searchParams.get("campaign");
 
-    if (stepParam || campaignParam || bookingParam) {
-      let targetStep: 1 | 2 | 3 | 4 = 1;
-      if (stepParam === "survey" || stepParam === "2") targetStep = 2;
-      else if (stepParam === "meeting" || stepParam === "3") targetStep = 3;
-      else if (stepParam === "4" || stepParam === "success") targetStep = 4;
-      else targetStep = 1;
+    let targetStep: 1 | 2 | 3 | 4 | null = null;
 
+    if (pathname === "/form") targetStep = 1;
+    else if (pathname === "/survey") targetStep = 2;
+    else if (pathname === "/meeting") targetStep = 3;
+    else if (pathname === "/success") targetStep = 4;
+    else if (stepParam === "survey" || stepParam === "2") targetStep = 2;
+    else if (stepParam === "meeting" || stepParam === "3") targetStep = 3;
+    else if (stepParam === "4" || stepParam === "success") targetStep = 4;
+    else if (stepParam === "1" || stepParam === "contact" || stepParam === "form" || stepParam === "book" || bookingParam) targetStep = 1;
+    else if (campaignParam) targetStep = 1;
+
+    if (targetStep !== null) {
       onConfigureBooking({
         isOpen: true,
         step: targetStep,
@@ -65,7 +74,13 @@ function URLParamsHandler({
   return null;
 }
 
-export default function Home() {
+export default function Home({
+  defaultStep,
+  defaultOpen = false,
+}: {
+  defaultStep?: 1 | 2 | 3 | 4;
+  defaultOpen?: boolean;
+} = {}) {
   const [bookingConfig, setBookingConfig] = useState<{
     isOpen: boolean;
     step: 1 | 2 | 3 | 4;
@@ -73,8 +88,8 @@ export default function Home() {
     createdDate: string | null;
     campaignName: string | null;
   }>({
-    isOpen: false,
-    step: 1,
+    isOpen: defaultOpen || !!defaultStep,
+    step: defaultStep || 1,
     leadId: null,
     createdDate: null,
     campaignName: null,

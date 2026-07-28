@@ -146,29 +146,32 @@ export function BookingModal({
     }
   }, [isOpen, initialStep, initialLeadId, initialCreatedDate, isReselectingSlot, hasRestoredLead]);
 
-  // Dynamically sync browser URL address bar params when step changes
+  // Dynamically sync browser URL path when step changes (/form, /survey, /meeting, /success)
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     if (!isOpen) {
-      if (typeof window !== "undefined" && window.location.search) {
-        window.history.replaceState({}, "", window.location.pathname);
+      // When modal is closed, return URL back to root domain "/" without params
+      if (window.location.pathname !== "/") {
+        window.history.replaceState({}, "", "/");
       }
       return;
     }
 
-    if (typeof window !== "undefined" && firebaseLeadId) {
-      const todayDate = createdDate || new Date().toISOString().split("T")[0];
-      let stepName = "";
+    let targetPath = "/form";
+    if (step === 1) targetPath = "/form";
+    else if (step === 2) targetPath = "/survey";
+    else if (step === 3) targetPath = "/meeting";
+    else if (step === 4) targetPath = "/success";
 
-      if (step === 2) stepName = "survey";
-      else if (step === 3) stepName = "meeting";
-      else if (step === 4) stepName = "success";
-
-      if (stepName) {
-        const newUrl = `${window.location.pathname}?step=${stepName}&leadId=${firebaseLeadId}&createdDate=${todayDate}&campaign=${activeCampaign.id}`;
-        window.history.replaceState({}, "", newUrl);
+    if (window.location.pathname !== targetPath) {
+      window.history.replaceState({}, "", targetPath);
+      // Fire Meta Pixel PageView on step path change for URL-based Facebook Lead & Conversion tracking
+      if (typeof window.fbq === "function") {
+        window.fbq("track", "PageView");
       }
     }
-  }, [isOpen, step, firebaseLeadId, createdDate, activeCampaign.id]);
+  }, [isOpen, step]);
 
   // Pre-fill contact details from Firebase or LocalStorage and restore appropriate step:
   // - If meeting is fully booked (status === "completed") -> Show "You've Already Registered!" popup or Step 4

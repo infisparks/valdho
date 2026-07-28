@@ -598,6 +598,7 @@ export default function CRMPage() {
   const [isCloudQueueModalOpen, setIsCloudQueueModalOpen] = useState(false);
   const [cloudQueueList, setCloudQueueList] = useState<any[]>([]);
   const [isLoadingCloudQueue, setIsLoadingCloudQueue] = useState(false);
+  const [cloudQueueFilterPhone, setCloudQueueFilterPhone] = useState<string>("all");
 
   const fetchCloudTasksQueue = async () => {
     setIsLoadingCloudQueue(true);
@@ -621,7 +622,13 @@ export default function CRMPage() {
     }
   };
 
-  const handleOpenCloudQueueModal = () => {
+  const handleOpenCloudQueueModal = (targetPhone?: string) => {
+    if (targetPhone) {
+      const clean = targetPhone.replace(/\D/g, "");
+      setCloudQueueFilterPhone(clean || "all");
+    } else {
+      setCloudQueueFilterPhone("all");
+    }
     setIsCloudQueueModalOpen(true);
     fetchCloudTasksQueue();
   };
@@ -3683,10 +3690,10 @@ export default function CRMPage() {
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleOpenCloudQueueModal();
+                                          handleOpenCloudQueueModal(lead.phone);
                                         }}
                                         className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1"
-                                        title="View Live GCP Queue"
+                                        title="View Live GCP Queue for this lead"
                                       >
                                         <i className="fa-brands fa-google text-[9px]"></i>
                                         <span>Queue</span>
@@ -4627,8 +4634,8 @@ export default function CRMPage() {
                                       <div className="flex items-center justify-end space-x-2">
                                         <button
                                           type="button"
-                                          onClick={() => handleOpenCloudQueueModal()}
-                                          className="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors border border-blue-200 shadow-sm"
+                                          onClick={() => handleOpenCloudQueueModal(lead.phone)}
+                                          className="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors border border-blue-200 shadow-sm cursor-pointer"
                                         >
                                           <i className="fa-brands fa-google text-xs"></i>
                                           <span>Queue</span>
@@ -5426,8 +5433,8 @@ export default function CRMPage() {
 
                 <button
                   type="button"
-                  onClick={handleOpenCloudQueueModal}
-                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center space-x-1.5 shadow-2xs mt-2"
+                  onClick={() => handleOpenCloudQueueModal(selectedLead?.phone)}
+                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center space-x-1.5 shadow-2xs mt-2 cursor-pointer"
                 >
                   <i className="fa-brands fa-google"></i>
                   <span>View Live GCP Queue</span>
@@ -6888,13 +6895,74 @@ export default function CRMPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <button onClick={fetchCloudTasksQueue} disabled={isLoadingCloudQueue} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all">
+                <button onClick={() => fetchCloudTasksQueue()} disabled={isLoadingCloudQueue} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all cursor-pointer">
                   <i className={`fa-solid fa-rotate-right ${isLoadingCloudQueue ? "fa-spin" : ""}`}></i>
                   <span>Refresh</span>
                 </button>
-                <button onClick={() => setIsCloudQueueModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold">✕</button>
+                <button onClick={() => setIsCloudQueueModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold cursor-pointer">✕</button>
               </div>
             </div>
+
+            {/* Target Number Filter Bar */}
+            {cloudQueueList.length > 0 && (() => {
+              const targetCountsMap: Record<string, number> = {};
+              cloudQueueList.forEach((t) => {
+                const cleanP = (t.leadPhone || "").replace(/\D/g, "");
+                if (cleanP) {
+                  targetCountsMap[cleanP] = (targetCountsMap[cleanP] || 0) + 1;
+                }
+              });
+
+              const uniquePhones = Object.keys(targetCountsMap);
+              const currentCleanFilter = cloudQueueFilterPhone.replace(/\D/g, "");
+
+              return (
+                <div className="px-6 py-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center space-x-2 overflow-x-auto text-xs">
+                  <span className="font-black text-slate-500 text-[10px] uppercase tracking-wider flex-shrink-0 flex items-center space-x-1">
+                    <i className="fa-solid fa-filter text-indigo-500"></i>
+                    <span>Filter Target:</span>
+                  </span>
+
+                  {/* All Targets Pill */}
+                  <button
+                    type="button"
+                    onClick={() => setCloudQueueFilterPhone("all")}
+                    className={`px-3 py-1 rounded-full text-xs font-extrabold transition-all cursor-pointer flex-shrink-0 border ${
+                      cloudQueueFilterPhone === "all" || !currentCleanFilter
+                        ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                        : "bg-white text-slate-700 hover:bg-slate-200 border-slate-200"
+                    }`}
+                  >
+                    All Targets ({cloudQueueList.length})
+                  </button>
+
+                  {/* Individual Target Number Pills */}
+                  {uniquePhones.map((pNum) => {
+                    const isSelected = currentCleanFilter && (currentCleanFilter === pNum || currentCleanFilter.endsWith(pNum) || pNum.endsWith(currentCleanFilter));
+                    const displayPhone = pNum.length === 10 ? `+91 ${pNum}` : pNum.startsWith("91") ? `+${pNum}` : pNum;
+
+                    return (
+                      <button
+                        key={pNum}
+                        type="button"
+                        onClick={() => setCloudQueueFilterPhone(pNum)}
+                        className={`px-3 py-1 rounded-full text-xs font-extrabold transition-all cursor-pointer flex-shrink-0 border flex items-center space-x-1.5 ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                            : "bg-white text-slate-700 hover:bg-slate-200 border-slate-200"
+                        }`}
+                      >
+                        <span>📞 {displayPhone}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-black ${isSelected ? "bg-white/20 text-white" : "bg-indigo-50 text-indigo-700 border border-indigo-200"}`}>
+                          {targetCountsMap[pNum]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             <div className="p-6 bg-slate-50/50 h-[60vh] overflow-y-auto">
               {isLoadingCloudQueue ? (
                 <div className="h-full flex flex-col items-center justify-center space-y-3 text-slate-500">
@@ -6906,33 +6974,89 @@ export default function CRMPage() {
                   <i className="fa-solid fa-check-double text-4xl text-emerald-400"></i>
                   <p className="text-xs font-extrabold text-slate-500">Queue is empty.</p>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {cloudQueueList.map((task, idx) => {
-                    const scheduledDate = new Date(task.scheduleTimeSeconds * 1000);
-                    const now = new Date();
-                    const isPast = scheduledDate < now;
-                    return (
-                      <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                        <div className="flex justify-between gap-4">
-                          <div className="space-y-1">
-                            <span className="bg-indigo-100 text-indigo-800 text-[10px] font-black px-2 py-0.5 rounded border border-indigo-200">{task.stageId}</span>
-                            <span className="font-extrabold text-slate-900 text-sm ml-2">{task.ruleTitle}</span>
-                            <div className="text-[11px] font-mono text-slate-500">ID: {task.taskId}</div>
-                            <div className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md">📞 Target: {task.leadPhone}</div>
-                          </div>
-                          <div className="text-right space-y-1">
-                            <div className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${isPast ? "bg-amber-50 text-amber-800 border-amber-300" : "bg-emerald-50 text-emerald-800 border-emerald-300"}`}>
-                              {isPast ? "⚡ Dispatching..." : "⏱️ Pending"}
+              ) : (() => {
+                const filteredTasks = cloudQueueList.filter((task) => {
+                  if (cloudQueueFilterPhone === "all" || !cloudQueueFilterPhone) return true;
+                  const cleanTaskPhone = (task.leadPhone || "").replace(/\D/g, "");
+                  const cleanFilter = cloudQueueFilterPhone.replace(/\D/g, "");
+                  if (!cleanFilter) return true;
+                  return (
+                    cleanTaskPhone === cleanFilter ||
+                    cleanTaskPhone.endsWith(cleanFilter) ||
+                    cleanFilter.endsWith(cleanTaskPhone)
+                  );
+                });
+
+                if (filteredTasks.length === 0) {
+                  return (
+                    <div className="h-full flex flex-col items-center justify-center space-y-3 text-slate-400">
+                      <i className="fa-solid fa-filter-circle-xmark text-4xl text-amber-400"></i>
+                      <p className="text-xs font-extrabold text-slate-600">
+                        No queue messages found for target: <span className="font-mono font-black text-indigo-600">{cloudQueueFilterPhone}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setCloudQueueFilterPhone("all")}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs"
+                      >
+                        Show All Targets ({cloudQueueList.length})
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {filteredTasks.map((task, idx) => {
+                      const scheduledDate = new Date(task.scheduleTimeSeconds * 1000);
+                      const now = new Date();
+                      const isPast = scheduledDate < now;
+                      const isTargetActive =
+                        cloudQueueFilterPhone !== "all" &&
+                        cloudQueueFilterPhone.replace(/\D/g, "") &&
+                        (task.leadPhone || "").replace(/\D/g, "").includes(cloudQueueFilterPhone.replace(/\D/g, ""));
+
+                      return (
+                        <div key={idx} className={`bg-white border rounded-2xl p-4 shadow-sm transition-all ${isTargetActive ? "border-indigo-400 ring-2 ring-indigo-500/20" : "border-slate-200"}`}>
+                          <div className="flex justify-between gap-4">
+                            <div className="space-y-1.5">
+                              <span className="bg-indigo-100 text-indigo-800 text-[10px] font-black px-2 py-0.5 rounded border border-indigo-200">{task.stageId}</span>
+                              <span className="font-extrabold text-slate-900 text-sm ml-2">{task.ruleTitle}</span>
+                              <div className="text-[11px] font-mono text-slate-500">ID: {task.taskId}</div>
+                              
+                              {/* Clickable Target Badge */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const cleanP = (task.leadPhone || "").replace(/\D/g, "");
+                                  setCloudQueueFilterPhone(cleanP || "all");
+                                }}
+                                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer inline-flex items-center space-x-1.5 ${
+                                  isTargetActive
+                                    ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                                    : "bg-slate-100 hover:bg-indigo-50 text-slate-800 hover:text-indigo-700 border-slate-200 hover:border-indigo-300"
+                                }`}
+                                title="Click to show ONLY queue messages for this target number"
+                              >
+                                <i className="fa-solid fa-phone text-[10px]"></i>
+                                <span>Target: {task.leadPhone}</span>
+                                <span className="text-[9px] font-mono opacity-80 underline ml-1">(Show queue message)</span>
+                              </button>
                             </div>
-                            <div className="text-[10px] font-mono text-slate-500 font-bold block">{scheduledDate.toLocaleString('en-IN')}</div>
+                            <div className="text-right space-y-1">
+                              <div className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${isPast ? "bg-amber-50 text-amber-800 border-amber-300" : "bg-emerald-50 text-emerald-800 border-emerald-300"}`}>
+                                {isPast ? "⚡ Dispatching..." : "⏱️ Pending"}
+                              </div>
+                              <div className="text-[10px] font-mono text-slate-500 font-bold block">{scheduledDate.toLocaleString('en-IN')}</div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -277,6 +277,92 @@ export async function findExistingLead(
   }
 }
 
+export interface ExistingLeadCheckResult {
+  emailExists: boolean;
+  phoneExists: boolean;
+}
+
+/**
+ * Fast check to verify if an email or phone number is already registered in Firebase Database across any campaign/date.
+ * Checks via Client JS SDK with fallback to Node.js backend server API.
+ */
+export async function checkExistingLeadByEmailOrPhone(
+  email: string,
+  phone: string,
+  campaignName: string = "firstoptionagency"
+): Promise<ExistingLeadCheckResult> {
+  const cleanEmail = (email || "").trim().toLowerCase();
+  const cleanPhone = (phone || "").replace(/\D/g, "");
+
+  if (!cleanEmail && !cleanPhone) {
+    return { emailExists: false, phoneExists: false };
+  }
+
+  let emailExists = false;
+  let phoneExists = false;
+
+  try {
+    const campaignKeys = Object.keys(CAMPAIGNS);
+    const orderedKeys = [campaignName, ...campaignKeys.filter((k) => k !== campaignName)];
+
+    for (const cName of orderedKeys) {
+      const leadsRef = ref(db, `campaigns/${cName}/leads`);
+      const snapshot = await get(leadsRef);
+
+      if (snapshot.exists()) {
+        const datesObj = snapshot.val();
+        for (const dKey of Object.keys(datesObj)) {
+          const dayLeads = datesObj[dKey];
+          if (!dayLeads) continue;
+
+          for (const lKey of Object.keys(dayLeads)) {
+            const lead = dayLeads[lKey] as LeadData;
+            if (!lead) continue;
+
+            const lEmail = (lead.email || "").trim().toLowerCase();
+            const lPhone = (lead.phone || "").replace(/\D/g, "");
+
+            if (cleanEmail && lEmail && lEmail === cleanEmail) {
+              emailExists = true;
+            }
+            if (
+              cleanPhone &&
+              lPhone &&
+              (lPhone === cleanPhone ||
+                (lPhone.length >= 10 && cleanPhone.length >= 10 && lPhone.slice(-10) === cleanPhone.slice(-10)))
+            ) {
+              phoneExists = true;
+            }
+
+            if (emailExists && phoneExists) break;
+          }
+          if (emailExists && phoneExists) break;
+        }
+      }
+      if (emailExists && phoneExists) break;
+    }
+  } catch (error) {
+    console.error("Firebase JS checkExistingLeadByEmailOrPhone Error, attempting Node.js API fallback:", error);
+    try {
+      const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+      const res = await fetch(`${serverUrl}/api/whatsapp/check-lead-duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, phone: cleanPhone, campaignId: campaignName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return { emailExists: !!data.emailExists, phoneExists: !!data.phoneExists };
+      }
+    } catch (apiErr) {
+      console.error("Node.js duplicate check endpoint error:", apiErr);
+    }
+  }
+
+  return { emailExists, phoneExists };
+}
+
+
 /**
  * CRM Query: Fetch all leads for a specific date across selected or all campaigns
  */

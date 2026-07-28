@@ -5,6 +5,7 @@ import {
   saveOrUpdateLead,
   getLeadById,
   findExistingLead,
+  checkExistingLeadByEmailOrPhone,
   sanitizeEmailToId,
   getBookedSlotsForDate,
   sanitizeSlotKey,
@@ -108,7 +109,9 @@ export function BookingModal({
     countryCode: "+91",
   });
 
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [isSubmittingStep1, setIsSubmittingStep1] = useState<boolean>(false);
 
   // Dynamic Survey Answers State
   const [qAnswers, setQAnswers] = useState<Record<string, string>>({});
@@ -264,29 +267,23 @@ export function BookingModal({
     fetchSlots();
   }, [isOpen, step, selectedDay, currentMonthIndex, currentYear, activeCampaign.id]);
 
-  // Auto-restore or branch lead profile when user finishes typing email in Step 1
+  // Check duplicate email on blur
   const handleEmailBlur = async () => {
     if (contactInfo.email && contactInfo.email.includes("@")) {
-      const emailPrefixId = sanitizeEmailToId(contactInfo.email);
-      const existingMatch = await findExistingLead(emailPrefixId, null, activeCampaign.id);
-      if (existingMatch && existingMatch.lead) {
-        // SAME EMAIL: Match existing lead and restore details for update
-        const fbLead = existingMatch.lead;
-        setFirebaseLeadId(emailPrefixId);
-        setCreatedDate(existingMatch.createdDate);
-        setContactInfo((prev) => ({
-          fullName: prev.fullName || fbLead.fullName || "",
-          email: contactInfo.email,
-          phone: prev.phone || fbLead.phone || "",
-          countryCode: prev.countryCode || fbLead.countryCode || "+91",
-        }));
-        if (fbLead.survey) {
-          setQAnswers((prev) => ({ ...(fbLead.survey as Record<string, string>), ...prev }));
-        }
-      } else {
-        // SEPARATE EMAIL: Treat as a new separate lead
-        setFirebaseLeadId(emailPrefixId);
-        setCreatedDate(new Date().toISOString().split("T")[0]);
+      const res = await checkExistingLeadByEmailOrPhone(contactInfo.email, "", activeCampaign.id);
+      if (res.emailExists) {
+        setEmailError("Email already entered");
+      }
+    }
+  };
+
+  // Check duplicate phone on blur
+  const handlePhoneBlur = async () => {
+    const cleanPhone = contactInfo.phone.replace(/\D/g, "");
+    if (cleanPhone.length === 10) {
+      const res = await checkExistingLeadByEmailOrPhone("", cleanPhone, activeCampaign.id);
+      if (res.phoneExists) {
+        setPhoneError("Number already used");
       }
     }
   };
@@ -296,74 +293,117 @@ export function BookingModal({
   // Step 1 Submit: Save ONLY Contact details to Firebase without wiping existing survey or meeting details
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError(null);
     setPhoneError(null);
 
     const cleanPhone = contactInfo.phone.replace(/\D/g, "");
+    let hasInputError = false;
+
+    if (!contactInfo.email || !contactInfo.email.includes("@")) {
+      setEmailError("Please enter a valid email address");
+      hasInputError = true;
+    }
+
     if (cleanPhone.length !== 10) {
       setPhoneError("Please enter a valid 10-digit mobile number");
-      return;
+      hasInputError = true;
     }
 
-    // Determine deterministic email prefix lead ID
-    const emailPrefixId = sanitizeEmailToId(contactInfo.email);
+    if (hasInputError) return;
 
-    // Persist contact to LocalStorage
+    setIsSubmittingStep1(true);
+
     try {
-      localStorage.setItem("firstoption_user_contact", JSON.stringify(contactInfo));
-      localStorage.setItem("firstoption_lead_id", emailPrefixId);
-    } catch (err) {
-      console.error("LocalStorage save error:", err);
-    }
+      // Perform fast Node.js / JS duplicate check
+      const checkRes = await checkExistingLeadByEmailOrPhone(
+        contactInfo.email,
+        cleanPhone,
+        activeCampaign.id
+      );
 
-    // Sync to Firebase with status "partial" and pipelineStage "in_progress"
-    const leadPayload: LeadData = {
-      fullName: contactInfo.fullName,
-      email: contactInfo.email,
-      phone: cleanPhone,
-      countryCode: contactInfo.countryCode,
-      status: "partial",
-      pipelineStage: "in_progress",
-      stageMovedAt: new Date().toISOString(),
-    };
+      let isDuplicate = false;
 
-    const res = await saveOrUpdateLead(leadPayload, emailPrefixId, createdDate, activeCampaign.id);
-    if (res) {
-      setFirebaseLeadId(res.leadId);
-      setCreatedDate(res.createdDate);
-      if (res.leadData?.survey) {
-        setQAnswers(res.leadData.survey as Record<string, string>);
+      if (checkRes.emailExists) {
+        setEmailError("Email already entered");
+        isDuplicate = true;
       }
+
+      if (checkRes.phoneExists) {
+        setPhoneError("Number already used");
+        isDuplicate = true;
+      }
+
+      // CRITICAL: Block form submission if email or phone number is already registered!
+      if (isDuplicate) {
+        setIsSubmittingStep1(false);
+        return;
+      }
+
+      // Determine deterministic email prefix lead ID
+      const emailPrefixId = sanitizeEmailToId(contactInfo.email);
+
+      // Persist contact to LocalStorage
       try {
-        localStorage.setItem("firstoption_created_date", res.createdDate);
+        localStorage.setItem("firstoption_user_contact", JSON.stringify(contactInfo));
+        localStorage.setItem("firstoption_lead_id", emailPrefixId);
       } catch (err) {
-        console.error("LocalStorage leadId error:", err);
+        console.error("LocalStorage save error:", err);
       }
-    }
 
-    setStep(2);
-
-    // Track Meta Pixel Lead & FormSubmit event when user completes Step 1 Form
-    fbEvent("Lead", {
-      content_name: activeCampaign.title || "Growth Consultation Lead Form",
-      currency: "INR",
-      value: 0,
-    });
-    fbCustomEvent("FormSubmit", {
-      form_name: "Step 1 Contact Form",
-      campaign: activeCampaign.id,
-    });
-
-    // Asynchronously trigger automatic WhatsApp Welcome Message in background (no user wait / zero lag)
-    const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
-    fetch(`${serverUrl}/api/whatsapp/auto-send-welcome`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      // Sync to Firebase with status "partial" and pipelineStage "in_progress"
+      const leadPayload: LeadData = {
         fullName: contactInfo.fullName,
         email: contactInfo.email,
-        phone: `${contactInfo.countryCode}${cleanPhone}`,
-      }),
-    }).catch((err) => console.error("Async WhatsApp Auto-Welcome Trigger Error:", err));
+        phone: cleanPhone,
+        countryCode: contactInfo.countryCode,
+        status: "partial",
+        pipelineStage: "in_progress",
+        stageMovedAt: new Date().toISOString(),
+      };
+
+      const res = await saveOrUpdateLead(leadPayload, emailPrefixId, createdDate, activeCampaign.id);
+      if (res) {
+        setFirebaseLeadId(res.leadId);
+        setCreatedDate(res.createdDate);
+        if (res.leadData?.survey) {
+          setQAnswers(res.leadData.survey as Record<string, string>);
+        }
+        try {
+          localStorage.setItem("firstoption_created_date", res.createdDate);
+        } catch (err) {
+          console.error("LocalStorage leadId error:", err);
+        }
+      }
+
+      setStep(2);
+
+      // Track Meta Pixel Lead & FormSubmit event when user completes Step 1 Form
+      fbEvent("Lead", {
+        content_name: activeCampaign.title || "Growth Consultation Lead Form",
+        currency: "INR",
+        value: 0,
+      });
+      fbCustomEvent("FormSubmit", {
+        form_name: "Step 1 Contact Form",
+        campaign: activeCampaign.id,
+      });
+
+      // Asynchronously trigger automatic WhatsApp Welcome Message in background (no user wait / zero lag)
+      const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+      fetch(`${serverUrl}/api/whatsapp/auto-send-welcome`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: contactInfo.fullName,
+          email: contactInfo.email,
+          phone: `${contactInfo.countryCode}${cleanPhone}`,
+        }),
+      }).catch((err) => console.error("Async WhatsApp Auto-Welcome Trigger Error:", err));
+    } catch (err) {
+      console.error("Submit Step 1 Error:", err);
+    } finally {
+      setIsSubmittingStep1(false);
+    }
   };
 
   // Step 2 Submit: Save Survey Answers to SAME Firebase Lead Node (status: "survey_completed")
@@ -725,10 +765,21 @@ export function BookingModal({
                 autoComplete="email"
                 placeholder="name@company.com"
                 value={contactInfo.email}
-                onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
+                onChange={(e) => {
+                  setContactInfo({ ...contactInfo, email: e.target.value });
+                  if (emailError) setEmailError(null);
+                }}
                 onBlur={handleEmailBlur}
-                className="w-full bg-zinc-900/90 border border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors"
+                className={`w-full bg-zinc-900/90 border ${
+                  emailError ? "border-red-500" : "border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                } rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors`}
               />
+              {emailError && (
+                <p className="text-red-400 font-bold text-xs mt-1 animate-pulse flex items-center space-x-1">
+                  <span>⚠</span>
+                  <span>{emailError}</span>
+                </p>
+              )}
             </div>
 
             {/* 10-digit Phone Number with Mobile Numeric Keypad */}
@@ -736,7 +787,9 @@ export function BookingModal({
               <label className="block text-xs font-bold text-slate-300 mb-1">
                 WhatsApp Phone Number <span className="text-amber-400">*</span>
               </label>
-              <div className="flex items-center bg-zinc-900/90 border border-zinc-800 rounded-xl overflow-hidden shadow-inner focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+              <div className={`flex items-center bg-zinc-900/90 border ${
+                phoneError ? "border-red-500" : "border-zinc-800 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400"
+              } rounded-xl overflow-hidden shadow-inner`}>
                 <div className="flex items-center space-x-1 px-3 py-2.5 sm:py-3 bg-zinc-950 border-r border-zinc-800 text-xs sm:text-sm font-bold text-slate-300">
                   <span>🇮🇳</span>
                   <span>+91</span>
@@ -755,6 +808,7 @@ export function BookingModal({
                     setContactInfo({ ...contactInfo, phone: onlyNums });
                     if (phoneError) setPhoneError(null);
                   }}
+                  onBlur={handlePhoneBlur}
                   className="w-full px-3 py-2.5 sm:py-3 text-sm text-white bg-transparent placeholder-zinc-500 focus:outline-none font-mono tracking-wider"
                 />
               </div>
@@ -769,11 +823,21 @@ export function BookingModal({
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full cta-gold-btn shimmer rounded-2xl p-3.5 sm:p-4 text-center cursor-pointer shadow-xl hover:opacity-95 active:scale-[0.99] transition-all mt-4"
+              disabled={isSubmittingStep1}
+              className="w-full cta-gold-btn shimmer rounded-2xl p-3.5 sm:p-4 text-center cursor-pointer shadow-xl hover:opacity-95 active:scale-[0.99] transition-all mt-4 disabled:opacity-50"
             >
               <div className="text-sm sm:text-base font-black text-slate-950 flex items-center justify-center space-x-2 uppercase tracking-wide">
-                <span>CONTINUE TO SELECT SLOT</span>
-                <i className="fa-solid fa-arrow-right text-xs sm:text-sm"></i>
+                {isSubmittingStep1 ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                    <span>VERIFYING DETAILS...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>CONTINUE TO SELECT SLOT</span>
+                    <i className="fa-solid fa-arrow-right text-xs sm:text-sm"></i>
+                  </>
+                )}
               </div>
               <div className="text-[10px] sm:text-xs font-extrabold text-slate-900 mt-0.5">
                 ⚡ 100% Free Strategy Session • No Sales Pitch

@@ -1050,6 +1050,66 @@ router.post("/cancel-lead-tasks", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/whatsapp/check-lead-duplicate
+ * Node.js Endpoint to verify if a Phone or Email is already present in Firebase Realtime Database
+ */
+router.post("/check-lead-duplicate", async (req, res) => {
+  try {
+    const { email, phone } = req.body || {};
+    const cleanEmail = (email || "").trim().toLowerCase();
+    const cleanPhone = (phone || "").replace(/\D/g, "");
+
+    if (!cleanEmail && !cleanPhone) {
+      return res.status(200).json({ emailExists: false, phoneExists: false });
+    }
+
+    const campaignsData = (await firebaseDb("campaigns")) || {};
+    let emailExists = false;
+    let phoneExists = false;
+
+    for (const cKey of Object.keys(campaignsData)) {
+      const datesObj = campaignsData[cKey]?.leads;
+      if (!datesObj) continue;
+
+      for (const dKey of Object.keys(datesObj)) {
+        const dayLeads = datesObj[dKey];
+        if (!dayLeads) continue;
+
+        for (const lKey of Object.keys(dayLeads)) {
+          const lead = dayLeads[lKey];
+          if (!lead) continue;
+
+          const lEmail = (lead.email || "").trim().toLowerCase();
+          const lPhone = (lead.phone || "").replace(/\D/g, "");
+
+          if (cleanEmail && lEmail && lEmail === cleanEmail) {
+            emailExists = true;
+          }
+          if (
+            cleanPhone &&
+            lPhone &&
+            (lPhone === cleanPhone ||
+              (lPhone.length >= 10 && cleanPhone.length >= 10 && lPhone.slice(-10) === cleanPhone.slice(-10)))
+          ) {
+            phoneExists = true;
+          }
+
+          if (emailExists && phoneExists) break;
+        }
+        if (emailExists && phoneExists) break;
+      }
+      if (emailExists && phoneExists) break;
+    }
+
+    return res.status(200).json({ emailExists, phoneExists });
+  } catch (err) {
+    console.error("Check Lead Duplicate API Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.syncLeadAutomations = syncLeadAutomations;
 module.exports.cancelAllLeadTasks = cancelAllLeadTasks;
+

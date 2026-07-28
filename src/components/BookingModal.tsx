@@ -113,6 +113,9 @@ export function BookingModal({
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [isSubmittingStep1, setIsSubmittingStep1] = useState<boolean>(false);
 
+  // Track if lead data has been restored for the current modal session
+  const [hasRestoredLead, setHasRestoredLead] = useState<boolean>(false);
+
   // Dynamic Survey Answers State
   const [qAnswers, setQAnswers] = useState<Record<string, string>>({});
 
@@ -135,11 +138,13 @@ export function BookingModal({
   // Synchronize initialStep when modal opens or URL parameters change
   useEffect(() => {
     if (isOpen) {
-      if (initialStep && !isReselectingSlot) setStep(initialStep);
+      if (initialStep && !isReselectingSlot && !hasRestoredLead) setStep(initialStep);
       if (initialLeadId) setFirebaseLeadId(initialLeadId);
       if (initialCreatedDate) setCreatedDate(initialCreatedDate);
+    } else {
+      setHasRestoredLead(false);
     }
-  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, isReselectingSlot]);
+  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, isReselectingSlot, hasRestoredLead]);
 
   // Dynamically sync browser URL address bar params when step changes
   useEffect(() => {
@@ -171,7 +176,7 @@ export function BookingModal({
   // - If meeting is pending (status === "survey_completed") -> Open directly to Step 3 (Calendar Slot Selection)
   useEffect(() => {
     async function restoreLead() {
-      if (!isOpen || step === 4) return;
+      if (!isOpen || step === 4 || hasRestoredLead) return;
 
       const targetId = initialLeadId || (typeof window !== "undefined" ? localStorage.getItem("firstoption_lead_id") : null);
       const targetDate = initialCreatedDate || (typeof window !== "undefined" ? localStorage.getItem("firstoption_created_date") : null);
@@ -222,23 +227,48 @@ export function BookingModal({
       }
 
       // Check LocalStorage fallback if not found in Firebase
-      if (!foundContact && typeof window !== "undefined") {
+      if (typeof window !== "undefined") {
         try {
-          const savedContact = localStorage.getItem("firstoption_user_contact");
-          if (savedContact) {
-            const parsed = JSON.parse(savedContact);
-            if (parsed.fullName && parsed.phone) {
-              setContactInfo({
-                fullName: parsed.fullName || "",
-                email: parsed.email || "",
-                phone: parsed.phone || "",
-                countryCode: parsed.countryCode || "+91",
-              });
-              foundContact = true;
+          if (!foundContact) {
+            const savedContact = localStorage.getItem("firstoption_user_contact");
+            if (savedContact) {
+              const parsed = JSON.parse(savedContact);
+              if (parsed.fullName && parsed.phone) {
+                setContactInfo({
+                  fullName: parsed.fullName || "",
+                  email: parsed.email || "",
+                  phone: parsed.phone || "",
+                  countryCode: parsed.countryCode || "+91",
+                });
+                foundContact = true;
+              }
+            }
+          }
+
+          if (!hasSurvey) {
+            const savedSurvey = localStorage.getItem("firstoption_survey_answers");
+            const savedStatus = localStorage.getItem("firstoption_lead_status");
+            if (savedSurvey) {
+              const parsedSurvey = JSON.parse(savedSurvey);
+              if (parsedSurvey && Object.keys(parsedSurvey).length > 0) {
+                setQAnswers((prev) => ({ ...parsedSurvey, ...prev }));
+                hasSurvey = true;
+              }
+            }
+            if (savedStatus === "survey_completed" || savedStatus === "completed") {
+              hasSurvey = true;
+            }
+          }
+
+          if (!hasMeeting) {
+            const savedMeeting = localStorage.getItem("firstoption_meeting_booked");
+            const savedStatus = localStorage.getItem("firstoption_lead_status");
+            if (savedMeeting === "true" || savedStatus === "completed") {
+              hasMeeting = true;
             }
           }
         } catch (e) {
-          console.error("LocalStorage restore error:", e);
+          console.error("LocalStorage survey/contact restore error:", e);
         }
       }
 
@@ -246,6 +276,7 @@ export function BookingModal({
       if (!foundContact && (initialStep === 2 || initialStep === 3)) {
         setStep(1);
         setShowAlreadySubmittedPopup(false);
+        setHasRestoredLead(true);
         return;
       }
 
@@ -269,10 +300,12 @@ export function BookingModal({
           setStep(2);
         }
       }
+
+      setHasRestoredLead(true);
     }
 
     restoreLead();
-  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, activeCampaign.id, isReselectingSlot]);
+  }, [isOpen, initialStep, initialLeadId, initialCreatedDate, activeCampaign.id, isReselectingSlot, hasRestoredLead]);
 
 
   // Realtime Booked Slots Listener whenever selected date changes
@@ -434,6 +467,23 @@ export function BookingModal({
   const handleStep2Submit = async () => {
     const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
 
+    // Save survey answers to LocalStorage immediately for instant local persistence
+    try {
+      localStorage.setItem("firstoption_survey_answers", JSON.stringify(qAnswers));
+      localStorage.setItem("firstoption_lead_status", "survey_completed");
+    } catch (e) {
+      console.error("LocalStorage survey save error:", e);
+    }
+
+    // 1. INSTANT UI TRANSITION: Transition to Step 3 (Meeting Calendar / Slot Selection) immediately
+    setStep(3);
+
+    // Track Meta Pixel CompleteRegistration event for Survey completion
+    fbEvent("CompleteRegistration", {
+      content_name: "Growth Consultation Survey",
+      campaign: activeCampaign.id,
+    });
+
     const surveyPayload: LeadData = {
       fullName: contactInfo.fullName,
       email: contactInfo.email,
@@ -445,16 +495,12 @@ export function BookingModal({
       survey: qAnswers,
     };
 
-    await saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, activeCampaign.id);
-    setStep(3);
+    // 2. Perform Firebase database update asynchronously in background
+    saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, activeCampaign.id).catch((err) =>
+      console.error("Async survey saveOrUpdateLead error:", err)
+    );
 
-    // Track Meta Pixel CompleteRegistration event for Survey completion
-    fbEvent("CompleteRegistration", {
-      content_name: "Growth Consultation Survey",
-      campaign: activeCampaign.id,
-    });
-
-    // Asynchronously trigger automatic Survey WhatsApp Message in background (no user wait)
+    // 3. Asynchronously trigger automatic Survey WhatsApp Message in background (no user wait)
     const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
     fetch(`${serverUrl}/api/whatsapp/auto-send-survey`, {
       method: "POST",

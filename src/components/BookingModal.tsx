@@ -165,8 +165,10 @@ export function BookingModal({
     }
   }, [isOpen, step, firebaseLeadId, createdDate, activeCampaign.id]);
 
-  // Pre-fill contact details from Firebase or LocalStorage
-  // FALLBACK: If contact details are NOT found for this user, auto-back to Step 1 (Contact Form popup)
+  // Pre-fill contact details from Firebase or LocalStorage and restore appropriate step:
+  // - If meeting is fully booked (status === "completed") -> Show "You've Already Registered!" popup or Step 4
+  // - If survey is pending (status === "partial") -> Open directly to Step 2 (Survey Form)
+  // - If meeting is pending (status === "survey_completed") -> Open directly to Step 3 (Calendar Slot Selection)
   useEffect(() => {
     async function restoreLead() {
       if (!isOpen || step === 4) return;
@@ -175,6 +177,9 @@ export function BookingModal({
       const targetDate = initialCreatedDate || (typeof window !== "undefined" ? localStorage.getItem("firstoption_created_date") : null);
 
       let foundContact = false;
+      let leadStatus: "partial" | "survey_completed" | "completed" | null = null;
+      let hasSurvey = false;
+      let hasMeeting = false;
 
       if (targetId) {
         const existingMatch = await findExistingLead(targetId, targetDate, activeCampaign.id);
@@ -189,8 +194,9 @@ export function BookingModal({
               phone: fbLead.phone || "",
               countryCode: fbLead.countryCode || "+91",
             });
-            if (fbLead.survey) {
+            if (fbLead.survey && Object.keys(fbLead.survey).length > 0) {
               setQAnswers(fbLead.survey as Record<string, string>);
+              hasSurvey = true;
             }
             // Restore booked date/time if present
             if (fbLead.meeting?.meetingDate && fbLead.meeting?.meetingTime) {
@@ -206,17 +212,16 @@ export function BookingModal({
                   setSelectedDay(d);
                 }
               }
+              hasMeeting = true;
             }
-            // ONLY jump to step 4 if user is NOT actively re-selecting a slot AND initialStep was passed as step 3 or 4
-            if (!isReselectingSlot && (initialStep === 3 || initialStep === 4)) {
-              setStep(4);
-            }
+
+            leadStatus = fbLead.status || (hasMeeting ? "completed" : hasSurvey ? "survey_completed" : "partial");
             foundContact = true;
           }
         }
       }
 
-      // Check LocalStorage fallback
+      // Check LocalStorage fallback if not found in Firebase
       if (!foundContact && typeof window !== "undefined") {
         try {
           const savedContact = localStorage.getItem("firstoption_user_contact");
@@ -240,16 +245,35 @@ export function BookingModal({
       // If user navigated directly to survey/meeting URL but contact info is NOT found -> AUTO BACK TO STEP 1 FORM
       if (!foundContact && (initialStep === 2 || initialStep === 3)) {
         setStep(1);
+        setShowAlreadySubmittedPopup(false);
+        return;
       }
 
-      // If user already filled contact details previously and opens modal on Step 1 -> Show Already Submitted Popup
-      if (foundContact && !isReselectingSlot && initialStep === 1) {
-        setShowAlreadySubmittedPopup(true);
+      // Intelligent Step Restoration based on completion progress:
+      if (foundContact && !isReselectingSlot) {
+        if (hasMeeting || leadStatus === "completed") {
+          // Fully registered & meeting booked -> Show Already Submitted Popup or Step 4
+          if (initialStep === 1) {
+            setShowAlreadySubmittedPopup(true);
+          } else if (initialStep === 3 || initialStep === 4) {
+            setStep(4);
+            setShowAlreadySubmittedPopup(false);
+          }
+        } else if (hasSurvey || leadStatus === "survey_completed") {
+          // Survey done, Meeting booking is pending -> Show Step 3 (Meeting Calendar Slot Booking)
+          setShowAlreadySubmittedPopup(false);
+          setStep(3);
+        } else {
+          // Contact info submitted, Survey is pending -> Show Step 2 (Qualification Survey Questionnaire)
+          setShowAlreadySubmittedPopup(false);
+          setStep(2);
+        }
       }
     }
 
     restoreLead();
   }, [isOpen, initialStep, initialLeadId, initialCreatedDate, activeCampaign.id, isReselectingSlot]);
+
 
   // Realtime Booked Slots Listener whenever selected date changes
   useEffect(() => {

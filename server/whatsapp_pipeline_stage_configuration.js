@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { createScheduledHttpTask, deleteScheduledHttpTask, listScheduledTasks } = require("./cloud_tasks");
+const { sendMetaCapiEvent } = require("./meta_capi");
 
 // Configuration from Environment
 const API_KEY = process.env.WHATSAPP_API_KEY || "vR39h6avY69g7kAU3YQbS6V6XEvudson";
@@ -1018,9 +1019,30 @@ router.get("/scheduled-tasks/list", async (req, res) => {
  */
 router.post("/sync-lead", async (req, res) => {
   try {
-    const { leadData, previousStage, previousMeetingTime } = req.body;
+    const { leadData, previousStage, previousMeetingTime, testEventCode } = req.body;
     if (!leadData) {
       return res.status(400).json({ success: false, error: "leadData is required" });
+    }
+
+    // Automatically dispatch Node.js Server Meta Conversions API (CAPI) events
+    if (leadData.fullName && (leadData.phone || leadData.email)) {
+      const isMeetingBooked = leadData.status === "completed" || leadData.pipelineStage === "meeting_booked" || !!leadData.meeting?.meetingTime;
+      const eventName = isMeetingBooked ? "Schedule" : "Lead";
+      const targetUrl = isMeetingBooked ? "https://firstoptionagency.in/success" : "https://firstoptionagency.in/survey";
+
+      sendMetaCapiEvent({
+        eventName,
+        eventSourceUrl: targetUrl,
+        email: leadData.email || "",
+        phone: leadData.phone || "",
+        fullName: leadData.fullName || "",
+        customData: {
+          content_name: isMeetingBooked ? "Growth Meeting Slot Booked" : "Growth Consultation Lead Form",
+          meeting_date: leadData.meeting?.meetingDate || undefined,
+          meeting_time: leadData.meeting?.meetingTime || undefined,
+        },
+        testEventCode: testEventCode || undefined,
+      }).catch((err) => console.error("Async Server Meta CAPI Sync Error:", err));
     }
 
     const result = await syncLeadAutomations(leadData, previousStage, previousMeetingTime);

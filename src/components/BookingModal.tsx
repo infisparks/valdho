@@ -464,6 +464,24 @@ export function BookingModal({
           phone: `${contactInfo.countryCode}${cleanPhone}`,
         }),
       }).catch((err) => console.error("Async WhatsApp Auto-Welcome Trigger Error:", err));
+
+      // Asynchronously trigger Node.js Server Meta Conversions API (CAPI) for Lead
+      fetch(`${serverUrl}/api/whatsapp/capi-event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventName: "Lead",
+          eventSourceUrl: "https://firstoptionagency.in/survey",
+          email: contactInfo.email,
+          phone: `${contactInfo.countryCode}${cleanPhone}`,
+          fullName: contactInfo.fullName,
+          customData: {
+            content_name: activeCampaign.title || "Growth Consultation Lead Form",
+            currency: "INR",
+            value: 0,
+          },
+        }),
+      }).catch((err) => console.error("Async CAPI Lead trigger error:", err));
     } catch (err) {
       console.error("Submit Step 1 Error:", err);
     } finally {
@@ -600,6 +618,25 @@ export function BookingModal({
     const formattedDay = selectedDay.toString().padStart(2, "0");
     const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
+    // Asynchronously trigger Node.js Server Meta Conversions API (CAPI) for Schedule (Meeting Booked)
+    const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+    fetch(`${serverUrl}/api/whatsapp/capi-event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventName: "Schedule",
+        eventSourceUrl: "https://firstoptionagency.in/success",
+        email: contactInfo.email,
+        phone: `${contactInfo.countryCode}${contactInfo.phone.replace(/\D/g, "")}`,
+        fullName: contactInfo.fullName,
+        customData: {
+          content_name: "Growth Consultation Booking",
+          meeting_date: appointmentDateStr,
+          meeting_time: time,
+        },
+      }),
+    }).catch((err) => console.error("Async CAPI Schedule trigger error:", err));
+
     const completedPayload: LeadData = {
       fullName: contactInfo.fullName,
       email: contactInfo.email,
@@ -622,7 +659,6 @@ export function BookingModal({
     );
 
     // 3. Asynchronously trigger automatic Calendar Meeting Booked WhatsApp Message in background
-    const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
     const formattedDateStr = `${MONTH_NAMES[currentMonthIndex]} ${selectedDay}, ${currentYear}`;
     fetch(`${serverUrl}/api/whatsapp/auto-send-meeting`, {
       method: "POST",

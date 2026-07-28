@@ -437,11 +437,14 @@ export function BookingModal({
 
       setStep(2);
 
-      // Track Meta Pixel Lead & FormSubmit event when user completes Step 1 Form
+      // Track Meta Pixel Lead, ViewContent & FormSubmit events when user completes Step 1 Form
       fbEvent("Lead", {
         content_name: activeCampaign.title || "Growth Consultation Lead Form",
         currency: "INR",
         value: 0,
+      });
+      fbEvent("ViewContent", {
+        content_name: "Survey Questionnaire Page",
       });
       fbCustomEvent("FormSubmit", {
         form_name: "Step 1 Contact Form",

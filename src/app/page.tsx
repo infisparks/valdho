@@ -95,6 +95,26 @@ export default function Home({
     campaignName: null,
   });
 
+  // Dispatch initial PageView via Meta Browser Pixel and Node.js CAPI
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Fire Node.js Conversions API (CAPI) PageView
+    const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
+    const params = new URLSearchParams(window.location.search);
+    const testCode = params.get("test_event_code") || params.get("fbtest") || undefined;
+
+    fetch(`${serverUrl}/api/whatsapp/capi-event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventName: "PageView",
+        eventSourceUrl: window.location.href,
+        testEventCode: testCode,
+      }),
+    }).catch((err) => console.error("Async CAPI PageView trigger error:", err));
+  }, []);
+
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
     title: string;

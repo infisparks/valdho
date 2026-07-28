@@ -54,8 +54,15 @@ async function sendMetaCapiEvent({
     if (hashedEmail) userDataNode.em = [hashedEmail];
     if (hashedPhone) userDataNode.ph = [hashedPhone];
     if (hashedName) userDataNode.fn = [hashedName];
-    if (clientIp) userDataNode.client_ip_address = clientIp;
-    if (userAgent) userDataNode.client_user_agent = userAgent;
+
+    let cleanIp = Array.isArray(clientIp) ? clientIp[0] : (clientIp || "").split(",")[0].trim();
+    if (cleanIp.startsWith("::ffff:")) cleanIp = cleanIp.replace("::ffff:", "");
+    if (cleanIp && cleanIp !== "::1" && cleanIp !== "127.0.0.1") {
+      userDataNode.client_ip_address = cleanIp;
+    }
+    if (userAgent && typeof userAgent === "string" && userAgent.length > 0) {
+      userDataNode.client_user_agent = userAgent;
+    }
 
     const eventPayload = {
       event_name: eventName,
@@ -64,12 +71,11 @@ async function sendMetaCapiEvent({
       action_source: "website",
       event_source_url: eventSourceUrl || "https://firstoptionagency.in/",
       user_data: userDataNode,
-      custom_data: {
-        currency: "INR",
-        value: 0,
-        ...customData,
-      },
     };
+
+    if (customData && Object.keys(customData).length > 0) {
+      eventPayload.custom_data = customData;
+    }
 
     const requestBody = {
       data: [eventPayload],

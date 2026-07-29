@@ -689,6 +689,8 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
     const accessToken = process.env.META_WA_ACCESS_TOKEN || "EAAxIo8W1d1YBSLFZAZC7I2NKjBGLpIu7xZAZAhsZC1Biy3wbAc2t92kpZAaYiPdprUegE1RMPY6lgdZCzyrX6htgc9FpaoJtNdTDJZAZBTxTllKGqgqMRCxqmVod8U12veudujp5l2G6DVRATh0Uk4UwMl8zAXZB4QZBKlSED7e5XiW0wliSnHouSoxj8AADDOhHsX54wZDZD";
     const rawFounderNumbers = process.env.META_WA_FOUNDER_NUMBERS || "919958399157";
     const templateName = process.env.META_WA_TEMPLATE_NAME || "new_lead_founder_alert";
+    const headerImageUrl = process.env.META_WA_HEADER_IMAGE_URL || "https://raw.githubusercontent.com/infisparks/images/refs/heads/main/new_lead.png";
+    const templateLang = process.env.META_WA_TEMPLATE_LANG || "en_US";
 
     if (!accessToken || !phoneNumberId) {
       console.warn("⚠️ Meta WhatsApp Cloud API credentials not fully configured in server/.env");
@@ -708,27 +710,44 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
     const formattedTime = bookingTime || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
     const url = `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`;
 
+    // Construct components array for Meta Cloud API
+    const components = [];
+
+    // Header image component (required if template has Media -> Image header)
+    if (headerImageUrl) {
+      components.push({
+        type: "header",
+        parameters: [
+          {
+            type: "image",
+            image: { link: headerImageUrl },
+          },
+        ],
+      });
+    }
+
+    // Body parameters component
+    components.push({
+      type: "body",
+      parameters: [
+        { type: "text", text: fullName || "Valued Client" },
+        { type: "text", text: phone || "N/A" },
+        { type: "text", text: email || "N/A" },
+        { type: "text", text: formattedTime },
+      ],
+    });
+
     const results = await Promise.allSettled(
       founderNumbers.map(async (founderNumber) => {
-        // First try sending Official Meta WhatsApp Template
+        // 1. First try sending Official Meta WhatsApp Template
         const templatePayload = {
           messaging_product: "whatsapp",
           to: founderNumber,
           type: "template",
           template: {
             name: templateName,
-            language: { code: "en" },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", parameter_name: "lead_name", text: fullName || "Valued Client" },
-                  { type: "text", parameter_name: "phone_number", text: phone || "N/A" },
-                  { type: "text", parameter_name: "email_address", text: email || "N/A" },
-                  { type: "text", parameter_name: "booking_time", text: formattedTime },
-                ],
-              },
-            ],
+            language: { code: templateLang },
+            components,
           },
         };
 
@@ -743,34 +762,37 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
 
         let responseData = await res.json();
 
-        // Fallback: If template is rejected, unapproved, or fails, send standard Meta Text notification
-        if (!res.ok) {
-          console.warn(`⚠️ Meta Template '${templateName}' failed for ${founderNumber} (${responseData?.error?.message}). Sending Meta Text fallback...`);
-          const textPayload = {
-            messaging_product: "whatsapp",
-            to: founderNumber,
-            type: "text",
-            text: {
-              body: `🚨 *NEW APPOINTMENT LEAD ALERT!* 🚀\n\nA new lead has just filled out the appointment booking form!\n\n👤 *Lead Name:* ${fullName || "N/A"}\n📞 *Phone:* ${phone || "N/A"}\n📧 *Email:* ${email || "N/A"}\n🕒 *Time:* ${formattedTime}\n\n⚡ *Action Required:* Call or WhatsApp this client directly to confirm!`,
-            },
-          };
-
-          res = await fetch(url, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(textPayload),
-          });
-          responseData = await res.json();
+        if (res.ok) {
+          console.log(`✅ Meta Template '${templateName}' sent successfully to ${founderNumber}`);
+          return { number: founderNumber, success: true, data: responseData };
         }
 
-        return { number: founderNumber, success: res.ok, data: responseData };
+        console.error(`❌ Meta Template '${templateName}' failed for ${founderNumber}:`, JSON.stringify(responseData));
+
+        // 2. Fallback: If template name/language mismatch or unapproved, send standard Meta Text notification
+        const textPayload = {
+          messaging_product: "whatsapp",
+          to: founderNumber,
+          type: "text",
+          text: {
+            body: `🚨 *NEW APPOINTMENT LEAD ALERT!* 🚀\n\nA new lead has just filled out the appointment booking form!\n\n👤 *Lead Name:* ${fullName || "N/A"}\n📞 *Phone:* ${phone || "N/A"}\n📧 *Email:* ${email || "N/A"}\n🕒 *Time:* ${formattedTime}\n\n⚡ *Action Required:* Call or WhatsApp this client directly to confirm!`,
+          },
+        };
+
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(textPayload),
+        });
+        responseData = await res.json();
+        return { number: founderNumber, success: res.ok, fallback: true, data: responseData };
       })
     );
 
-    console.log("📱 Founder Meta WhatsApp Notifications Sent:", results);
+    console.log("📱 Founder Meta WhatsApp Notifications Result:", results);
     return { success: true, results };
   } catch (err) {
     console.error("sendMetaCloudApiFounderNotification Exception:", err);

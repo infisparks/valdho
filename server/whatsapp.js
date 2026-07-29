@@ -681,7 +681,7 @@ router.post("/config", async (req, res) => {
 });
 
 /**
- * Helper to send Official Meta WhatsApp Cloud API Notifications to Founders Array
+ * Helper to send Official Meta WhatsApp Cloud API Notifications to Founders Array ok
  */
 async function sendMetaCloudApiFounderNotification({ fullName, email, phone, bookingTime }) {
   try {

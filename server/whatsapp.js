@@ -681,6 +681,120 @@ router.post("/config", async (req, res) => {
 });
 
 /**
+ * Helper to send Official Meta WhatsApp Cloud API Notifications to Founders Array
+ */
+async function sendMetaCloudApiFounderNotification({ fullName, email, phone, bookingTime }) {
+  try {
+    const phoneNumberId = process.env.META_WA_PHONE_NUMBER_ID || "1256030487590811";
+    const accessToken = process.env.META_WA_ACCESS_TOKEN || "EAAxIo8W1d1YBSLFZAZC7I2NKjBGLpIu7xZAZAhsZC1Biy3wbAc2t92kpZAaYiPdprUegE1RMPY6lgdZCzyrX6htgc9FpaoJtNdTDJZAZBTxTllKGqgqMRCxqmVod8U12veudujp5l2G6DVRATh0Uk4UwMl8zAXZB4QZBKlSED7e5XiW0wliSnHouSoxj8AADDOhHsX54wZDZD";
+    const rawFounderNumbers = process.env.META_WA_FOUNDER_NUMBERS || "919958399157";
+    const templateName = process.env.META_WA_TEMPLATE_NAME || "new_lead_founder_alert";
+
+    if (!accessToken || !phoneNumberId) {
+      console.warn("⚠️ Meta WhatsApp Cloud API credentials not fully configured in server/.env");
+      return { success: false, error: "Meta WhatsApp credentials missing" };
+    }
+
+    const founderNumbers = rawFounderNumbers
+      .split(",")
+      .map((num) => num.replace(/\D/g, ""))
+      .filter((num) => num.length >= 10);
+
+    if (founderNumbers.length === 0) {
+      console.warn("⚠️ No founder phone numbers configured in META_WA_FOUNDER_NUMBERS");
+      return { success: false, error: "No founder numbers configured" };
+    }
+
+    const formattedTime = bookingTime || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    const url = `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`;
+
+    const results = await Promise.allSettled(
+      founderNumbers.map(async (founderNumber) => {
+        // First try sending Official Meta WhatsApp Template
+        const templatePayload = {
+          messaging_product: "whatsapp",
+          to: founderNumber,
+          type: "template",
+          template: {
+            name: templateName,
+            language: { code: "en" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", parameter_name: "lead_name", text: fullName || "Valued Client" },
+                  { type: "text", parameter_name: "phone_number", text: phone || "N/A" },
+                  { type: "text", parameter_name: "email_address", text: email || "N/A" },
+                  { type: "text", parameter_name: "booking_time", text: formattedTime },
+                ],
+              },
+            ],
+          },
+        };
+
+        let res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(templatePayload),
+        });
+
+        let responseData = await res.json();
+
+        // Fallback: If template is rejected, unapproved, or fails, send standard Meta Text notification
+        if (!res.ok) {
+          console.warn(`⚠️ Meta Template '${templateName}' failed for ${founderNumber} (${responseData?.error?.message}). Sending Meta Text fallback...`);
+          const textPayload = {
+            messaging_product: "whatsapp",
+            to: founderNumber,
+            type: "text",
+            text: {
+              body: `🚨 *NEW APPOINTMENT LEAD ALERT!* 🚀\n\nA new lead has just filled out the appointment booking form!\n\n👤 *Lead Name:* ${fullName || "N/A"}\n📞 *Phone:* ${phone || "N/A"}\n📧 *Email:* ${email || "N/A"}\n🕒 *Time:* ${formattedTime}\n\n⚡ *Action Required:* Call or WhatsApp this client directly to confirm!`,
+            },
+          };
+
+          res = await fetch(url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(textPayload),
+          });
+          responseData = await res.json();
+        }
+
+        return { number: founderNumber, success: res.ok, data: responseData };
+      })
+    );
+
+    console.log("📱 Founder Meta WhatsApp Notifications Sent:", results);
+    return { success: true, results };
+  } catch (err) {
+    console.error("sendMetaCloudApiFounderNotification Exception:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * 10b. Endpoint to manually or custom trigger Founder Meta Notifications
+ * POST /api/whatsapp/notify-founders
+ */
+router.post("/notify-founders", async (req, res) => {
+  try {
+    const { fullName, email, phone, date, time } = req.body;
+    const bookingTime = date && time ? `${date} at ${time}` : new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    const result = await sendMetaCloudApiFounderNotification({ fullName, email, phone, bookingTime });
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Notify Founders Endpoint Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * Helper to resolve active instance name
  */
 async function resolveActiveInstance(preferredInstance) {
@@ -699,6 +813,11 @@ router.post("/auto-send-welcome", async (req, res) => {
   try {
     const { fullName, email, phone } = req.body;
     if (!phone) return res.status(400).json({ success: false, error: "Phone number is required" });
+
+    // Asynchronously trigger Meta WhatsApp Cloud API notification to all Founders (non-blocking)
+    sendMetaCloudApiFounderNotification({ fullName, email, phone }).catch((err) =>
+      console.error("Async Founder Notification Exception:", err)
+    );
 
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
     const stepConfig = config.step1Welcome || { isEnabled: config.isEnabled !== false, template: config.welcomeMessageTemplate };
@@ -724,11 +843,6 @@ router.post("/auto-send-welcome", async (req, res) => {
       const logId = `auto_welcome_${Date.now()}`;
       await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", { id: logId, type: "auto_welcome", number: cleanNumber, text: formattedMessage, status: "sent", timestamp: new Date().toISOString() });
     }
-
-    // Trigger WhatsApp notification to founders in the background (Non-blocking)
-    notifyFoundersOnNewLead({ fullName, email, phone: cleanNumber }).catch((err) =>
-      console.error("🔥 Async Founder Notification Exception:", err)
-    );
 
     return res.status(200).json({ success: evoRes.ok, message: evoRes.ok ? "Welcome message sent" : "Send failed", data: evoRes.data });
   } catch (err) {
@@ -799,6 +913,12 @@ router.post("/auto-send-meeting", async (req, res) => {
   try {
     const { fullName, email, phone, date, time, meetingUrl } = req.body;
     if (!phone) return res.status(400).json({ success: false, error: "Phone number is required" });
+
+    // Asynchronously send Meta Cloud API alert to founders when meeting is scheduled
+    const meetingTimeStr = date && time ? `${date} at ${time}` : null;
+    sendMetaCloudApiFounderNotification({ fullName, email, phone, bookingTime: meetingTimeStr }).catch((err) =>
+      console.error("Async Founder Meeting Notification Exception:", err)
+    );
 
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
     const stepConfig = config.step3Meeting || { isEnabled: true, sendWithCard: true };
@@ -1351,102 +1471,6 @@ ${description}
     return res.status(200).json({ success: true, message: "Admin ticket notification sent!" });
   } catch (err) {
     console.error("Notify Admin Ticket Exception:", err);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
- * Helper to notify all founders on WhatsApp when a new appointment lead submits Step 1 popup form.
- */
-async function notifyFoundersOnNewLead({ fullName, email, phone }) {
-  try {
-    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
-    const instanceName = await resolveActiveInstance(config.selectedInstanceName);
-    if (!instanceName) {
-      console.warn("⚠️ [FOUNDER ALERT] No active WhatsApp instance available.");
-      return { success: false, error: "No active instance" };
-    }
-
-    // Configurable list of founder numbers (Supports array format: 1 number now, up to 3+ later)
-    const rawFounderConfig = process.env.FOUNDER_WHATSAPP_NUMBERS || config.founderNumbers || "919958399157";
-    const founderNumbers = (Array.isArray(rawFounderConfig) ? rawFounderConfig : String(rawFounderConfig).split(","))
-      .map((num) => sanitizePhoneNumber(num.trim()))
-      .filter((num) => num && num.length >= 10);
-
-    if (founderNumbers.length === 0) {
-      console.warn("⚠️ [FOUNDER ALERT] No founder numbers configured.");
-      return { success: false, error: "No founder numbers configured" };
-    }
-
-    const bookingTime = new Date().toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-
-    const crmUrl = "https://firstoptionagency.in/crms";
-
-    const founderMessage = `🚨 *NEW APPOINTMENT LEAD ALERT!* 🚀\n\nA new lead has just filled out the appointment booking form (Step 1).\n\n👤 *Lead Name:* ${fullName || "Valued Lead"}\n📞 *Phone Number:* ${phone || "N/A"}\n📧 *Email Address:* ${email || "N/A"}\n🕒 *Time:* ${bookingTime}\n\n🔗 *View in CRM:* ${crmUrl}\n\n⚡ *Action Required:* Call or WhatsApp this client directly to qualify and confirm the meeting!`;
-
-    const mediaUrl = process.env.FOUNDER_NOTIFICATION_IMAGE_URL || config.founderHeaderImageUrl || null;
-
-    // Send notifications in parallel to all founders (non-blocking)
-    const results = await Promise.allSettled(
-      founderNumbers.map(async (founderNum) => {
-        try {
-          let evoRes;
-          if (mediaUrl) {
-            evoRes = await evoApiCall(`/message/sendMedia/${instanceName}`, "POST", {
-              number: founderNum,
-              media: mediaUrl,
-              caption: founderMessage,
-            });
-          } else {
-            evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
-              number: founderNum,
-              text: founderMessage,
-            });
-          }
-
-          if (evoRes.ok) {
-            console.log(`✅ [FOUNDER ALERT] Notification sent to founder ${founderNum}`);
-            const logId = `founder_alert_${Date.now()}_${founderNum}`;
-            await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
-              id: logId,
-              type: "founder_alert",
-              number: founderNum,
-              text: founderMessage,
-              status: "sent",
-              timestamp: new Date().toISOString(),
-            });
-            return { number: founderNum, success: true };
-          } else {
-            console.error(`❌ [FOUNDER ALERT] Failed to send to ${founderNum}:`, evoRes.data);
-            return { number: founderNum, success: false, error: evoRes.data };
-          }
-        } catch (fErr) {
-          console.error(`🔥 [FOUNDER ALERT] Exception sending to ${founderNum}:`, fErr.message);
-          return { number: founderNum, success: false, error: fErr.message };
-        }
-      })
-    );
-
-    return { success: true, results };
-  } catch (err) {
-    console.error("🔥 notifyFoundersOnNewLead Exception:", err);
-    return { success: false, error: err.message };
-  }
-}
-
-/**
- * POST /api/whatsapp/notify-founders
- */
-router.post("/notify-founders", async (req, res) => {
-  try {
-    const { fullName, email, phone } = req.body;
-    const result = await notifyFoundersOnNewLead({ fullName, email, phone });
-    return res.status(200).json(result);
-  } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
 });

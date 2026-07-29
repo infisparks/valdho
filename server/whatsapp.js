@@ -690,7 +690,7 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
     const rawFounderNumbers = process.env.META_WA_FOUNDER_NUMBERS || "919958399157";
     const templateName = process.env.META_WA_TEMPLATE_NAME || "new_lead_founder_alert";
     const headerImageUrl = process.env.META_WA_HEADER_IMAGE_URL || "https://raw.githubusercontent.com/infisparks/images/refs/heads/main/new_lead.png";
-    const templateLang = process.env.META_WA_TEMPLATE_LANG || "en_US";
+    const templateLang = process.env.META_WA_TEMPLATE_LANG || "en";
 
     if (!accessToken || !phoneNumberId) {
       console.warn("⚠️ Meta WhatsApp Cloud API credentials not fully configured in server/.env");

@@ -725,6 +725,11 @@ router.post("/auto-send-welcome", async (req, res) => {
       await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", { id: logId, type: "auto_welcome", number: cleanNumber, text: formattedMessage, status: "sent", timestamp: new Date().toISOString() });
     }
 
+    // Trigger WhatsApp notification to founders in the background (Non-blocking)
+    notifyFoundersOnNewLead({ fullName, email, phone: cleanNumber }).catch((err) =>
+      console.error("🔥 Async Founder Notification Exception:", err)
+    );
+
     return res.status(200).json({ success: evoRes.ok, message: evoRes.ok ? "Welcome message sent" : "Send failed", data: evoRes.data });
   } catch (err) {
     console.error("Auto Send Welcome Exception:", err);
@@ -1346,6 +1351,102 @@ ${description}
     return res.status(200).json({ success: true, message: "Admin ticket notification sent!" });
   } catch (err) {
     console.error("Notify Admin Ticket Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Helper to notify all founders on WhatsApp when a new appointment lead submits Step 1 popup form.
+ */
+async function notifyFoundersOnNewLead({ fullName, email, phone }) {
+  try {
+    const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
+    const instanceName = await resolveActiveInstance(config.selectedInstanceName);
+    if (!instanceName) {
+      console.warn("⚠️ [FOUNDER ALERT] No active WhatsApp instance available.");
+      return { success: false, error: "No active instance" };
+    }
+
+    // Configurable list of founder numbers (Supports array format: 1 number now, up to 3+ later)
+    const rawFounderConfig = process.env.FOUNDER_WHATSAPP_NUMBERS || config.founderNumbers || "919958399157";
+    const founderNumbers = (Array.isArray(rawFounderConfig) ? rawFounderConfig : String(rawFounderConfig).split(","))
+      .map((num) => sanitizePhoneNumber(num.trim()))
+      .filter((num) => num && num.length >= 10);
+
+    if (founderNumbers.length === 0) {
+      console.warn("⚠️ [FOUNDER ALERT] No founder numbers configured.");
+      return { success: false, error: "No founder numbers configured" };
+    }
+
+    const bookingTime = new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    const crmUrl = "https://firstoptionagency.in/crms";
+
+    const founderMessage = `🚨 *NEW APPOINTMENT LEAD ALERT!* 🚀\n\nA new lead has just filled out the appointment booking form (Step 1).\n\n👤 *Lead Name:* ${fullName || "Valued Lead"}\n📞 *Phone Number:* ${phone || "N/A"}\n📧 *Email Address:* ${email || "N/A"}\n🕒 *Time:* ${bookingTime}\n\n🔗 *View in CRM:* ${crmUrl}\n\n⚡ *Action Required:* Call or WhatsApp this client directly to qualify and confirm the meeting!`;
+
+    const mediaUrl = process.env.FOUNDER_NOTIFICATION_IMAGE_URL || config.founderHeaderImageUrl || null;
+
+    // Send notifications in parallel to all founders (non-blocking)
+    const results = await Promise.allSettled(
+      founderNumbers.map(async (founderNum) => {
+        try {
+          let evoRes;
+          if (mediaUrl) {
+            evoRes = await evoApiCall(`/message/sendMedia/${instanceName}`, "POST", {
+              number: founderNum,
+              media: mediaUrl,
+              caption: founderMessage,
+            });
+          } else {
+            evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
+              number: founderNum,
+              text: founderMessage,
+            });
+          }
+
+          if (evoRes.ok) {
+            console.log(`✅ [FOUNDER ALERT] Notification sent to founder ${founderNum}`);
+            const logId = `founder_alert_${Date.now()}_${founderNum}`;
+            await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
+              id: logId,
+              type: "founder_alert",
+              number: founderNum,
+              text: founderMessage,
+              status: "sent",
+              timestamp: new Date().toISOString(),
+            });
+            return { number: founderNum, success: true };
+          } else {
+            console.error(`❌ [FOUNDER ALERT] Failed to send to ${founderNum}:`, evoRes.data);
+            return { number: founderNum, success: false, error: evoRes.data };
+          }
+        } catch (fErr) {
+          console.error(`🔥 [FOUNDER ALERT] Exception sending to ${founderNum}:`, fErr.message);
+          return { number: founderNum, success: false, error: fErr.message };
+        }
+      })
+    );
+
+    return { success: true, results };
+  } catch (err) {
+    console.error("🔥 notifyFoundersOnNewLead Exception:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * POST /api/whatsapp/notify-founders
+ */
+router.post("/notify-founders", async (req, res) => {
+  try {
+    const { fullName, email, phone } = req.body;
+    const result = await notifyFoundersOnNewLead({ fullName, email, phone });
+    return res.status(200).json(result);
+  } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
 });

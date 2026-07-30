@@ -707,10 +707,12 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
       return { success: false, error: "No founder numbers configured" };
     }
 
-    const formattedTime = bookingTime || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    const formattedTime =
+      bookingTime ||
+      new Date().toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true });
     const url = `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`;
 
-    // Construct components array for Meta Cloud API
+    // Construct components array for Meta Cloud API matching exact template specification
     const components = [];
 
     // Header image component (required if template has Media -> Image header)
@@ -726,14 +728,14 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
       });
     }
 
-    // Body parameters component
+    // Body parameters component for named template variables (lead_name, phone_number, email_address, booking_time)
     components.push({
       type: "body",
       parameters: [
-        { type: "text", text: fullName || "Valued Client" },
-        { type: "text", text: phone || "N/A" },
-        { type: "text", text: email || "N/A" },
-        { type: "text", text: formattedTime },
+        { type: "text", parameter_name: "lead_name", text: fullName || "Valued Client" },
+        { type: "text", parameter_name: "phone_number", text: phone || "N/A" },
+        { type: "text", parameter_name: "email_address", text: email || "N/A" },
+        { type: "text", parameter_name: "booking_time", text: formattedTime },
       ],
     });
 
@@ -807,7 +809,7 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
 router.post("/notify-founders", async (req, res) => {
   try {
     const { fullName, email, phone, date, time } = req.body;
-    const bookingTime = date && time ? `${date} at ${time}` : new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    const bookingTime = date && time ? `${date} at ${time}` : new Date().toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true });
     const result = await sendMetaCloudApiFounderNotification({ fullName, email, phone, bookingTime });
     return res.status(200).json(result);
   } catch (err) {
@@ -1497,5 +1499,8 @@ ${description}
   }
 });
 
+router.sendMetaCloudApiFounderNotification = sendMetaCloudApiFounderNotification;
 module.exports = router;
+module.exports.sendMetaCloudApiFounderNotification = sendMetaCloudApiFounderNotification;
+
 

@@ -1224,9 +1224,13 @@ router.post("/reschedule-meeting", async (req, res) => {
                 updatedAt: nowIso,
               });
 
-              // Clean up old meeting index if meeting date changed
-              if (oldMDate && oldMDate !== newDate && campaignData.meetings?.[oldMDate]?.[lId]) {
-                await firebaseDb(`campaigns/${cKey}/meetings/${oldMDate}/${lId}`, "DELETE");
+              // Clean up old meeting index & old slot key if meeting date or time changed
+              if (oldMDate && oldMTime) {
+                const oldSlotKey = oldMTime.replace(/[^a-zA-Z0-9]/g, "_");
+                await firebaseDb(`slots/${cKey}/${oldMDate}/${oldSlotKey}`, "DELETE");
+                if (oldMDate !== newDate) {
+                  await firebaseDb(`campaigns/${cKey}/meetings/${oldMDate}/${lId}`, "DELETE");
+                }
               }
 
               // Update/create new meeting index record under /meetings/{newDate}/{lId}
@@ -1244,6 +1248,16 @@ router.post("/reschedule-meeting", async (req, res) => {
               };
 
               await firebaseDb(`campaigns/${cKey}/meetings/${newDate}/${lId}`, "PATCH", updatedMeetingPayload);
+
+              // Update direct realtime slot node under /slots/{cKey}/{newDate}/{slotKey}
+              const newSlotKey = newTime.replace(/[^a-zA-Z0-9]/g, "_");
+              await firebaseDb(`slots/${cKey}/${newDate}/${newSlotKey}`, "PATCH", {
+                booked: true,
+                leadId: lIdStr || lId,
+                fullName: leadObj.fullName || fullName || "Client",
+                phone: leadObj.phone || phone || "",
+                bookedAt: nowIso,
+              });
 
               // Trigger Google Cloud Tasks Automation Sync for updated meeting schedule
               try {

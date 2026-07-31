@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getDatabase, ref, update, get, set, push } from "firebase/database";
+import { getDatabase, ref, update, get, set, push, onValue } from "firebase/database";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
 import { CAMPAIGNS } from "@/config/campaigns";
 
@@ -173,38 +173,143 @@ export function sanitizeEmailToId(email: string): string {
 }
 
 /**
- * Helper: Convert time string like "09:00 AM" to Firebase key "09_00_AM"
+ * Helper: Normalize time string (e.g. "9:00 AM" or "9:00 am") to standard "09:00 AM" format
  */
-export function sanitizeSlotKey(time: string): string {
-  return time.replace(/[^a-zA-Z0-9]/g, "_");
+export function normalizeTimeSlot(time: string): string {
+  if (!time) return "";
+  const cleaned = time.trim();
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return cleaned;
+  const hours = match[1].padStart(2, "0");
+  const minutes = match[2];
+  const period = match[3].toUpperCase();
+  return `${hours}:${minutes} ${period}`;
 }
 
 /**
- * Fetch booked slots for a specific date under path:
- * slots/[campaignName]/[appointmentDate]
+ * Helper: Convert time string like "09:00 AM" or "9:00 AM" to Firebase key "09_00_AM"
+ */
+export function sanitizeSlotKey(time: string): string {
+  const normalized = normalizeTimeSlot(time);
+  return normalized.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+/**
+ * Fetch booked slots for a specific date across direct slot nodes and meeting index nodes.
+ * Paths checked:
+ * 1. slots/[campaignName]/[appointmentDate]
+ * 2. campaigns/[campaignName]/meetings/[appointmentDate]
  */
 export async function getBookedSlotsForDate(
   appointmentDate: string,
   campaignName: string = "firstoptionagency"
 ): Promise<Record<string, boolean>> {
+  const bookedMap: Record<string, boolean> = {};
+
   try {
-    const slotsRef = ref(db, `slots/${campaignName}/${appointmentDate}`);
-    const snapshot = await get(slotsRef);
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      const bookedMap: Record<string, boolean> = {};
-      Object.keys(data).forEach((key) => {
-        if (data[key] && data[key].booked) {
-          bookedMap[key] = true;
-        }
-      });
-      return bookedMap;
+    const campaignsToSearch =
+      campaignName && campaignName !== "all"
+        ? [campaignName]
+        : Object.keys(CAMPAIGNS);
+
+    if (!campaignsToSearch.includes("firstoptionagency")) {
+      campaignsToSearch.push("firstoptionagency");
     }
-    return {};
+
+    for (const cName of campaignsToSearch) {
+      // 1. Check direct slots node
+      try {
+        const slotsRef = ref(db, `slots/${cName}/${appointmentDate}`);
+        const snapshot = await get(slotsRef);
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          if (data && typeof data === "object") {
+            Object.keys(data).forEach((key) => {
+              const item = data[key];
+              if (item) {
+                if (
+                  item.booked === true ||
+                  item === true ||
+                  (typeof item === "object" && item.booked !== false)
+                ) {
+                  const sanitized = key.includes(":") ? sanitizeSlotKey(key) : key;
+                  bookedMap[sanitized] = true;
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`Error reading slots for ${cName}/${appointmentDate}:`, err);
+      }
+
+      // 2. Cross-reference meeting index node to catch any meetings created or updated without slot node
+      try {
+        const meetingsRef = ref(db, `campaigns/${cName}/meetings/${appointmentDate}`);
+        const snapshot = await get(meetingsRef);
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          if (data && typeof data === "object") {
+            Object.values(data).forEach((m: any) => {
+              if (m && typeof m === "object") {
+                const mTime = m.meetingTime || m.time;
+                const status = String(m.status || "").toLowerCase();
+                if (mTime && status !== "cancelled" && status !== "deleted") {
+                  const slotKey = sanitizeSlotKey(mTime);
+                  bookedMap[slotKey] = true;
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`Error reading meetings index for ${cName}/${appointmentDate}:`, err);
+      }
+    }
+
+    return bookedMap;
   } catch (error) {
     console.error("Firebase getBookedSlotsForDate Error:", error);
-    return {};
+    return bookedMap;
   }
+}
+
+/**
+ * Subscribe to real-time updates for booked slots on a specific date.
+ */
+export function subscribeToBookedSlotsForDate(
+  appointmentDate: string,
+  campaignName: string = "firstoptionagency",
+  callback: (bookedMap: Record<string, boolean>) => void
+): () => void {
+  let isCancelled = false;
+
+  const fetchAndNotify = async () => {
+    const bookedMap = await getBookedSlotsForDate(appointmentDate, campaignName);
+    if (!isCancelled) {
+      callback(bookedMap);
+    }
+  };
+
+  // Immediate initial fetch
+  fetchAndNotify();
+
+  // Attach Realtime listeners
+  const slotsRef = ref(db, `slots/${campaignName}/${appointmentDate}`);
+  const meetingsRef = ref(db, `campaigns/${campaignName}/meetings/${appointmentDate}`);
+
+  const unsubSlots = onValue(slotsRef, () => {
+    fetchAndNotify();
+  });
+  const unsubMeetings = onValue(meetingsRef, () => {
+    fetchAndNotify();
+  });
+
+  return () => {
+    isCancelled = true;
+    unsubSlots();
+    unsubMeetings();
+  };
 }
 
 /**

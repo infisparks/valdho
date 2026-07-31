@@ -8,6 +8,7 @@ import {
   checkExistingLeadByEmailOrPhone,
   sanitizeEmailToId,
   getBookedSlotsForDate,
+  subscribeToBookedSlotsForDate,
   sanitizeSlotKey,
   LeadData,
 } from "@/lib/firebase";
@@ -315,18 +316,23 @@ export function BookingModal({
 
   // Realtime Booked Slots Listener whenever selected date changes
   useEffect(() => {
-    async function fetchSlots() {
-      if (!isOpen || step !== 3) return;
+    if (!isOpen || step !== 3) return;
 
-      const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");
-      const formattedDay = selectedDay.toString().padStart(2, "0");
-      const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
+    const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");
+    const formattedDay = selectedDay.toString().padStart(2, "0");
+    const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
-      const bookedMap = await getBookedSlotsForDate(appointmentDateStr, activeCampaign.id);
-      setBookedSlotsMap(bookedMap);
-    }
+    const unsubscribe = subscribeToBookedSlotsForDate(
+      appointmentDateStr,
+      activeCampaign.id,
+      (bookedMap) => {
+        setBookedSlotsMap(bookedMap);
+      }
+    );
 
-    fetchSlots();
+    return () => {
+      unsubscribe();
+    };
   }, [isOpen, step, selectedDay, currentMonthIndex, currentYear, activeCampaign.id]);
 
   // Check duplicate email on blur
@@ -1212,20 +1218,29 @@ export function BookingModal({
                     {activeSlots.map((time) => {
                       const slotKey = sanitizeSlotKey(time);
                       const isBooked = bookedSlotsMap[slotKey] === true;
+                      const isUserCurrentSlot = isReselectingSlot && selectedTimeSlot === time;
 
                       return (
                         <button
                           key={time}
-                          disabled={isBooked}
+                          disabled={isBooked && !isUserCurrentSlot}
                           onClick={() => handleSelectSlot(time)}
                           className={`w-full p-2.5 rounded-xl text-xs font-bold transition-all shadow ${
-                            isBooked
+                            isUserCurrentSlot
+                              ? "bg-amber-500/20 border border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,166,35,0.3)] flex items-center justify-center space-x-1"
+                              : isBooked
                               ? "bg-zinc-800/80 border border-zinc-700 text-zinc-500 cursor-not-allowed line-through flex items-center justify-center space-x-1 opacity-60"
                               : "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1"
                           }`}
                         >
                           <i className="fa-regular fa-clock text-[11px]"></i>
-                          <span>{isBooked ? `${time} (Booked)` : time}</span>
+                          <span>
+                            {isUserCurrentSlot
+                              ? `${time} (Current)`
+                              : isBooked
+                              ? `${time} (Already Booked)`
+                              : time}
+                          </span>
                         </button>
                       );
                     })}

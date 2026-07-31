@@ -585,6 +585,36 @@ export function BookingModal({
     }
   };
 
+  // Quick Date Shortcut Handlers (Today, Tomorrow, Day After Tomorrow)
+  const handleSelectQuickDate = (offsetDays: number) => {
+    const target = new Date();
+    target.setDate(target.getDate() + offsetDays);
+    setCurrentYear(target.getFullYear());
+    setCurrentMonthIndex(target.getMonth());
+    setSelectedDay(target.getDate());
+  };
+
+  const isQuickDateActive = (offsetDays: number) => {
+    const target = new Date();
+    target.setDate(target.getDate() + offsetDays);
+    return (
+      currentYear === target.getFullYear() &&
+      currentMonthIndex === target.getMonth() &&
+      selectedDay === target.getDate()
+    );
+  };
+
+  const formatQuickDateLabel = (offsetDays: number) => {
+    const target = new Date();
+    target.setDate(target.getDate() + offsetDays);
+    const dayStr = target.getDate();
+    const monthStr = MONTH_NAMES[target.getMonth()].slice(0, 3);
+    if (offsetDays === 0) return `Today (${dayStr} ${monthStr})`;
+    if (offsetDays === 1) return `Tomorrow (${dayStr} ${monthStr})`;
+    if (offsetDays === 2) return `Day After (${dayStr} ${monthStr})`;
+    return `${dayStr} ${monthStr}`;
+  };
+
   // Calculate calendar grid metrics for active month & year
   const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
   const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
@@ -1074,70 +1104,129 @@ export function BookingModal({
         </div>
       )}
 
-      {/* Step 3: Interactive Calendar Appointment Booking with Month Switcher */}
+      {/* Step 3: Interactive Calendar Appointment Booking with Quick Date Pills & Month Switcher */}
       {step === 3 && (
-        <div className="bg-[#0b0b0e] text-white border border-zinc-800 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans space-y-3 my-auto">
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
-            <p className="text-xs sm:text-sm font-bold text-slate-300">
-              Select date & time for your Growth Strategy Call
-            </p>
+        <div className="bg-[#0b0b0e] text-white border border-amber-500/30 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-[0_0_50px_rgba(245,166,35,0.15)] relative max-h-[92vh] overflow-y-auto font-sans space-y-3.5 my-auto animate-toast-in">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full">
+                  Step 3 of 3
+                </span>
+                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">
+                  Select Call Slot
+                </span>
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-white mt-1 leading-tight">
+                Select Date & Time for Strategy Call
+              </h3>
+            </div>
             <button
               onClick={handleReset}
-              className="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm"
+              className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm transition-colors cursor-pointer"
             >
               <i className="fa-solid fa-xmark"></i>
             </button>
           </div>
 
-          <div className="bg-[#121217] border border-zinc-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-3.5 shadow-xl">
+          <div className="bg-gradient-to-b from-[#121218] via-[#101016] to-[#0c0c10] border border-zinc-800 rounded-2xl sm:rounded-3xl p-3 sm:p-5 space-y-4 shadow-xl">
             {/* Host Card Info */}
-            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 shadow">
+            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-amber-400 shadow-md flex-shrink-0">
                   <img src="/founder.png" alt="Faiz Ansari" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h4 className="text-xs sm:text-base font-bold text-white leading-tight">
-                    Your Business Growth Call
+                  <h4 className="text-xs sm:text-base font-black text-white leading-tight">
+                    1-on-1 Business Growth Call
                   </h4>
-                  <p className="text-[11px] text-amber-400 font-semibold">Faiz Ansari • Senior Strategist</p>
+                  <p className="text-[11px] text-amber-400 font-bold flex items-center space-x-1 mt-0.5">
+                    <i className="fa-solid fa-user-tie text-[10px]"></i>
+                    <span>Faiz Ansari • Senior Strategist</span>
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] sm:text-xs text-amber-400 font-mono font-bold">
+              <div className="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-full text-[10px] sm:text-xs text-amber-400 font-mono font-bold flex-shrink-0">
                 <i className="fa-regular fa-clock"></i>
                 <span>60 min</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <div className="flex items-center space-x-1.5 font-mono">
-                <i className="fa-solid fa-globe text-amber-400"></i>
-                <span>Asia/Calcutta (GMT+5:30)</span>
+            {/* Quick Date Selection Pills (Today, Tomorrow, Day After Tomorrow) */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] sm:text-[11px] font-black uppercase text-amber-400 tracking-wider flex items-center space-x-1 font-mono">
+                  <i className="fa-solid fa-bolt text-amber-400 text-xs"></i>
+                  <span>Quick Date Selection</span>
+                </label>
+                <span className="text-[10px] text-slate-400 font-mono">Tap for 1-click select</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSelectQuickDate(0)}
+                  className={`py-2.5 px-1.5 sm:px-2.5 rounded-xl text-[11px] sm:text-xs font-black transition-all border flex flex-col sm:flex-row items-center justify-center space-y-0.5 sm:space-y-0 sm:space-x-1.5 min-h-[44px] cursor-pointer ${
+                    isQuickDateActive(0)
+                      ? "bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 border-amber-300 shadow-[0_0_15px_rgba(245,166,35,0.4)] scale-[1.02]"
+                      : "bg-zinc-900/90 border-zinc-800/90 text-slate-300 hover:border-amber-500/40 hover:text-white"
+                  }`}
+                >
+                  <i className="fa-solid fa-bolt text-[10px]"></i>
+                  <span className="truncate">{formatQuickDateLabel(0)}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectQuickDate(1)}
+                  className={`py-2.5 px-1.5 sm:px-2.5 rounded-xl text-[11px] sm:text-xs font-black transition-all border flex flex-col sm:flex-row items-center justify-center space-y-0.5 sm:space-y-0 sm:space-x-1.5 min-h-[44px] cursor-pointer ${
+                    isQuickDateActive(1)
+                      ? "bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 border-amber-300 shadow-[0_0_15px_rgba(245,166,35,0.4)] scale-[1.02]"
+                      : "bg-zinc-900/90 border-zinc-800/90 text-slate-300 hover:border-amber-500/40 hover:text-white"
+                  }`}
+                >
+                  <i className="fa-regular fa-sun text-[10px]"></i>
+                  <span className="truncate">{formatQuickDateLabel(1)}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectQuickDate(2)}
+                  className={`py-2.5 px-1.5 sm:px-2.5 rounded-xl text-[11px] sm:text-xs font-black transition-all border flex flex-col sm:flex-row items-center justify-center space-y-0.5 sm:space-y-0 sm:space-x-1.5 min-h-[44px] cursor-pointer ${
+                    isQuickDateActive(2)
+                      ? "bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 border-amber-300 shadow-[0_0_15px_rgba(245,166,35,0.4)] scale-[1.02]"
+                      : "bg-zinc-900/90 border-zinc-800/90 text-slate-300 hover:border-amber-500/40 hover:text-white"
+                  }`}
+                >
+                  <i className="fa-solid fa-calendar-plus text-[10px]"></i>
+                  <span className="truncate">{formatQuickDateLabel(2)}</span>
+                </button>
               </div>
             </div>
 
             {/* Interactive Month Switcher Calendar Card */}
-            <div className="border border-zinc-800 rounded-xl sm:rounded-2xl p-3 bg-zinc-950 space-y-3">
-              <div className="flex items-center justify-between text-xs font-extrabold text-white px-1">
+            <div className="border border-zinc-800/90 rounded-2xl p-3 bg-zinc-950/90 space-y-3 shadow-inner">
+              <div className="flex items-center justify-between text-xs font-black text-white px-1">
                 <button
                   type="button"
                   disabled={isPrevMonthDisabled}
                   onClick={handlePrevMonth}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                  className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-amber-400 flex items-center space-x-1 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                 >
                   <i className="fa-solid fa-chevron-left text-[10px]"></i>
                   <span>Prev</span>
                 </button>
 
-                <span className="text-sm font-black text-white tracking-wide bg-zinc-900/90 px-3 py-1 rounded-lg border border-zinc-800">
+                <span className="text-xs sm:text-sm font-black text-white tracking-wide bg-zinc-900/90 px-3.5 py-1.5 rounded-xl border border-zinc-800/90 shadow">
                   {MONTH_NAMES[currentMonthIndex]} {currentYear}
                 </span>
 
                 <button
                   type="button"
                   onClick={handleNextMonth}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors"
+                  className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-amber-400 flex items-center space-x-1 transition-all cursor-pointer"
                 >
                   <span>Next</span>
                   <i className="fa-solid fa-chevron-right text-[10px]"></i>
@@ -1145,7 +1234,7 @@ export function BookingModal({
               </div>
 
               {/* Day Labels */}
-              <div className="grid grid-cols-7 text-center text-[9px] sm:text-[10px] font-bold text-slate-500 border-b border-zinc-800/80 pb-1">
+              <div className="grid grid-cols-7 text-center text-[9px] sm:text-[10px] font-extrabold text-amber-400/80 border-b border-zinc-800/80 pb-1.5 tracking-wider">
                 <span>SUN</span>
                 <span>MON</span>
                 <span>TUE</span>
@@ -1155,7 +1244,7 @@ export function BookingModal({
                 <span>SAT</span>
               </div>
 
-              {/* Accurate Calendar Day Grid with Past Date Prevention */}
+              {/* Calendar Grid */}
               <div className="grid grid-cols-7 gap-1 text-center text-xs font-mono font-bold">
                 {[...Array(firstDayOfWeek)].map((_, emptyIdx) => (
                   <div key={`empty-${emptyIdx}`} className="p-1 sm:p-1.5" />
@@ -1171,12 +1260,12 @@ export function BookingModal({
                       key={dayNum}
                       disabled={isPast}
                       onClick={() => setSelectedDay(dayNum)}
-                      className={`p-1.5 sm:p-2 rounded-xl transition-all text-xs font-bold ${
+                      className={`p-1.5 sm:p-2.5 rounded-xl transition-all text-xs font-bold min-h-[38px] flex items-center justify-center cursor-pointer ${
                         isPast
-                          ? "text-zinc-700 bg-zinc-900/30 cursor-not-allowed opacity-30 pointer-events-none line-through"
+                          ? "text-zinc-700 bg-zinc-900/20 cursor-not-allowed opacity-25 pointer-events-none line-through"
                           : isSelected
-                          ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_15px_rgba(245,166,35,0.4)] scale-105"
-                          : "text-slate-200 hover:bg-zinc-800 hover:text-amber-400"
+                          ? "bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 font-black shadow-[0_0_18px_rgba(245,166,35,0.5)] scale-105 border border-amber-300"
+                          : "text-slate-200 bg-zinc-900/60 border border-zinc-800/80 hover:bg-amber-500/20 hover:border-amber-400/50 hover:text-amber-300"
                       }`}
                     >
                       {dayNum}
@@ -1186,11 +1275,11 @@ export function BookingModal({
               </div>
             </div>
 
-            {/* Time Slot Picker for Selected Date with Real-time Disabling & Past Slot Hiding */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-200">
-                <span>📅 {formattedBookingDate}</span>
-                <span className="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
+            {/* Time Slot Picker for Selected Date */}
+            <div className="space-y-2.5 pt-1">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-200 px-0.5">
+                <span className="text-slate-100 font-extrabold">📅 {formattedBookingDate}</span>
+                <span className="text-amber-400 text-[10px] uppercase font-mono font-bold">Select Time Slot</span>
               </div>
 
               {/* Filter out slots that have already passed for the selected date */}
@@ -1201,20 +1290,20 @@ export function BookingModal({
 
                 if (activeSlots.length === 0) {
                   return (
-                    <div className="p-3 text-center rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5 my-1">
-                      <p className="text-xs text-amber-400 font-bold flex items-center justify-center space-x-1">
+                    <div className="p-4 text-center rounded-2xl bg-zinc-950 border border-zinc-800 space-y-1.5 my-1">
+                      <p className="text-xs text-amber-400 font-bold flex items-center justify-center space-x-1.5">
                         <span>⏰</span>
                         <span>All time slots for today have passed.</span>
                       </p>
                       <p className="text-[11px] text-slate-400">
-                        Please select tomorrow or an upcoming date from the calendar above.
+                        Please tap <strong className="text-amber-300">Tomorrow</strong> or pick an upcoming date from the calendar.
                       </p>
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-52 overflow-y-auto p-1">
                     {activeSlots.map((time) => {
                       const slotKey = sanitizeSlotKey(time);
                       const isBooked = bookedSlotsMap[slotKey] === true;
@@ -1225,12 +1314,12 @@ export function BookingModal({
                           key={time}
                           disabled={isBooked && !isUserCurrentSlot}
                           onClick={() => handleSelectSlot(time)}
-                          className={`w-full p-2.5 rounded-xl text-xs font-bold transition-all shadow ${
+                          className={`w-full py-3 px-2 rounded-xl text-xs font-bold transition-all shadow min-h-[46px] cursor-pointer ${
                             isUserCurrentSlot
-                              ? "bg-amber-500/20 border border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,166,35,0.3)] flex items-center justify-center space-x-1"
+                              ? "bg-amber-500/20 border border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,166,35,0.3)] flex items-center justify-center space-x-1.5"
                               : isBooked
-                              ? "bg-zinc-800/80 border border-zinc-700 text-zinc-500 cursor-not-allowed line-through flex items-center justify-center space-x-1 opacity-60"
-                              : "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1"
+                              ? "bg-zinc-900/90 border border-zinc-800 text-zinc-500 cursor-not-allowed flex items-center justify-center space-x-1 opacity-60"
+                              : "bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1.5 shadow-md"
                           }`}
                         >
                           <i className="fa-regular fa-clock text-[11px]"></i>

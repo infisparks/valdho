@@ -586,35 +586,26 @@ export function BookingModal({
     }
   };
 
-  // Quick Date Shortcut Handlers (Today, Tomorrow, Day After Tomorrow)
-  const handleSelectQuickDate = (offsetDays: number) => {
+  // Generate exact Upcoming 10 Days starting from Today
+  const upcomingTenDays = Array.from({ length: 10 }, (_, i) => {
     const target = new Date();
-    target.setDate(target.getDate() + offsetDays);
-    setCurrentYear(target.getFullYear());
-    setCurrentMonthIndex(target.getMonth());
-    setSelectedDay(target.getDate());
-  };
-
-  const isQuickDateActive = (offsetDays: number) => {
-    const target = new Date();
-    target.setDate(target.getDate() + offsetDays);
-    return (
-      currentYear === target.getFullYear() &&
-      currentMonthIndex === target.getMonth() &&
-      selectedDay === target.getDate()
-    );
-  };
-
-  const formatQuickDateLabel = (offsetDays: number) => {
-    const target = new Date();
-    target.setDate(target.getDate() + offsetDays);
-    const dayStr = target.getDate();
-    const monthStr = MONTH_NAMES[target.getMonth()].slice(0, 3);
-    if (offsetDays === 0) return `Today (${dayStr} ${monthStr})`;
-    if (offsetDays === 1) return `Tomorrow (${dayStr} ${monthStr})`;
-    if (offsetDays === 2) return `Day After (${dayStr} ${monthStr})`;
-    return `${dayStr} ${monthStr}`;
-  };
+    target.setDate(target.getDate() + i);
+    const y = target.getFullYear();
+    const m = target.getMonth();
+    const d = target.getDate();
+    const dayName = target.toLocaleDateString("en-US", { weekday: "short" });
+    const monthShort = MONTH_NAMES[m].slice(0, 3);
+    const subLabel = i === 0 ? "Today" : i === 1 ? "Tomorrow" : dayName;
+    return {
+      year: y,
+      month: m,
+      day: d,
+      dayName,
+      monthShort,
+      subLabel,
+      formattedLabel: `${d} ${monthShort}`,
+    };
+  });
 
   // Calculate calendar grid metrics for active month & year
   const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
@@ -1105,125 +1096,106 @@ export function BookingModal({
         </div>
       )}
 
-      {/* Step 3: Interactive Calendar Appointment Booking */}
+      {/* Step 3: Compact Appointment Booking with Upcoming 10-Days Selection */}
       {step === 3 && (
-        <div className="bg-[#0b0b0e] text-white border border-amber-500/30 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-[0_0_50px_rgba(245,166,35,0.15)] relative max-h-[94vh] overflow-y-auto font-sans space-y-3 my-auto animate-toast-in">
-          {/* Header Bar */}
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+        <div className="bg-[#0b0b0e] text-white border border-amber-500/30 w-full max-w-md rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-[0_0_40px_rgba(245,166,35,0.15)] relative max-h-[95vh] overflow-y-auto font-sans space-y-2.5 my-auto animate-toast-in">
+          {/* Compact Header Bar */}
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
             <div>
-              <div className="flex items-center space-x-2">
-                <span className="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full">
+              <div className="flex items-center space-x-1.5">
+                <span className="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full">
                   Step 3 of 3
                 </span>
-                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
                   Select Call Slot
                 </span>
               </div>
-              <h3 className="text-xs sm:text-base font-black text-white mt-0.5 leading-tight">
+              <h3 className="text-xs sm:text-sm font-black text-white mt-0.5 leading-tight">
                 Select Date & Time for Strategy Call
               </h3>
             </div>
             <button
               onClick={handleReset}
-              className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm transition-colors cursor-pointer"
+              className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer"
             >
               <i className="fa-solid fa-xmark"></i>
             </button>
           </div>
 
-          <div className="bg-gradient-to-b from-[#121218] via-[#101016] to-[#0c0c10] border border-zinc-800 rounded-2xl sm:rounded-3xl p-3 sm:p-4 space-y-3 shadow-xl">
-            {/* Compact Host Card Info */}
-            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-amber-400 shadow-md flex-shrink-0">
+          <div className="bg-gradient-to-b from-[#121218] via-[#101016] to-[#0c0c10] border border-zinc-800/90 rounded-2xl p-2.5 sm:p-3.5 space-y-2.5 shadow-xl">
+            {/* Ultra Compact Host Card Info */}
+            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-amber-400 shadow-sm flex-shrink-0">
                   <img src="/founder.png" alt="Faiz Ansari" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h4 className="text-xs sm:text-sm font-black text-white leading-tight">
+                  <h4 className="text-[11px] sm:text-xs font-black text-white leading-tight">
                     1-on-1 Business Growth Call
                   </h4>
-                  <p className="text-[10px] sm:text-[11px] text-amber-400 font-bold flex items-center space-x-1 mt-0.5">
-                    <i className="fa-solid fa-user-tie text-[9px]"></i>
-                    <span>Faiz Ansari • Senior Strategist</span>
-                  </p>
+                  <p className="text-[9px] text-amber-400 font-bold">Faiz Ansari • Senior Strategist</p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full text-[10px] text-amber-400 font-mono font-bold flex-shrink-0">
+              <div className="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full text-[9px] text-amber-400 font-mono font-bold flex-shrink-0">
                 <i className="fa-regular fa-clock"></i>
                 <span>60 min</span>
               </div>
             </div>
 
-            {/* Quick Date Selection Pills (Today, Tomorrow, Day After Tomorrow) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
+            {/* Upcoming 10-Days Date Selector Strip */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between px-0.5">
                 <label className="text-[10px] font-black uppercase text-amber-400 tracking-wider flex items-center space-x-1 font-mono">
-                  <i className="fa-solid fa-bolt text-amber-400 text-[10px]"></i>
-                  <span>Quick Date Selection</span>
+                  <i className="fa-solid fa-calendar-days text-[10px]"></i>
+                  <span>Upcoming 10 Days</span>
                 </label>
-                <span className="text-[9px] text-slate-400 font-mono">Tap to select date</span>
+                <span className="text-[9px] text-slate-400 font-mono">Swipe or tap date</span>
               </div>
 
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSelectQuickDate(0);
-                    setShowFullCalendar(false);
-                  }}
-                  className={`py-2 px-1.5 rounded-xl text-[11px] font-black transition-all border flex flex-col items-center justify-center space-y-0.5 min-h-[42px] cursor-pointer ${
-                    isQuickDateActive(0)
-                      ? "bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 border-amber-300 shadow-[0_0_12px_rgba(245,166,35,0.4)] scale-[1.02]"
-                      : "bg-zinc-900/90 border-zinc-800/90 text-slate-300 hover:border-amber-500/40 hover:text-white"
-                  }`}
-                >
-                  <i className="fa-solid fa-bolt text-[9px]"></i>
-                  <span className="truncate">{formatQuickDateLabel(0)}</span>
-                </button>
+              {/* Horizontal Scrollable Strip of 10 Upcoming Days */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin scrollbar-thumb-zinc-800">
+                {upcomingTenDays.map((item) => {
+                  const isSelected =
+                    currentYear === item.year &&
+                    currentMonthIndex === item.month &&
+                    selectedDay === item.day;
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSelectQuickDate(1);
-                    setShowFullCalendar(false);
-                  }}
-                  className={`py-2 px-1.5 rounded-xl text-[11px] font-black transition-all border flex flex-col items-center justify-center space-y-0.5 min-h-[42px] cursor-pointer ${
-                    isQuickDateActive(1)
-                      ? "bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 border-amber-300 shadow-[0_0_12px_rgba(245,166,35,0.4)] scale-[1.02]"
-                      : "bg-zinc-900/90 border-zinc-800/90 text-slate-300 hover:border-amber-500/40 hover:text-white"
-                  }`}
-                >
-                  <i className="fa-regular fa-sun text-[9px]"></i>
-                  <span className="truncate">{formatQuickDateLabel(1)}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSelectQuickDate(2);
-                    setShowFullCalendar(false);
-                  }}
-                  className={`py-2 px-1.5 rounded-xl text-[11px] font-black transition-all border flex flex-col items-center justify-center space-y-0.5 min-h-[42px] cursor-pointer ${
-                    isQuickDateActive(2)
-                      ? "bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 border-amber-300 shadow-[0_0_12px_rgba(245,166,35,0.4)] scale-[1.02]"
-                      : "bg-zinc-900/90 border-zinc-800/90 text-slate-300 hover:border-amber-500/40 hover:text-white"
-                  }`}
-                >
-                  <i className="fa-solid fa-calendar-plus text-[9px]"></i>
-                  <span className="truncate">{formatQuickDateLabel(2)}</span>
-                </button>
+                  return (
+                    <button
+                      key={`${item.year}-${item.month}-${item.day}`}
+                      type="button"
+                      onClick={() => {
+                        setCurrentYear(item.year);
+                        setCurrentMonthIndex(item.month);
+                        setSelectedDay(item.day);
+                      }}
+                      className={`flex-shrink-0 py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer min-w-[62px] ${
+                        isSelected
+                          ? "bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 border-amber-300 font-black shadow-[0_0_12px_rgba(245,166,35,0.4)] scale-105"
+                          : "bg-zinc-900/90 border-zinc-800 text-slate-300 hover:border-amber-500/40 hover:text-white"
+                      }`}
+                    >
+                      <span className={`text-[9px] uppercase tracking-wider ${isSelected ? "text-slate-950 font-black" : "text-amber-400 font-bold"}`}>
+                        {item.subLabel}
+                      </span>
+                      <span className="text-xs font-black font-mono leading-tight">
+                        {item.formattedLabel}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Time Slot Picker (INSTANTLY VISIBLE FRONT AND CENTER ON MOBILE) */}
-            <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-3 space-y-2.5 shadow-inner">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-200">
-                <span className="text-white font-extrabold flex items-center space-x-1.5">
-                  <i className="fa-solid fa-calendar-day text-amber-400"></i>
-                  <span>{formattedBookingDate}</span>
+            {/* Time Slot Picker (COMPACT & SLIM HEIGHT) */}
+            <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-xl p-2.5 space-y-2 shadow-inner">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-200 px-0.5">
+                <span className="text-white font-extrabold flex items-center space-x-1">
+                  <i className="fa-solid fa-clock text-amber-400 text-[10px]"></i>
+                  <span>📅 {formattedBookingDate}</span>
                 </span>
-                <span className="text-amber-400 text-[10px] uppercase font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                <span className="text-amber-400 text-[9px] uppercase font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                   Select Time Slot
                 </span>
               </div>
@@ -1236,20 +1208,20 @@ export function BookingModal({
 
                 if (activeSlots.length === 0) {
                   return (
-                    <div className="p-3.5 text-center rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1.5">
-                      <p className="text-xs text-amber-400 font-bold flex items-center justify-center space-x-1.5">
+                    <div className="p-3 text-center rounded-lg bg-zinc-900/90 border border-zinc-800 space-y-1">
+                      <p className="text-[11px] text-amber-400 font-bold flex items-center justify-center space-x-1">
                         <span>⏰</span>
                         <span>All time slots for today have passed.</span>
                       </p>
-                      <p className="text-[11px] text-slate-400">
-                        Please tap <strong className="text-amber-300">Tomorrow</strong> above to book your call.
+                      <p className="text-[10px] text-slate-400">
+                        Please tap an upcoming date in the strip above.
                       </p>
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-0.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {activeSlots.map((time) => {
                       const slotKey = sanitizeSlotKey(time);
                       const isBooked = bookedSlotsMap[slotKey] === true;
@@ -1260,15 +1232,15 @@ export function BookingModal({
                           key={time}
                           disabled={isBooked && !isUserCurrentSlot}
                           onClick={() => handleSelectSlot(time)}
-                          className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold transition-all shadow min-h-[42px] cursor-pointer ${
+                          className={`w-full py-2 px-1.5 rounded-lg text-[11px] font-black transition-all shadow h-9 cursor-pointer ${
                             isUserCurrentSlot
-                              ? "bg-amber-500/20 border border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,166,35,0.3)] flex items-center justify-center space-x-1"
+                              ? "bg-amber-500/20 border border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,166,35,0.3)] flex items-center justify-center space-x-1"
                               : isBooked
                               ? "bg-zinc-900/90 border border-zinc-800 text-zinc-500 cursor-not-allowed flex items-center justify-center space-x-1 opacity-60"
-                              : "bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1 shadow-md"
+                              : "bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1 shadow-sm"
                           }`}
                         >
-                          <i className="fa-regular fa-clock text-[10px]"></i>
+                          <i className="fa-regular fa-clock text-[9px]"></i>
                           <span>
                             {isUserCurrentSlot
                               ? `${time} (Current)`
@@ -1282,99 +1254,6 @@ export function BookingModal({
                   </div>
                 );
               })()}
-            </div>
-
-            {/* Toggle Full Month Calendar Accordion Button */}
-            <div className="pt-0.5">
-              <button
-                type="button"
-                onClick={() => setShowFullCalendar(!showFullCalendar)}
-                className="w-full bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-slate-300 hover:text-white py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer"
-              >
-                <div className="flex items-center space-x-1.5">
-                  <i className="fa-solid fa-calendar-days text-amber-400 text-xs"></i>
-                  <span>
-                    {showFullCalendar
-                      ? "Hide Full Month Calendar"
-                      : `Pick Another Date (${MONTH_NAMES[currentMonthIndex]} ${currentYear})`}
-                  </span>
-                </div>
-                <i className={`fa-solid fa-chevron-${showFullCalendar ? "up" : "down"} text-[10px] text-amber-400`}></i>
-              </button>
-
-              {/* Full Month Calendar Grid (Collapsible/Expandable) */}
-              {showFullCalendar && (
-                <div className="border border-zinc-800/90 rounded-2xl p-3 bg-zinc-950/90 space-y-2.5 shadow-inner mt-2 animate-toast-in">
-                  <div className="flex items-center justify-between text-xs font-black text-white px-1">
-                    <button
-                      type="button"
-                      disabled={isPrevMonthDisabled}
-                      onClick={handlePrevMonth}
-                      className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-amber-400 flex items-center space-x-1 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                    >
-                      <i className="fa-solid fa-chevron-left text-[10px]"></i>
-                      <span>Prev</span>
-                    </button>
-
-                    <span className="text-xs sm:text-sm font-black text-white tracking-wide bg-zinc-900/90 px-3 py-1 rounded-lg border border-zinc-800/90 shadow">
-                      {MONTH_NAMES[currentMonthIndex]} {currentYear}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={handleNextMonth}
-                      className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-amber-400 flex items-center space-x-1 transition-all cursor-pointer"
-                    >
-                      <span>Next</span>
-                      <i className="fa-solid fa-chevron-right text-[10px]"></i>
-                    </button>
-                  </div>
-
-                  {/* Day Labels */}
-                  <div className="grid grid-cols-7 text-center text-[9px] font-extrabold text-amber-400/80 border-b border-zinc-800/80 pb-1 tracking-wider">
-                    <span>SUN</span>
-                    <span>MON</span>
-                    <span>TUE</span>
-                    <span>WED</span>
-                    <span>THU</span>
-                    <span>FRI</span>
-                    <span>SAT</span>
-                  </div>
-
-                  {/* Calendar Grid */}
-                  <div className="grid grid-cols-7 gap-1 text-center text-xs font-mono font-bold">
-                    {[...Array(firstDayOfWeek)].map((_, emptyIdx) => (
-                      <div key={`empty-${emptyIdx}`} className="p-1" />
-                    ))}
-
-                    {[...Array(daysInMonth)].map((_, i) => {
-                      const dayNum = i + 1;
-                      const isSelected = selectedDay === dayNum;
-                      const isPast = isPastDay(dayNum);
-
-                      return (
-                        <button
-                          key={dayNum}
-                          disabled={isPast}
-                          onClick={() => {
-                            setSelectedDay(dayNum);
-                            setShowFullCalendar(false);
-                          }}
-                          className={`p-1.5 sm:p-2 rounded-xl transition-all text-xs font-bold min-h-[34px] flex items-center justify-center cursor-pointer ${
-                            isPast
-                              ? "text-zinc-700 bg-zinc-900/20 cursor-not-allowed opacity-25 pointer-events-none line-through"
-                              : isSelected
-                              ? "bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 font-black shadow-[0_0_14px_rgba(245,166,35,0.5)] scale-105 border border-amber-300"
-                              : "text-slate-200 bg-zinc-900/60 border border-zinc-800/80 hover:bg-amber-500/20 hover:border-amber-400/50 hover:text-amber-300"
-                          }`}
-                        >
-                          {dayNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

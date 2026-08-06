@@ -10,6 +10,7 @@ import {
   getAllClientFlows,
   updateClientFlowTaskStatus,
   markClientFlowCompleted,
+  updateClientFlowRoleOrder,
   UserData,
   RoleData,
   ClientFlowInstance,
@@ -324,6 +325,29 @@ function ViewFlowCanvasContent() {
     setIsUpdatingTask(false);
   };
 
+  // Admin Reorder Role Sequence (Move Left / Move Right)
+  const handleMoveRoleSequence = async (flowId: string, roleId: string, direction: "left" | "right", currentRoleList: Array<{ id: string; name: string }>) => {
+    const currentOrderedIds = currentRoleList.map((r) => r.id);
+    const index = currentOrderedIds.indexOf(roleId);
+    if (index === -1) return;
+
+    const targetIndex = direction === "left" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= currentOrderedIds.length) return;
+
+    const newOrder = [...currentOrderedIds];
+    const temp = newOrder[index];
+    newOrder[index] = newOrder[targetIndex];
+    newOrder[targetIndex] = temp;
+
+    // Optimistically update state
+    setClientFlows((prev) =>
+      prev.map((cf) => (cf.id === flowId ? { ...cf, roleOrder: newOrder } : cf))
+    );
+
+    // Save sequence to Firebase
+    await updateClientFlowRoleOrder(flowId, newOrder);
+  };
+
   if (authLoading) {
     return (
       <div className="w-full min-h-screen bg-[#0F172A] flex items-center justify-center font-sans">
@@ -344,19 +368,49 @@ function ViewFlowCanvasContent() {
   const activeFlow =
     clientFlows.find((f) => f.id === selectedFlowId) || clientFlows[0];
 
-  // Extract distinct roles used in active flow tasks (plus all system roles)
-  const activeFlowRoles: Array<{ id: string; name: string }> = [];
+  // Extract distinct roles used in active flow
+  const rawActiveFlowRoles: Array<{ id: string; name: string }> = [];
   if (activeFlow) {
     activeFlow.tasks.forEach((t) => {
-      if (!activeFlowRoles.some((r) => r.name.toLowerCase() === t.roleName.toLowerCase())) {
-        activeFlowRoles.push({ id: t.roleId, name: t.roleName });
+      if (!rawActiveFlowRoles.some((r) => r.name.toLowerCase() === t.roleName.toLowerCase())) {
+        rawActiveFlowRoles.push({ id: t.roleId, name: t.roleName });
       }
     });
   }
   rolesList.forEach((r) => {
-    if (!activeFlowRoles.some((ar) => ar.name.toLowerCase() === r.name.toLowerCase())) {
-      activeFlowRoles.push({ id: r.id, name: r.name });
+    if (!rawActiveFlowRoles.some((ar) => ar.name.toLowerCase() === r.name.toLowerCase())) {
+      rawActiveFlowRoles.push({ id: r.id, name: r.name });
     }
+  });
+
+  // Base Admin Custom Ordered Roles Sequence
+  const adminOrderedRoles = [...rawActiveFlowRoles].sort((a, b) => {
+    if (activeFlow?.roleOrder && Array.isArray(activeFlow.roleOrder) && activeFlow.roleOrder.length > 0) {
+      const idxA = activeFlow.roleOrder.indexOf(a.id);
+      const idxB = activeFlow.roleOrder.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+    }
+    return 0;
+  });
+
+  // Display Roles for Current User:
+  // - If Non-Admin Staff User: Put user's assigned role FIRST on board, followed by rest of sequence
+  // - If Admin: Display exact custom Admin sequence
+  const displayRoles = [...adminOrderedRoles].sort((a, b) => {
+    if (!isAdmin && userData) {
+      const isAMyRole =
+        userData.roleId === a.id ||
+        (userData.roleName && userData.roleName.toLowerCase() === a.name.toLowerCase());
+      const isBMyRole =
+        userData.roleId === b.id ||
+        (userData.roleName && userData.roleName.toLowerCase() === b.name.toLowerCase());
+
+      if (isAMyRole && !isBMyRole) return -1;
+      if (!isAMyRole && isBMyRole) return 1;
+    }
+    return 0;
   });
 
   return (
@@ -416,7 +470,7 @@ function ViewFlowCanvasContent() {
             </div>
           )}
 
-          {/* Right: Zoom & Mouse Mode Controls & Admin Action */}
+          {/* Right: Zoom & Controls */}
           <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-1 bg-slate-800 border border-slate-700 p-1 rounded-xl">
               <button
@@ -462,18 +516,83 @@ function ViewFlowCanvasContent() {
         </div>
       </header>
 
-      {/* CANVAS HINT INSTRUCTION STRIP */}
-      <div className="bg-slate-900/60 border-b border-slate-800 px-6 py-2 flex items-center justify-between text-xs text-slate-400 font-medium">
-        <div className="flex items-center space-x-2">
-          <i className="fa-solid fa-hand-pointer text-indigo-400"></i>
-          <span>
-            <strong>Mouse Drag Canvas Mode Active:</strong> Click and drag anywhere on the canvas background to move smoothly Left/Right or Up/Down!
-          </span>
+      {/* CANVAS INSTRUCTION & WORKFLOW SEQUENCE BAR */}
+      <div className="bg-slate-900/90 border-b border-slate-800 px-4 sm:px-6 py-2.5 space-y-2 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-300 font-medium">
+          <div className="flex items-center space-x-2">
+            <i className="fa-solid fa-hand-pointer text-indigo-400"></i>
+            <span>
+              <strong>Canvas Navigation:</strong> Click and drag anywhere to pan. {!isAdmin ? "Your assigned role appears FIRST on the board." : "Admins can reorder role step sequences below."}
+            </span>
+          </div>
+
+          {activeFlow && (
+            <span className="font-mono text-indigo-300 font-bold self-start sm:self-auto">
+              Progress: {activeFlow.tasks.filter((t) => t.isCompleted).length} / {activeFlow.tasks.length} Steps Completed
+            </span>
+          )}
         </div>
-        {activeFlow && (
-          <span className="font-mono text-indigo-300">
-            Progress: {activeFlow.tasks.filter((t) => t.isCompleted).length} / {activeFlow.tasks.length} Steps Completed
-          </span>
+
+        {/* WORKFLOW ROLE SEQUENCE & ADMIN REORDER BAR */}
+        {activeFlow && adminOrderedRoles.length > 0 && (
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 pt-1 border-t border-slate-800/80">
+            <span className="text-[10px] font-mono text-indigo-400 uppercase font-extrabold flex-shrink-0 flex items-center space-x-1">
+              <i className="fa-solid fa-[#diagram-project] fa-diagram-project"></i>
+              <span>Role Sequence Chain:</span>
+            </span>
+
+            {adminOrderedRoles.map((role, idx) => {
+              const isFirst = idx === 0;
+              const isLast = idx === adminOrderedRoles.length - 1;
+              const isMyRole = userData?.roleId === role.id || userData?.roleName?.toLowerCase() === role.name.toLowerCase();
+
+              return (
+                <React.Fragment key={role.id}>
+                  <div
+                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${
+                      isMyRole
+                        ? "bg-indigo-950 border-indigo-600 text-indigo-200 font-extrabold shadow-sm"
+                        : "bg-slate-800 border-slate-700 text-slate-300"
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] text-indigo-400 font-black">
+                      Step #{idx + 1}
+                    </span>
+
+                    <span>{role.name}</span>
+
+                    {/* Admin Reorder Move Controls */}
+                    {isAdmin && (
+                      <div className="flex items-center space-x-1 pl-1 border-l border-slate-700 ml-1">
+                        <button
+                          type="button"
+                          disabled={isFirst}
+                          onClick={() => handleMoveRoleSequence(activeFlow.id, role.id, "left", adminOrderedRoles)}
+                          className="w-4 h-4 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px] disabled:opacity-30 disabled:pointer-events-none"
+                          title="Move Role Left"
+                        >
+                          ◄
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isLast}
+                          onClick={() => handleMoveRoleSequence(activeFlow.id, role.id, "right", adminOrderedRoles)}
+                          className="w-4 h-4 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px] disabled:opacity-30 disabled:pointer-events-none"
+                          title="Move Role Right"
+                        >
+                          ►
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {!isLast && (
+                    <span className="text-slate-600 font-bold text-xs flex-shrink-0">➔</span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -550,13 +669,15 @@ function ViewFlowCanvasContent() {
               </div>
             </div>
 
-            {/* SIDE-BY-SIDE ROLE COLUMNS BOARD (PAN LEFT/RIGHT, NO BLANK SPACE) */}
+            {/* SIDE-BY-SIDE ROLE COLUMNS BOARD WITH SEQUENCE NUMBERS & STAFF PRIORITY FIRST */}
             <div className="flex items-start space-x-6 min-w-max pb-16">
-              {activeFlowRoles.map((role) => {
+              {displayRoles.map((role) => {
                 const isMyRoleColumn =
-                  isAdmin ||
                   userData?.roleId === role.id ||
                   userData?.roleName?.toLowerCase() === role.name.toLowerCase();
+
+                // Determine original step sequence index in Admin sequence
+                const originalStepIndex = adminOrderedRoles.findIndex((r) => r.id === role.id) + 1;
 
                 const roleTasks = activeFlow.tasks.filter(
                   (t) =>
@@ -577,27 +698,61 @@ function ViewFlowCanvasContent() {
                     key={role.id}
                     className={`w-[320px] rounded-3xl border p-5 space-y-4 flex flex-col justify-between shadow-2xl flex-shrink-0 transition-all ${
                       isMyRoleColumn
-                        ? "bg-slate-900/90 border-indigo-600/60 ring-2 ring-indigo-500/20"
+                        ? "bg-slate-900/95 border-indigo-500 ring-2 ring-indigo-500/30"
                         : "bg-slate-900/60 border-slate-800"
                     }`}
                   >
-                    {/* Role Column Header & Staff Email */}
-                    <div className="border-b border-slate-800 pb-3.5 space-y-1.5">
+                    {/* Role Column Header & Sequence Badge */}
+                    <div className="border-b border-slate-800 pb-3.5 space-y-2">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-extrabold text-white flex items-center space-x-1.5">
-                          <span>{role.name}</span>
-                          {isMyRoleColumn && (
-                            <span className="text-[9px] bg-indigo-600 text-white font-extrabold px-1.5 py-0.2 rounded-full">
-                              Your Role ✓
-                            </span>
-                          )}
-                        </h3>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-mono font-extrabold text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
+                            Step #{originalStepIndex}
+                          </span>
+                          <h3 className="text-sm font-extrabold text-white">
+                            {role.name}
+                          </h3>
+                        </div>
 
                         <span className="text-[10px] font-mono font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
                           {completedRoleTasksCount}/{roleTasks.length} Tasks
                         </span>
                       </div>
 
+                      {/* Staff Role Priority Tag */}
+                      {isMyRoleColumn && !isAdmin && (
+                        <div className="bg-indigo-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-xl flex items-center justify-between shadow-xs">
+                          <span>⭐ Your Assigned Role (Priority)</span>
+                          <span className="font-mono text-[9px] opacity-90">Step #{originalStepIndex}</span>
+                        </div>
+                      )}
+
+                      {/* Admin Move Left/Right Controls */}
+                      {isAdmin && (
+                        <div className="flex items-center justify-between bg-slate-800/80 border border-slate-700/80 p-1.5 rounded-xl text-[11px] font-bold text-slate-300">
+                          <span>Reorder Step #{originalStepIndex}:</span>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              type="button"
+                              disabled={originalStepIndex === 1}
+                              onClick={() => handleMoveRoleSequence(activeFlow.id, role.id, "left", adminOrderedRoles)}
+                              className="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-white text-[10px] font-bold disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            >
+                              ◄ Left
+                            </button>
+                            <button
+                              type="button"
+                              disabled={originalStepIndex === adminOrderedRoles.length}
+                              onClick={() => handleMoveRoleSequence(activeFlow.id, role.id, "right", adminOrderedRoles)}
+                              className="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-white text-[10px] font-bold disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            >
+                              Right ►
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Assigned Staff Email */}
                       {staffForRole.length > 0 ? (
                         <div className="text-[10px] font-mono font-extrabold text-indigo-300 bg-indigo-950/90 border border-indigo-800 px-2.5 py-1 rounded-xl truncate">
                           ✉️ {staffForRole.map((s) => s.email).join(", ")}
@@ -618,36 +773,38 @@ function ViewFlowCanvasContent() {
                       ) : (
                         roleTasks.map((task) => {
                           const isTaskDone = Boolean(task.isCompleted === true);
-                          const originalStepIdx = activeFlow.tasks.findIndex((t) => t.id === task.id) + 1;
+                          const taskIndex = activeFlow.tasks.findIndex((t) => t.id === task.id) + 1;
                           const currentDraftText =
                             draftTexts[task.id] !== undefined ? draftTexts[task.id] : (task.textValue || "");
+
+                          const isEditable = isAdmin || isMyRoleColumn;
 
                           return (
                             <div
                               key={task.id}
-                              className={`bg-slate-950 border rounded-2xl p-4 space-y-3 shadow-md transition-all ${
+                              className={`bg-slate-900 border rounded-2xl p-4 space-y-3 shadow-lg transition-all ${
                                 isTaskDone
-                                  ? "border-emerald-900/60 bg-emerald-950/20"
-                                  : isMyRoleColumn
+                                  ? "border-emerald-800/80 bg-emerald-950/20"
+                                  : isEditable
                                   ? "border-slate-700 hover:border-indigo-500"
-                                  : "border-slate-800 opacity-80"
+                                  : "border-slate-800 opacity-90"
                               }`}
                             >
-                              {/* Task Title */}
-                              <div className="flex items-start space-x-2.5">
-                                <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
-                                  #{originalStepIdx}
+                              {/* Task Title & Step Badge */}
+                              <div className="flex items-start space-x-2">
+                                <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
+                                  #{taskIndex}
                                 </span>
-                                <h4 className="text-xs font-extrabold text-slate-100 leading-snug whitespace-pre-wrap leading-relaxed break-words">
+                                <h4 className="text-xs font-extrabold text-white leading-snug">
                                   {task.title}
                                 </h4>
                               </div>
 
-                              {/* Interactive Checkbox Control */}
+                              {/* Checkbox Control */}
                               {(task.type === "checkbox" || task.type === "both") && (
                                 <div>
-                                  {isMyRoleColumn ? (
-                                    <label className="flex items-center space-x-2 p-2.5 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors">
+                                  {isEditable ? (
+                                    <label className="flex items-center space-x-2.5 p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors">
                                       <input
                                         type="checkbox"
                                         checked={isTaskDone}
@@ -658,7 +815,7 @@ function ViewFlowCanvasContent() {
                                             currentDraftText
                                           )
                                         }
-                                        className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-400 cursor-pointer"
+                                        className="w-4 h-4 text-indigo-500 rounded border-slate-600 focus:ring-indigo-500 cursor-pointer"
                                       />
                                       <span
                                         className={`text-xs font-bold ${
@@ -667,16 +824,16 @@ function ViewFlowCanvasContent() {
                                             : "text-slate-200"
                                         }`}
                                       >
-                                        {isTaskDone ? "Completed Step" : "Mark Done"}
+                                        {isTaskDone ? "Completed Step" : "Mark as Done"}
                                       </span>
                                     </label>
                                   ) : (
-                                    <div className="flex items-center space-x-2 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-500">
+                                    <div className="flex items-center space-x-2 p-2.5 rounded-xl bg-slate-800/40 border border-slate-800 text-slate-500">
                                       <input
                                         type="checkbox"
                                         checked={isTaskDone}
                                         disabled
-                                        className="w-4 h-4 text-slate-600 rounded cursor-not-allowed"
+                                        className="w-4 h-4 text-slate-500 rounded cursor-not-allowed"
                                       />
                                       <span className="text-[11px] font-bold text-slate-400">
                                         {isTaskDone ? "Completed" : "🔒 Read-Only"}
@@ -686,10 +843,10 @@ function ViewFlowCanvasContent() {
                                 </div>
                               )}
 
-                              {/* Work Notes Input with Save Button */}
+                              {/* Text Input / Work Notes */}
                               {(task.type === "text" || task.type === "both") && (
                                 <div className="space-y-1">
-                                  {isMyRoleColumn ? (
+                                  {isEditable ? (
                                     <div className="flex items-center space-x-1.5">
                                       <input
                                         type="text"
@@ -701,7 +858,7 @@ function ViewFlowCanvasContent() {
                                             [task.id]: e.target.value,
                                           }))
                                         }
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
                                       />
                                       <button
                                         type="button"
@@ -712,21 +869,21 @@ function ViewFlowCanvasContent() {
                                             currentDraftText
                                           )
                                         }
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-xl transition-colors shadow-2xs flex-shrink-0 flex items-center space-x-1 cursor-pointer"
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-colors shadow-2xs flex-shrink-0 flex items-center space-x-1"
                                       >
                                         <i className="fa-solid fa-floppy-disk"></i>
                                         <span>Save</span>
                                       </button>
                                     </div>
                                   ) : (
-                                    <div className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 font-mono font-bold truncate">
+                                    <div className="bg-slate-800/60 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 font-mono font-medium truncate">
                                       {task.textValue || "No notes entered"}
                                     </div>
                                   )}
                                 </div>
                               )}
 
-                              {/* Timestamp Audit Tag in 12-hour AM/PM format */}
+                              {/* Completion Status Tag */}
                               {task.completedAt ? (
                                 <div className="text-[10px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-800 p-2 rounded-xl font-extrabold flex items-center justify-between">
                                   <span>✓ {new Date(task.completedAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
@@ -734,7 +891,7 @@ function ViewFlowCanvasContent() {
                                 </div>
                               ) : (
                                 <div className="text-[10px] font-mono text-amber-400 bg-amber-950/40 border border-amber-900/60 p-1.5 rounded-xl font-bold text-center">
-                                  ⏳ Status: Pending
+                                  ⏳ Status: Pending Step
                                 </div>
                               )}
                             </div>
@@ -750,11 +907,11 @@ function ViewFlowCanvasContent() {
         )}
       </div>
 
-      {/* UNCHECK WARNING MODAL POPUP */}
+      {/* UNCHECK WARNING MODAL */}
       {uncheckWarningModalData && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="fixed inset-0" onClick={() => setUncheckWarningModalData(null)} />
-          <div className="relative w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl p-6 space-y-4 border border-amber-900/80 z-10 font-sans text-slate-100 animate-in fade-in zoom-in duration-150">
+          <div className="relative w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl p-6 space-y-4 border border-amber-500/40 z-10 font-sans">
             <div className="flex items-center space-x-3 text-amber-400">
               <div className="w-10 h-10 rounded-2xl bg-amber-950 border border-amber-800 flex items-center justify-center text-lg font-black shadow-2xs">
                 ⚠️
@@ -769,9 +926,9 @@ function ViewFlowCanvasContent() {
               </div>
             </div>
 
-            <div className="bg-amber-950/40 border border-amber-900/60 rounded-2xl p-3.5 space-y-2 text-xs">
+            <div className="bg-amber-950/50 border border-amber-800/80 rounded-2xl p-3.5 space-y-2 text-xs">
               <p className="text-amber-200 font-semibold leading-relaxed">
-                Unchecking <strong className="text-white font-extrabold underline">{uncheckWarningModalData.taskTitle}</strong> will remove the current completion date/time stamp and set the status back to <span className="font-extrabold text-amber-400">In Progress</span>.
+                Unchecking <strong className="text-white font-extrabold underline">{uncheckWarningModalData.taskTitle}</strong> will remove the current completion date/time stamp and set status back to <span className="font-extrabold text-amber-400">In Progress</span>.
               </p>
             </div>
 
@@ -779,7 +936,7 @@ function ViewFlowCanvasContent() {
               <button
                 type="button"
                 onClick={() => setUncheckWarningModalData(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 border border-slate-700 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 border border-slate-700 transition-colors"
               >
                 Cancel
               </button>
@@ -788,25 +945,25 @@ function ViewFlowCanvasContent() {
                 type="button"
                 disabled={isUpdatingTask}
                 onClick={handleConfirmUncheckTask}
-                className="px-5 py-2 rounded-xl text-xs font-extrabold bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
               >
                 {isUpdatingTask ? (
                   <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                 ) : (
                   <i className="fa-solid fa-rotate-left text-xs"></i>
                 )}
-                <span>Reset & Mark In Progress ⏳</span>
+                <span>Reset & Mark In Progress</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* EDIT TEXT WARNING MODAL POPUP (NEW TIMESTAMP WARNING) */}
+      {/* EDIT TEXT WARNING MODAL */}
       {editTextWarningModalData && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="fixed inset-0" onClick={() => setEditTextWarningModalData(null)} />
-          <div className="relative w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl p-6 space-y-4 border border-indigo-800 z-10 font-sans text-slate-100 animate-in fade-in zoom-in duration-150">
+          <div className="relative w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl p-6 space-y-4 border border-indigo-500/40 z-10 font-sans">
             <div className="flex items-center space-x-3 text-indigo-400">
               <div className="w-10 h-10 rounded-2xl bg-indigo-950 border border-indigo-800 flex items-center justify-center text-lg font-black shadow-2xs">
                 🕒
@@ -821,14 +978,14 @@ function ViewFlowCanvasContent() {
               </div>
             </div>
 
-            <div className="bg-indigo-950/40 border border-indigo-900/60 rounded-2xl p-3.5 space-y-2 text-xs">
+            <div className="bg-indigo-950/50 border border-indigo-800/80 rounded-2xl p-3.5 space-y-2 text-xs">
               <p className="text-indigo-200 font-semibold leading-relaxed">
                 Saving changes to <strong className="text-white font-extrabold underline">{editTextWarningModalData.task.title}</strong> will update the saved note and stamp the <span className="font-extrabold text-indigo-400">NEW current date and time</span>!
               </p>
 
-              <div className="bg-slate-950 border border-indigo-900/60 rounded-xl p-2.5 space-y-1 font-mono text-[11px]">
+              <div className="bg-slate-900 border border-indigo-800 rounded-xl p-2.5 space-y-1 font-mono text-[11px]">
                 <span className="text-slate-400 font-bold block">New Note Content:</span>
-                <p className="text-indigo-200 font-extrabold truncate">"{editTextWarningModalData.newText}"</p>
+                <p className="text-white font-extrabold truncate">"{editTextWarningModalData.newText}"</p>
               </div>
             </div>
 
@@ -836,7 +993,7 @@ function ViewFlowCanvasContent() {
               <button
                 type="button"
                 onClick={() => setEditTextWarningModalData(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 border border-slate-700 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 border border-slate-700 transition-colors"
               >
                 Cancel
               </button>
@@ -851,14 +1008,14 @@ function ViewFlowCanvasContent() {
                     editTextWarningModalData.newText
                   )
                 }
-                className="px-5 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
               >
                 {isUpdatingTask ? (
                   <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                 ) : (
                   <i className="fa-solid fa-floppy-disk text-xs"></i>
                 )}
-                <span>Save & Set New Date/Time 🕒</span>
+                <span>Save & Set New Timestamp</span>
               </button>
             </div>
           </div>
@@ -872,9 +1029,11 @@ export default function ViewFlowCanvasPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full h-screen bg-[#0F172A] flex items-center justify-center font-sans text-indigo-400 font-bold text-sm">
-          <i className="fa-solid fa-circle-notch fa-spin text-2xl mr-3"></i>
-          <span>Loading Flow Canvas...</span>
+        <div className="w-full min-h-screen bg-[#0F172A] flex items-center justify-center font-sans">
+          <div className="flex items-center space-x-3 text-indigo-400 font-bold text-sm">
+            <i className="fa-solid fa-circle-notch fa-spin text-2xl"></i>
+            <span>Loading Flow Canvas Studio...</span>
+          </div>
         </div>
       }
     >

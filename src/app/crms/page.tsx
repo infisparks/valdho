@@ -46,6 +46,11 @@ import {
   FlowTaskTemplate,
   ClientFlowInstance,
   db,
+  markDateAsBooked,
+  markSlotsAsBooked,
+  unmarkDateOrSlot,
+  getAllBlockedSlotsAndDates,
+  DEFAULT_DAILY_TIME_SLOTS,
 } from "@/lib/firebase";
 import {
   signOut,
@@ -815,6 +820,83 @@ export default function CRMPage() {
   const [calYear, setCalYear] = useState<number>(today.getFullYear());
   const [calMonthIndex, setCalMonthIndex] = useState<number>(today.getMonth());
   const [calViewMode, setCalViewMode] = useState<"month" | "week">("month");
+
+  // Blocked Slots & Dates Management State
+  const [showBlockSlotsModal, setShowBlockSlotsModal] = useState<boolean>(false);
+  const [blockedSlotsList, setBlockedSlotsList] = useState<Array<{
+    dateStr: string;
+    isFullDateBlocked: boolean;
+    blockedSlots: string[];
+    reason?: string;
+  }>>([]);
+  const [blockMode, setBlockMode] = useState<"range" | "slots">("range");
+  const todayDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const [blockStartDate, setBlockStartDate] = useState<string>(todayDateStr);
+  const [blockEndDate, setBlockEndDate] = useState<string>(todayDateStr);
+  const [blockSlotDate, setBlockSlotDate] = useState<string>(todayDateStr);
+  const [selectedBlockTimeSlots, setSelectedBlockTimeSlots] = useState<string[]>([]);
+  const [blockReason, setBlockReason] = useState<string>("Marked as booked / Out of office");
+  const [isSubmittingBlock, setIsSubmittingBlock] = useState<boolean>(false);
+
+  const currentActiveCampaign = selectedCampaign !== "all" && selectedCampaign ? selectedCampaign : "firstoptionagency";
+
+  // Fetch list of all blocked dates & slots
+  const fetchBlockedSlotsList = useCallback(async () => {
+    const list = await getAllBlockedSlotsAndDates(currentActiveCampaign);
+    setBlockedSlotsList(list);
+  }, [currentActiveCampaign]);
+
+  useEffect(() => {
+    if (activeTab === "calendar" || activeTab === "meetings" || showBlockSlotsModal) {
+      fetchBlockedSlotsList();
+    }
+  }, [activeTab, showBlockSlotsModal, fetchBlockedSlotsList]);
+
+  // Handlers for slot blocking & unmarking
+  const handleMarkRangeAsBooked = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockStartDate || !blockEndDate) {
+      alert("Please select start and end dates.");
+      return;
+    }
+    setIsSubmittingBlock(true);
+    const res = await markDateAsBooked(blockStartDate, blockEndDate, blockReason, currentActiveCampaign);
+    setIsSubmittingBlock(false);
+    if (res.success) {
+      alert(res.message);
+      fetchBlockedSlotsList();
+    } else {
+      alert("Error: " + res.message);
+    }
+  };
+
+  const handleMarkSlotsAsBooked = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockSlotDate || selectedBlockTimeSlots.length === 0) {
+      alert("Please select a date and at least one time slot.");
+      return;
+    }
+    setIsSubmittingBlock(true);
+    const res = await markSlotsAsBooked(blockSlotDate, selectedBlockTimeSlots, blockReason, currentActiveCampaign);
+    setIsSubmittingBlock(false);
+    if (res.success) {
+      alert(res.message);
+      fetchBlockedSlotsList();
+      setSelectedBlockTimeSlots([]);
+    } else {
+      alert("Error: " + res.message);
+    }
+  };
+
+  const handleUnmark = async (dateStr: string, timeSlot?: string) => {
+    if (!confirm(`Are you sure you want to unmark ${timeSlot ? timeSlot + ' on ' + dateStr : dateStr}?`)) return;
+    const res = await unmarkDateOrSlot(dateStr, timeSlot, currentActiveCampaign);
+    if (res.success) {
+      fetchBlockedSlotsList();
+    } else {
+      alert("Error: " + res.message);
+    }
+  };
 
   // Check Auth State & Access Control (Admin Only Access)
   useEffect(() => {
@@ -3865,6 +3947,18 @@ export default function CRMPage() {
                     Today
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBlockSlotsModal(true);
+                      fetchBlockedSlotsList();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold flex items-center space-x-1.5 transition-all shadow-sm active:scale-95"
+                  >
+                    <i className="fa-solid fa-calendar-xmark text-xs"></i>
+                    <span>Mark as Booked</span>
+                  </button>
+
                   <h3 className="text-sm sm:text-lg font-bold text-slate-900 font-mono pl-1">
                     {MONTH_NAMES[calMonthIndex]} {calYear}
                   </h3>
@@ -3910,6 +4004,7 @@ export default function CRMPage() {
                     {calGridCells.map((cell, idx) => {
                       const dayMeetings = meetingsByDateMap[cell.dateStr] || [];
                       const isCurrentMonth = cell.monthOffset === 0;
+                      const blockedDateObj = blockedSlotsList.find((b) => b.dateStr === cell.dateStr);
 
                       return (
                         <div
@@ -3920,13 +4015,28 @@ export default function CRMPage() {
                                 dateStr: cell.dateStr,
                                 meetings: dayMeetings,
                               });
+                            } else if (blockedDateObj) {
+                              setShowBlockSlotsModal(true);
                             }
                           }}
                           className={`bg-white min-h-[95px] sm:min-h-[125px] p-1.5 flex flex-col justify-between transition-colors relative cursor-pointer ${
                             !isCurrentMonth ? "bg-slate-50/60" : "hover:bg-indigo-50/20"
                           }`}
                         >
-                          <div className="flex items-center justify-end pr-1 pt-0.5">
+                          <div className="flex items-center justify-between pr-1 pt-0.5">
+                            <div>
+                              {blockedDateObj && (
+                                blockedDateObj.isFullDateBlocked ? (
+                                  <span className="bg-red-100 text-red-800 border border-red-300 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center space-x-1 shadow-2xs">
+                                    <span>🚫 BLOCKED</span>
+                                  </span>
+                                ) : (
+                                  <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center space-x-1 shadow-2xs">
+                                    <span>⚠️ {blockedDateObj.blockedSlots.length} Blocked</span>
+                                  </span>
+                                )
+                              )}
+                            </div>
                             <span
                               className={`text-xs font-mono font-bold ${
                                 cell.isToday
@@ -5246,6 +5356,290 @@ export default function CRMPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANAGE BLOCKED SLOTS & DATES MODAL */}
+      {showBlockSlotsModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0"
+            onClick={() => setShowBlockSlotsModal(false)}
+          />
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden font-sans border border-slate-200 z-10 animate-in fade-in zoom-in duration-150">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 border border-amber-300 text-amber-900 flex items-center justify-center font-extrabold text-lg shadow-sm">
+                  <i className="fa-solid fa-calendar-xmark"></i>
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
+                    Manage Slot Availability & Out of Office
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Mark dates or time slots as booked/unavailable, or unmark to restore.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowBlockSlotsModal(false)}
+                className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-200 flex items-center justify-center transition-colors"
+              >
+                <i className="fa-solid fa-xmark text-sm"></i>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+              {/* Mode Selector Tabs */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setBlockMode("range")}
+                  className={`flex-1 py-2 rounded-xl transition-all ${
+                    blockMode === "range"
+                      ? "bg-white text-indigo-700 shadow-sm font-extrabold"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  ✈️ Mark Multi-Day / Out of Office
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBlockMode("slots")}
+                  className={`flex-1 py-2 rounded-xl transition-all ${
+                    blockMode === "slots"
+                      ? "bg-white text-indigo-700 shadow-sm font-extrabold"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  ⏰ Mark Specific Time Slots
+                </button>
+              </div>
+
+              {/* Mode 1: Date Range Blocking */}
+              {blockMode === "range" && (
+                <form onSubmit={handleMarkRangeAsBooked} className="space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
+                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                    1. Mark Date Range as Booked / Out of Office
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Start Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={blockStartDate}
+                        onChange={(e) => setBlockStartDate(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        End Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={blockEndDate}
+                        onChange={(e) => setBlockEndDate(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Reason / Label (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Out of Office, Traveling, Personal Leave"
+                      value={blockReason}
+                      onChange={(e) => setBlockReason(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingBlock}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-98 text-slate-950 font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center space-x-2"
+                  >
+                    <i className="fa-solid fa-lock text-xs"></i>
+                    <span>{isSubmittingBlock ? "Processing..." : "Mark Dates as Booked"}</span>
+                  </button>
+                </form>
+              )}
+
+              {/* Mode 2: Slot Blocking */}
+              {blockMode === "slots" && (
+                <form onSubmit={handleMarkSlotsAsBooked} className="space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
+                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                    2. Mark Specific Time Slots on a Date
+                  </h4>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Select Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={blockSlotDate}
+                      onChange={(e) => setBlockSlotDate(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Select Time Slots to Block *
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {DEFAULT_DAILY_TIME_SLOTS.map((slot) => {
+                        const isChecked = selectedBlockTimeSlots.includes(slot);
+                        return (
+                          <button
+                            type="button"
+                            key={slot}
+                            onClick={() => {
+                              if (isChecked) {
+                                setSelectedBlockTimeSlots(selectedBlockTimeSlots.filter((s) => s !== slot));
+                              } else {
+                                setSelectedBlockTimeSlots([...selectedBlockTimeSlots, slot]);
+                              }
+                            }}
+                            className={`p-2 rounded-xl text-xs font-bold transition-all border text-center ${
+                              isChecked
+                                ? "bg-amber-500 text-slate-950 border-amber-600 font-extrabold shadow-sm"
+                                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                            }`}
+                          >
+                            🕒 {slot}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Reason / Label (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Busy with client call"
+                      value={blockReason}
+                      onChange={(e) => setBlockReason(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingBlock || selectedBlockTimeSlots.length === 0}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-98 text-slate-950 font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center space-x-2 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    <i className="fa-solid fa-lock text-xs"></i>
+                    <span>{isSubmittingBlock ? "Processing..." : `Mark ${selectedBlockTimeSlots.length} Selected Slot(s) as Booked`}</span>
+                  </button>
+                </form>
+              )}
+
+              {/* Unmark / View Currently Blocked Section */}
+              <div className="space-y-3 border-t border-slate-200 pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center space-x-2">
+                    <i className="fa-solid fa-list-check text-indigo-600"></i>
+                    <span>Currently Blocked Dates & Slots ({blockedSlotsList.length})</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={fetchBlockedSlotsList}
+                    className="text-[11px] text-indigo-600 hover:underline font-bold"
+                  >
+                    Refresh List
+                  </button>
+                </div>
+
+                {blockedSlotsList.length === 0 ? (
+                  <div className="p-4 text-center bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500 font-medium">
+                    No dates or slots are currently marked as booked/blocked.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {blockedSlotsList.map((item) => (
+                      <div
+                        key={item.dateStr}
+                        className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono text-xs font-extrabold text-slate-900">
+                              📅 {item.dateStr}
+                            </span>
+
+                            {item.isFullDateBlocked ? (
+                              <span className="bg-red-100 text-red-800 border border-red-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                Full Date Blocked
+                              </span>
+                            ) : (
+                              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                {item.blockedSlots.length} Slots Blocked
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-slate-500 font-medium">
+                            Reason: <span className="text-slate-800 font-semibold">{item.reason || "Marked as booked"}</span>
+                          </p>
+
+                          {!item.isFullDateBlocked && item.blockedSlots.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {item.blockedSlots.map((sKey) => {
+                                const humanTime = sKey.replace(/_/g, " ");
+                                return (
+                                  <span
+                                    key={sKey}
+                                    className="bg-slate-100 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md flex items-center space-x-1 border border-slate-200"
+                                  >
+                                    <span>{humanTime}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUnmark(item.dateStr, humanTime)}
+                                      className="text-red-500 hover:text-red-700 ml-1 font-extrabold"
+                                      title="Unmark this slot"
+                                    >
+                                      &times;
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUnmark(item.dateStr)}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-extrabold text-xs rounded-xl transition-all whitespace-nowrap shadow-2xs"
+                        >
+                          🔓 Unmark Date
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -39,6 +39,13 @@ export default function ManagementPage() {
   const [activeTab, setActiveTab] = useState<"in_progress" | "completed">("in_progress");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // 20+ Roles Management Controls State
+  const [roleSearchQuery, setRoleSearchQuery] = useState<string>("");
+  const [roleFilterMode, setRoleFilterMode] = useState<"all" | "my_role" | "pending" | "assigned">("all");
+  const [roleLayoutMode, setRoleLayoutMode] = useState<"accordion" | "grid" | "matrix">("accordion");
+  const [selectedRoleDropdown, setSelectedRoleDropdown] = useState<string>("all");
+  const [collapsedRoleIds, setCollapsedRoleIds] = useState<Record<string, boolean>>({});
+
   // Support Ticket Modal & State
   const [isRaiseTicketModalOpen, setIsRaiseTicketModalOpen] = useState(false);
   const [ticketLevel, setTicketLevel] = useState<"level1" | "level2" | "level3" | "level4">("level3");
@@ -49,7 +56,7 @@ export default function ManagementPage() {
   const [ticketErrorMsg, setTicketErrorMsg] = useState("");
   const [myTicketsList, setMyTicketsList] = useState<SupportTicket[]>([]);
 
-  // Selected Flow Canvas State (Default to 1st flow if available)
+  // Selected Flow Canvas State
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
 
   // Draft text inputs state
@@ -63,7 +70,7 @@ export default function ManagementPage() {
     currentText: string;
   } | null>(null);
 
-  // Edit Text Warning Modal State (New Timestamp Warning)
+  // Edit Text Warning Modal State
   const [editTextWarningModalData, setEditTextWarningModalData] = useState<{
     clientFlowId: string;
     task: ClientFlowTask;
@@ -118,6 +125,12 @@ export default function ManagementPage() {
     }
   }, [currentUser, activeFlowId]);
 
+  useEffect(() => {
+    if (currentUser) {
+      fetchData();
+    }
+  }, [currentUser, fetchData]);
+
   // Handle Support Ticket Submit
   const handleRaiseTicketSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,7 +171,6 @@ export default function ManagementPage() {
       setTicketSubject("");
       setTicketDescription("");
 
-      // Trigger Admin WhatsApp alert
       const domain = typeof window !== "undefined" ? window.location.host : "firstoptionagency.com";
       fetch(`${SERVER_URL}/api/whatsapp/notify-admin-ticket`, {
         method: "POST",
@@ -187,12 +199,6 @@ export default function ManagementPage() {
     setIsSubmittingTicket(false);
   };
 
-  useEffect(() => {
-    if (currentUser) {
-      fetchData();
-    }
-  }, [currentUser, fetchData]);
-
   // Handle Logout
   const handleLogout = async () => {
     try {
@@ -210,7 +216,6 @@ export default function ManagementPage() {
     currentText: string
   ) => {
     if (task.isCompleted) {
-      // Show warning modal before unchecking
       setUncheckWarningModalData({
         clientFlowId,
         taskId: task.id,
@@ -220,7 +225,6 @@ export default function ManagementPage() {
       return;
     }
 
-    // Checking task directly
     setIsUpdatingTask(true);
     const userEmail = currentUser?.email || "Staff";
     const res = await updateClientFlowTaskStatus(
@@ -257,7 +261,7 @@ export default function ManagementPage() {
     setIsUpdatingTask(false);
   };
 
-  // Confirm Uncheck Action from Warning Modal
+  // Confirm Uncheck Action
   const handleConfirmUncheckTask = async () => {
     if (!uncheckWarningModalData) return;
     const { clientFlowId, taskId, currentText } = uncheckWarningModalData;
@@ -299,7 +303,7 @@ export default function ManagementPage() {
     setUncheckWarningModalData(null);
   };
 
-  // Initiate Text Input Save (Check if warning modal is needed)
+  // Initiate Text Input Save
   const handleInitiateSaveText = (
     clientFlowId: string,
     task: ClientFlowTask,
@@ -316,7 +320,7 @@ export default function ManagementPage() {
     }
   };
 
-  // Execute Text Input Value Save
+  // Execute Save Text Value
   const executeSaveTextValue = async (
     clientFlowId: string,
     task: ClientFlowTask,
@@ -373,10 +377,30 @@ export default function ManagementPage() {
     setIsUpdatingTask(false);
   };
 
+  // Toggle Accordion Role Collapse state
+  const toggleRoleCollapse = (roleId: string) => {
+    setCollapsedRoleIds((prev) => ({
+      ...prev,
+      [roleId]: !prev[roleId],
+    }));
+  };
+
+  const expandAllRoles = (roleIds: string[]) => {
+    const updated: Record<string, boolean> = {};
+    roleIds.forEach((id) => (updated[id] = false));
+    setCollapsedRoleIds(updated);
+  };
+
+  const collapseAllRoles = (roleIds: string[]) => {
+    const updated: Record<string, boolean> = {};
+    roleIds.forEach((id) => (updated[id] = true));
+    setCollapsedRoleIds(updated);
+  };
+
   if (authLoading) {
     return (
       <div className="w-full min-h-screen bg-[#F5F6F8] flex items-center justify-center font-sans">
-        <div className="flex items-center space-x-3 text-indigo-600 font-bold text-sm">
+        <div className="flex items-center space-x-3 text-indigo-600 font-bold text-sm bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
           <i className="fa-solid fa-circle-notch fa-spin text-2xl"></i>
           <span>Loading Staff Canvas Workspace...</span>
         </div>
@@ -389,7 +413,7 @@ export default function ManagementPage() {
     userData?.roleId === "role_admin" ||
     currentUser?.email?.toLowerCase().startsWith("firstoption");
 
-  // Flow Completion is ONLY true when status === "completed" (Admin explicitly marked complete)
+  // Filter flows by tab status & search
   const filteredFlows = clientFlows.filter((cf) => {
     const isFlowCompleted = cf.status === "completed";
 
@@ -411,13 +435,13 @@ export default function ManagementPage() {
   const inProgressFlowsCount = clientFlows.filter((cf) => cf.status !== "completed").length;
   const completedFlowsCount = clientFlows.filter((cf) => cf.status === "completed").length;
 
-  // Selected Active Flow Instance
+  // Active Flow Instance
   const activeFlow =
     filteredFlows.find((f) => f.id === activeFlowId) ||
     filteredFlows[0] ||
     clientFlows[0];
 
-  // Extract distinct roles used in active flow tasks (plus all system roles)
+  // Distinct roles in active flow
   const activeFlowRoles: Array<{ id: string; name: string }> = [];
   if (activeFlow) {
     activeFlow.tasks.forEach((t) => {
@@ -426,67 +450,63 @@ export default function ManagementPage() {
       }
     });
   }
-  // Ensure default roles are included
+
   rolesList.forEach((r) => {
     if (!activeFlowRoles.some((ar) => ar.name.toLowerCase() === r.name.toLowerCase())) {
       activeFlowRoles.push({ id: r.id, name: r.name });
     }
   });
 
+  const userInitial = (currentUser?.email?.[0] || "U").toUpperCase();
+
   return (
-    <div className="w-full min-h-screen bg-[#F5F6F8] text-slate-900 font-sans antialiased overflow-x-hidden">
+    <div className="w-full min-h-screen bg-[#F5F6F8] text-slate-900 font-sans antialiased">
       {/* Top Header Navigation */}
-      <header className="bg-white border-b border-slate-200 px-3 sm:px-8 py-2.5 sm:py-3.5 sticky top-0 z-30 shadow-xs w-full max-w-full overflow-hidden">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
-          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-black text-xs sm:text-base flex items-center justify-center shadow-md flex-shrink-0">
-              FOA
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+          {/* Brand & User Role */}
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center shadow-xs flex-shrink-0">
+              {userInitial}
             </div>
             <div className="min-w-0">
-              <h1 className="text-xs sm:text-lg font-extrabold text-slate-900 truncate leading-tight">
-                Team Workflow Canvas
+              <h1 className="text-sm sm:text-base font-extrabold text-slate-900 truncate leading-snug">
+                Team Workflow Board
               </h1>
-              <div className="flex items-center space-x-1.5 sm:space-x-2 mt-0.5">
-                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 hidden sm:inline">Your Role:</span>
-                <span className="bg-indigo-100 text-indigo-800 border border-indigo-300 text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.2 rounded-full uppercase flex-shrink-0">
+              <div className="flex items-center space-x-2 mt-0.5">
+                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase">
                   {userData?.roleName || "Staff Specialist"}
                 </span>
-                <span className="text-[9px] sm:text-[11px] text-slate-400 font-mono truncate max-w-[90px] sm:max-w-none">
-                  ({currentUser?.email})
+                <span className="text-xs text-slate-400 font-mono truncate hidden sm:inline">
+                  {currentUser?.email}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-1.5 sm:space-x-3 flex-shrink-0">
+          {/* Header Action Buttons */}
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <button
               onClick={() => setIsRaiseTicketModalOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] sm:text-xs font-extrabold px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all shadow-xs flex items-center space-x-1 sm:space-x-1.5 cursor-pointer whitespace-nowrap"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer"
             >
               <i className="fa-solid fa-ticket text-xs"></i>
-              <span className="hidden sm:inline">Raise Ticket 🎫</span>
-              <span className="sm:hidden">Raise Ticket</span>
+              <span className="hidden sm:inline">Raise Ticket</span>
             </button>
 
             {isAdmin && (
               <button
                 onClick={() => router.push("/crms")}
-                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] sm:text-xs font-extrabold px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-colors shadow-2xs flex items-center space-x-1 whitespace-nowrap"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center space-x-1"
               >
                 <i className="fa-solid fa-sliders text-xs"></i>
-                <span className="hidden sm:inline">Admin CRM Portal</span>
-                <span className="sm:hidden">CRM</span>
+                <span className="hidden sm:inline">CRM Portal</span>
               </button>
             )}
 
-            <div className="hidden lg:block text-right text-xs">
-              <p className="font-extrabold text-slate-900">{currentUser?.email}</p>
-              <p className="text-[10px] text-slate-400 font-mono">Staff Canvas Active</p>
-            </div>
-
             <button
               onClick={handleLogout}
-              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] sm:text-xs font-extrabold px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-colors flex items-center space-x-1 whitespace-nowrap cursor-pointer"
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
             >
               <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
               <span className="hidden sm:inline">Logout</span>
@@ -495,76 +515,80 @@ export default function ManagementPage() {
         </div>
       </header>
 
-      {/* Main Body */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-8 space-y-6">
-        {/* Workspace Greeting Card */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-3">
+      {/* Main Container */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        
+        {/* Workspace Title Bar */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 flex items-center space-x-2">
-                <span>Team Role Canvas Board 👋</span>
+              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                Workflow Board ({activeFlowRoles.length} Roles Active) 👋
               </h2>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Flows remain in <strong>In Progress</strong> until explicitly marked <strong>Completed</strong> by Admin! You can edit tasks under your role (<strong className="text-indigo-600">{userData?.roleName}</strong>).
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Tasks assigned to your role (<strong className="text-indigo-600">{userData?.roleName || "Staff"}</strong>) are editable. Use view toggles below to easily view all 20+ roles on mobile or desktop!
               </p>
             </div>
 
             <button
               onClick={fetchData}
               disabled={isDataLoading}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors self-start sm:self-auto flex items-center space-x-1.5"
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors self-start sm:self-auto flex items-center space-x-1.5 shadow-2xs"
             >
               <i className={`fa-solid fa-rotate-right ${isDataLoading ? "fa-spin" : ""}`}></i>
-              <span>Refresh Canvas</span>
+              <span>Refresh Board</span>
             </button>
           </div>
         </div>
 
-        {/* Tab Controls, Search & Active Flow Selector */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3 font-sans">
+        {/* Filters & Flow Selection Bar */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center space-x-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+            {/* Status Tabs */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold self-start">
               <button
                 onClick={() => setActiveTab("in_progress")}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center space-x-2 ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 ${
                   activeTab === "in_progress"
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-indigo-700 shadow-2xs font-extrabold"
                     : "text-slate-500 hover:text-slate-900"
                 }`}
               >
-                <i className="fa-solid fa-spinner text-amber-500"></i>
+                <i className="fa-solid fa-spinner text-amber-500 text-xs"></i>
                 <span>In Progress ({inProgressFlowsCount})</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("completed")}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center space-x-2 ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 ${
                   activeTab === "completed"
-                    ? "bg-white text-emerald-700 shadow-sm"
+                    ? "bg-white text-emerald-700 shadow-2xs font-extrabold"
                     : "text-slate-500 hover:text-slate-900"
                 }`}
               >
-                <i className="fa-solid fa-circle-check text-emerald-600"></i>
+                <i className="fa-solid fa-circle-check text-emerald-600 text-xs"></i>
                 <span>Completed ({completedFlowsCount})</span>
               </button>
             </div>
 
-            <div className="flex items-center space-x-3 flex-1 md:max-w-md">
+            {/* Search Input */}
+            <div className="relative w-full md:max-w-xs">
+              <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
               <input
                 type="text"
                 placeholder="Search client or task..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
+                className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
               />
             </div>
           </div>
 
-          {/* ACTIVE CLIENT FLOW SELECTOR TABS */}
+          {/* Client Flow Pill Selector */}
           {filteredFlows.length > 0 && (
-            <div className="pt-2 border-t border-slate-100 flex items-center space-x-2 overflow-x-auto pb-1">
-              <span className="text-[11px] font-bold text-slate-500 flex-shrink-0">
-                Select Client Flow Canvas:
+            <div className="pt-3 border-t border-slate-100 flex items-center space-x-2 overflow-x-auto pb-1">
+              <span className="text-xs font-bold text-slate-500 flex-shrink-0 pr-1">
+                Select Client Flow:
               </span>
               {filteredFlows.map((cf) => {
                 const isActive = activeFlow && activeFlow.id === cf.id;
@@ -574,16 +598,16 @@ export default function ManagementPage() {
                   <button
                     key={cf.id}
                     onClick={() => setActiveFlowId(cf.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all flex-shrink-0 flex items-center space-x-1.5 border ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all flex-shrink-0 flex items-center space-x-2 border ${
                       isActive
-                        ? "bg-indigo-600 text-white border-indigo-700 shadow-sm"
+                        ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
                         : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
                     }`}
                   >
-                    <span>🚀 {cf.clientName} ({cf.flowName})</span>
+                    <span>{cf.clientName} ({cf.flowName})</span>
                     <span
                       className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                        isActive ? "bg-indigo-800 text-white" : "bg-slate-200 text-slate-800"
+                        isActive ? "bg-indigo-800 text-white" : "bg-slate-200 text-slate-700"
                       }`}
                     >
                       {completedCount}/{cf.tasks.length}
@@ -595,82 +619,87 @@ export default function ManagementPage() {
           )}
         </div>
 
-        {/* SIDE-BY-SIDE ROLE COLUMNS CANVAS BOARD */}
+        {/* Empty State */}
         {!activeFlow ? (
-          <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center space-y-3 shadow-sm font-sans">
+          <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3 shadow-2xs font-sans">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-xl mx-auto">
               <i className="fa-solid fa-layer-group"></i>
             </div>
             <h3 className="text-base font-extrabold text-slate-900">
-              No Client Flow Selected
+              No Client Workflows Found
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              No project flows found matching the selected filter criteria.
+              No project flows match your current filter criteria.
             </p>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden font-sans space-y-5 p-5 sm:p-6">
-            {/* Canvas Header Summary & Admin Action */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-              <div>
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  <span className="text-[11px] sm:text-xs font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200 uppercase">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden font-sans p-5 sm:p-6 space-y-6">
+            
+            {/* Active Canvas Header Metrics Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200">
                     🚀 {activeFlow.flowName}
                   </span>
-                  <span className="text-[11px] sm:text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded border border-slate-200">
+                  <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded border border-slate-200">
                     Campaign: {activeFlow.campaign}
                   </span>
                   {activeFlow.status === "completed" && (
-                    <span className="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded border border-emerald-300">
+                    <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded border border-emerald-300">
                       ✓ Flow Completed by Admin
                     </span>
                   )}
                 </div>
-                <h2 className="text-base sm:text-xl font-extrabold text-slate-900 mt-1">
+
+                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 pt-1">
                   Client: {activeFlow.clientName}
                 </h2>
-                <p className="text-xs text-slate-400 font-mono truncate">{activeFlow.clientEmail}</p>
+                <p className="text-xs text-slate-500 font-mono">{activeFlow.clientEmail}</p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={() => router.push(`/crms/view-flow?id=${activeFlow.id}`)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-1.5"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"
                 >
-                  <i className="fa-solid fa-[#up-right-and-arrow-up-right-from-square] fa-up-right-from-square"></i>
-                  <span>Open Full Canvas Page 🚀</span>
+                  <i className="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                  <span>Full View Page</span>
                 </button>
 
-                {/* Admin Mark Complete Action Button */}
                 {isAdmin && activeFlow.status !== "completed" && (
                   <button
                     onClick={() => handleAdminMarkFlowCompleted(activeFlow.id)}
                     disabled={isUpdatingTask}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl shadow-md transition-all flex items-center space-x-1.5"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"
                   >
-                    <i className="fa-solid fa-flag-checkered"></i>
-                    <span>Mark Flow Completed 🏁</span>
+                    <i className="fa-solid fa-flag-checkered text-xs"></i>
+                    <span>Mark Completed 🏁</span>
                   </button>
                 )}
 
-                <div className="text-right">
-                  <span className="text-xs font-bold text-slate-700 block">
-                    Task Progress
-                  </span>
-                  <span className="text-xs font-extrabold text-indigo-600 font-mono">
-                    {activeFlow.tasks.filter((t) => t.isCompleted).length} / {activeFlow.tasks.length} Tasks Done
-                  </span>
-                </div>
+                {/* Progress Badge */}
+                {(() => {
+                  const completedTasksCount = activeFlow.tasks.filter((t) => t.isCompleted).length;
+                  const totalTasksCount = activeFlow.tasks.length;
+                  const progressPct = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
 
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center font-mono font-black text-indigo-700 text-sm">
-                  {Math.round(
-                    (activeFlow.tasks.filter((t) => t.isCompleted).length / activeFlow.tasks.length) * 100
-                  )}%
-                </div>
+                  return (
+                    <div className="flex items-center space-x-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl">
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-indigo-700 uppercase block">Progress</span>
+                        <span className="text-xs font-extrabold text-slate-900 font-mono">{completedTasksCount}/{totalTasksCount} Tasks</span>
+                      </div>
+                      <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white font-mono font-extrabold text-xs flex items-center justify-center shadow-2xs">
+                        {progressPct}%
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
-            {/* SIDE-BY-SIDE ROLE COLUMNS CANVAS (Prioritizes Logged-in User's Assigned Role FIRST) */}
+            {/* 20+ ROLES OPTIMIZED SEARCH & TOOLBAR CONTROLS */}
             {(() => {
               const sortedRoles = [...activeFlowRoles].sort((a, b) => {
                 const isAMyRole =
@@ -685,193 +714,448 @@ export default function ManagementPage() {
                 return 0;
               });
 
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
-                  {sortedRoles.map((role) => {
-                    const isMyRoleColumn =
-                      isAdmin ||
-                      userData?.roleId === role.id ||
-                      userData?.roleName?.toLowerCase() === role.name.toLowerCase();
+              // Filtered roles list based on user search & filter modes
+              const filteredRoles = sortedRoles.filter((role) => {
+                const isMyRole =
+                  userData?.roleId === role.id ||
+                  userData?.roleName?.toLowerCase() === role.name.toLowerCase();
 
-                // Get tasks assigned specifically to this role
                 const roleTasks = activeFlow.tasks.filter(
-                  (t) =>
-                    t.roleId === role.id ||
-                    t.roleName.toLowerCase() === role.name.toLowerCase()
+                  (t) => t.roleId === role.id || t.roleName.toLowerCase() === role.name.toLowerCase()
                 );
 
-                // Get staff emails for this role
                 const staffForRole = usersList.filter(
-                  (u) =>
-                    u.roleId === role.id ||
-                    u.roleName?.toLowerCase() === role.name.toLowerCase()
+                  (u) => u.roleId === role.id || u.roleName?.toLowerCase() === role.name.toLowerCase()
                 );
 
-                const completedRoleTasksCount = roleTasks.filter((t) => t.isCompleted).length;
+                const completedCount = roleTasks.filter((t) => t.isCompleted).length;
+                const hasPending = roleTasks.length > 0 && completedCount < roleTasks.length;
 
-                return (
-                  <div
-                    key={role.id}
-                    className={`rounded-2xl border p-4 space-y-3.5 flex flex-col justify-between transition-all ${
-                      isMyRoleColumn
-                        ? "bg-indigo-50/30 border-indigo-300 ring-2 ring-indigo-500/20 shadow-sm"
-                        : "bg-slate-50/70 border-slate-200"
-                    }`}
-                  >
-                    {/* Role Header & Staff Email */}
-                    <div className="border-b border-slate-200/80 pb-3 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-extrabold text-slate-900 flex items-center space-x-1.5">
-                          <span>{role.name}</span>
-                          {isMyRoleColumn && (
-                            <span className="text-[9px] bg-indigo-600 text-white font-extrabold px-1.5 py-0.2 rounded-full">
-                              Your Role ✓
-                            </span>
-                          )}
-                        </h3>
+                if (selectedRoleDropdown !== "all" && role.id !== selectedRoleDropdown) return false;
 
-                        <span className="text-[10px] font-mono font-bold bg-white text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
-                          {completedRoleTasksCount}/{roleTasks.length} Tasks
-                        </span>
+                if (roleFilterMode === "my_role" && !isMyRole && !isAdmin) return false;
+                if (roleFilterMode === "pending" && !hasPending) return false;
+                if (roleFilterMode === "assigned" && staffForRole.length === 0) return false;
+
+                if (roleSearchQuery.trim()) {
+                  const q = roleSearchQuery.toLowerCase();
+                  const matchRole = role.name.toLowerCase().includes(q);
+                  const matchStaff = staffForRole.some((s) => s.email.toLowerCase().includes(q));
+                  const matchTasks = roleTasks.some((t) => t.title.toLowerCase().includes(q));
+                  if (!matchRole && !matchStaff && !matchTasks) return false;
+                }
+
+                return true;
+              });
+
+              const allRoleIds = sortedRoles.map((r) => r.id);
+
+              return (
+                <div className="space-y-4">
+                  
+                  {/* TOOLBAR: Search 20+ roles, Dropdown, Filter Pills & View Mode Switcher */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 sm:p-4 space-y-3">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                      
+                      {/* Left: Role Search & Dropdown Jump */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 max-w-2xl">
+                        <div className="relative flex-1">
+                          <i className="fa-solid fa-filter absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500 text-xs"></i>
+                          <input
+                            type="text"
+                            placeholder={`Search among ${sortedRoles.length} roles, staff or tasks...`}
+                            value={roleSearchQuery}
+                            onChange={(e) => setRoleSearchQuery(e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                          />
+                        </div>
+
+                        {/* Dropdown Jump */}
+                        <select
+                          value={selectedRoleDropdown}
+                          onChange={(e) => setSelectedRoleDropdown(e.target.value)}
+                          className="bg-white border border-slate-300 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-600 max-w-full sm:max-w-[200px]"
+                        >
+                          <option value="all">🎯 All Roles ({sortedRoles.length})</option>
+                          {sortedRoles.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
-                      {staffForRole.length > 0 ? (
-                        <div className="text-[10px] font-mono font-extrabold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-lg truncate">
-                          ✉️ {staffForRole.map((s) => s.email).join(", ")}
-                        </div>
-                      ) : (
-                        <div className="text-[9px] font-mono text-slate-400 italic">
-                          👤 Unassigned Email
+                      {/* Right: View Mode Switcher (Accordion vs Grid vs Table Matrix) */}
+                      <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-2xs self-end lg:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setRoleLayoutMode("accordion")}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
+                            roleLayoutMode === "accordion"
+                              ? "bg-indigo-600 text-white shadow-2xs font-extrabold"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                          title="Accordion List View (Best for Mobile)"
+                        >
+                          <i className="fa-solid fa-list-ul"></i>
+                          <span>List View</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRoleLayoutMode("grid")}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
+                            roleLayoutMode === "grid"
+                              ? "bg-indigo-600 text-white shadow-2xs font-extrabold"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                          title="Kanban Grid Columns View"
+                        >
+                          <i className="fa-solid fa-[#table-cells-large] fa-table-cells-large"></i>
+                          <span>Grid Columns</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRoleLayoutMode("matrix")}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
+                            roleLayoutMode === "matrix"
+                              ? "bg-indigo-600 text-white shadow-2xs font-extrabold"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                          title="High-Density Spreadsheet Matrix View"
+                        >
+                          <i className="fa-solid fa-[#table-list] fa-table-list"></i>
+                          <span>Table Matrix</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Filter Badges & Accordion Controls */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/80">
+                      <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
+                        <span className="text-[11px] font-bold text-slate-500 flex-shrink-0">Filter:</span>
+                        
+                        <button
+                          type="button"
+                          onClick={() => setRoleFilterMode("all")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                            roleFilterMode === "all"
+                              ? "bg-indigo-100 text-indigo-800 border border-indigo-300 font-extrabold"
+                              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          All ({sortedRoles.length})
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRoleFilterMode("my_role")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center space-x-1 ${
+                            roleFilterMode === "my_role"
+                              ? "bg-indigo-600 text-white font-extrabold shadow-2xs"
+                              : "bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50"
+                          }`}
+                        >
+                          <span>⭐ My Role</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRoleFilterMode("pending")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center space-x-1 ${
+                            roleFilterMode === "pending"
+                              ? "bg-amber-500 text-slate-950 font-extrabold shadow-2xs"
+                              : "bg-white text-amber-700 border border-amber-200 hover:bg-amber-50"
+                          }`}
+                        >
+                          <span>⏳ Incomplete Tasks</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRoleFilterMode("assigned")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center space-x-1 ${
+                            roleFilterMode === "assigned"
+                              ? "bg-slate-800 text-white font-extrabold shadow-2xs"
+                              : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          <span>👤 Assigned Staff</span>
+                        </button>
+                      </div>
+
+                      {/* Accordion Expand/Collapse All Buttons */}
+                      {roleLayoutMode === "accordion" && (
+                        <div className="flex items-center space-x-2 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => expandAllRoles(allRoleIds)}
+                            className="text-[11px] font-bold text-indigo-600 hover:underline"
+                          >
+                            Expand All
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => collapseAllRoles(allRoleIds)}
+                            className="text-[11px] font-bold text-slate-500 hover:underline"
+                          >
+                            Collapse All
+                          </button>
                         </div>
                       )}
                     </div>
 
-                    {/* Role Task Cards (Compact Vertical List) */}
+                    {/* Quick-Jump Horizontal Role Chips */}
+                    <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 pt-1 border-t border-slate-200/60">
+                      <span className="text-[10px] font-mono text-slate-400 uppercase flex-shrink-0 font-bold">
+                        Quick Jump:
+                      </span>
+                      {sortedRoles.map((r) => {
+                        const isMyRole =
+                          userData?.roleId === r.id ||
+                          userData?.roleName?.toLowerCase() === r.name.toLowerCase();
+
+                        const rTasks = activeFlow.tasks.filter(
+                          (t) => t.roleId === r.id || t.roleName.toLowerCase() === r.name.toLowerCase()
+                        );
+                        const doneCount = rTasks.filter((t) => t.isCompleted).length;
+
+                        return (
+                          <button
+                            type="button"
+                            key={r.id}
+                            onClick={() => {
+                              setSelectedRoleDropdown(r.id);
+                              setCollapsedRoleIds((prev) => ({ ...prev, [r.id]: false }));
+                            }}
+                            className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition-all whitespace-nowrap flex items-center space-x-1 border ${
+                              selectedRoleDropdown === r.id
+                                ? "bg-indigo-600 text-white border-indigo-700 shadow-2xs font-extrabold"
+                                : isMyRole
+                                ? "bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            <span>{r.name}</span>
+                            <span className="text-[9px] opacity-80 font-mono">({doneCount}/{rTasks.length})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* DISPLAY MODE 1: ACCORDION LIST VIEW (BEST FOR MOBILE & 20+ ROLES) */}
+                  {roleLayoutMode === "accordion" && (
                     <div className="space-y-3">
-                      {roleTasks.length === 0 ? (
-                        <div className="p-4 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs italic">
-                          No tasks assigned to {role.name} in this flow.
+                      {filteredRoles.length === 0 ? (
+                        <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500 font-medium space-y-1">
+                          <p className="font-extrabold text-slate-800">No matching roles found.</p>
+                          <p>Try clearing your role search or filter selection.</p>
                         </div>
                       ) : (
-                        roleTasks.map((task) => {
-                          const isTaskDone = Boolean(task.isCompleted === true);
-                          const originalStepIdx = activeFlow.tasks.findIndex((t) => t.id === task.id) + 1;
-                          const currentDraftText =
-                            draftTexts[task.id] !== undefined ? draftTexts[task.id] : (task.textValue || "");
+                        filteredRoles.map((role) => {
+                          const isMyRoleColumn =
+                            isAdmin ||
+                            userData?.roleId === role.id ||
+                            userData?.roleName?.toLowerCase() === role.name.toLowerCase();
+
+                          const roleTasks = activeFlow.tasks.filter(
+                            (t) =>
+                              t.roleId === role.id ||
+                              t.roleName.toLowerCase() === role.name.toLowerCase()
+                          );
+
+                          const staffForRole = usersList.filter(
+                            (u) =>
+                              u.roleId === role.id ||
+                              u.roleName?.toLowerCase() === role.name.toLowerCase()
+                          );
+
+                          const completedCount = roleTasks.filter((t) => t.isCompleted).length;
+                          const isCollapsed = Boolean(collapsedRoleIds[role.id]);
 
                           return (
                             <div
-                              key={task.id}
-                              className={`bg-white border rounded-xl p-3 space-y-2.5 shadow-2xs transition-all ${
-                                isTaskDone
-                                  ? "border-emerald-200 bg-emerald-50/10"
-                                  : isMyRoleColumn
-                                  ? "border-slate-300 hover:border-indigo-400"
-                                  : "border-slate-200 opacity-90"
+                              key={role.id}
+                              className={`bg-white border rounded-2xl overflow-hidden shadow-2xs transition-all ${
+                                isMyRoleColumn
+                                  ? "border-indigo-300 ring-1 ring-indigo-500/20"
+                                  : "border-slate-200"
                               }`}
                             >
-                              {/* Task Title & Step Badge */}
-                              <div className="flex items-start space-x-2">
-                                <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
-                                  #{originalStepIdx}
-                                </span>
-                                <h4 className="text-xs font-extrabold text-slate-900 leading-snug">
-                                  {task.title}
-                                </h4>
+                              {/* Accordion Header */}
+                              <div
+                                onClick={() => toggleRoleCollapse(role.id)}
+                                className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${
+                                  isMyRoleColumn ? "bg-indigo-50/50 hover:bg-indigo-50" : "bg-slate-50/60 hover:bg-slate-100/80"
+                                }`}
+                              >
+                                <div className="flex items-center space-x-3 min-w-0">
+                                  <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-indigo-700 font-extrabold text-xs flex items-center justify-center flex-shrink-0 shadow-2xs">
+                                    <i className="fa-solid fa-user-gear"></i>
+                                  </div>
+                                  
+                                  <div className="min-w-0">
+                                    <div className="flex items-center space-x-2">
+                                      <h3 className="text-sm font-extrabold text-slate-900 truncate">
+                                        {role.name}
+                                      </h3>
+                                      {isMyRoleColumn && (
+                                        <span className="text-[9px] bg-indigo-600 text-white font-black px-2 py-0.2 rounded-full uppercase flex-shrink-0">
+                                          Your Role ✓
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 font-mono truncate">
+                                      {staffForRole.length > 0 ? `✉️ ${staffForRole.map((s) => s.email).join(", ")}` : "👤 Unassigned"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-3 flex-shrink-0">
+                                  <span className="text-xs font-mono font-bold bg-white text-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                                    {completedCount}/{roleTasks.length} Done
+                                  </span>
+
+                                  <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 text-xs">
+                                    <i className={`fa-solid ${isCollapsed ? "fa-chevron-down" : "fa-chevron-up"}`}></i>
+                                  </div>
+                                </div>
                               </div>
 
-                              {/* Interactive Checkbox Control */}
-                              {(task.type === "checkbox" || task.type === "both") && (
-                                <div>
-                                  {isMyRoleColumn ? (
-                                    <label className="flex items-center space-x-2 p-2 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
-                                      <input
-                                        type="checkbox"
-                                        checked={isTaskDone}
-                                        onChange={() =>
-                                          handleToggleTaskCheckbox(
-                                            activeFlow.id,
-                                            task,
-                                            currentDraftText
-                                          )
-                                        }
-                                        className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                                      />
-                                      <span
-                                        className={`text-xs font-bold ${
-                                          isTaskDone
-                                            ? "text-emerald-800 line-through"
-                                            : "text-slate-800"
-                                        }`}
-                                      >
-                                        {isTaskDone ? "Completed Step" : "Mark Done"}
-                                      </span>
-                                    </label>
-                                  ) : (
-                                    <div className="flex items-center space-x-2 p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-400">
-                                      <input
-                                        type="checkbox"
-                                        checked={isTaskDone}
-                                        disabled
-                                        className="w-4 h-4 text-slate-400 rounded cursor-not-allowed"
-                                      />
-                                      <span className="text-[11px] font-bold text-slate-500">
-                                        {isTaskDone ? "Completed" : "🔒 Read-Only"}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Work Notes / Text Input with Save Button */}
-                              {(task.type === "text" || task.type === "both") && (
-                                <div className="space-y-1">
-                                  {isMyRoleColumn ? (
-                                    <div className="flex items-center space-x-1.5">
-                                      <input
-                                        type="text"
-                                        placeholder="Type work notes / link..."
-                                        value={currentDraftText}
-                                        onChange={(e) =>
-                                          setDraftTexts((prev) => ({
-                                            ...prev,
-                                            [task.id]: e.target.value,
-                                          }))
-                                        }
-                                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-1 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleInitiateSaveText(
-                                            activeFlow.id,
-                                            task,
-                                            currentDraftText
-                                          )
-                                        }
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-xl transition-colors shadow-2xs flex-shrink-0 flex items-center space-x-1"
-                                      >
-                                        <i className="fa-solid fa-floppy-disk"></i>
-                                        <span>Save</span>
-                                      </button>
+                              {/* Accordion Content (Task Cards) */}
+                              {!isCollapsed && (
+                                <div className="p-4 border-t border-slate-200 bg-white space-y-3">
+                                  {roleTasks.length === 0 ? (
+                                    <div className="p-4 text-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400 italic">
+                                      No tasks assigned to {role.name} in this flow.
                                     </div>
                                   ) : (
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 font-mono font-bold truncate">
-                                      {task.textValue || "No notes entered"}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {roleTasks.map((task) => {
+                                        const isTaskDone = Boolean(task.isCompleted === true);
+                                        const originalStepIdx = activeFlow.tasks.findIndex((t) => t.id === task.id) + 1;
+                                        const currentDraftText =
+                                          draftTexts[task.id] !== undefined ? draftTexts[task.id] : (task.textValue || "");
+
+                                        return (
+                                          <div
+                                            key={task.id}
+                                            className={`bg-white border rounded-xl p-3.5 space-y-2.5 shadow-2xs transition-all ${
+                                              isTaskDone
+                                                ? "border-emerald-200 bg-emerald-50/20"
+                                                : isMyRoleColumn
+                                                ? "border-slate-300 hover:border-indigo-400"
+                                                : "border-slate-200 opacity-90"
+                                            }`}
+                                          >
+                                            <div className="flex items-start space-x-2">
+                                              <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
+                                                #{originalStepIdx}
+                                              </span>
+                                              <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                                                {task.title}
+                                              </h4>
+                                            </div>
+
+                                            {(task.type === "checkbox" || task.type === "both") && (
+                                              <div>
+                                                {isMyRoleColumn ? (
+                                                  <label className="flex items-center space-x-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={isTaskDone}
+                                                      onChange={() =>
+                                                        handleToggleTaskCheckbox(
+                                                          activeFlow.id,
+                                                          task,
+                                                          currentDraftText
+                                                        )
+                                                      }
+                                                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                                    />
+                                                    <span
+                                                      className={`text-xs font-bold ${
+                                                        isTaskDone
+                                                          ? "text-emerald-800 line-through"
+                                                          : "text-slate-800"
+                                                      }`}
+                                                    >
+                                                      {isTaskDone ? "Completed Step" : "Mark as Done"}
+                                                    </span>
+                                                  </label>
+                                                ) : (
+                                                  <div className="flex items-center space-x-2 p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-400">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={isTaskDone}
+                                                      disabled
+                                                      className="w-4 h-4 text-slate-400 rounded cursor-not-allowed"
+                                                    />
+                                                    <span className="text-[11px] font-bold text-slate-500">
+                                                      {isTaskDone ? "Completed" : "🔒 Read-Only"}
+                                                    </span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {(task.type === "text" || task.type === "both") && (
+                                              <div className="space-y-1">
+                                                {isMyRoleColumn ? (
+                                                  <div className="flex items-center space-x-1.5">
+                                                    <input
+                                                      type="text"
+                                                      placeholder="Type work notes / link..."
+                                                      value={currentDraftText}
+                                                      onChange={(e) =>
+                                                        setDraftTexts((prev) => ({
+                                                          ...prev,
+                                                          [task.id]: e.target.value,
+                                                        }))
+                                                      }
+                                                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                                                    />
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        handleInitiateSaveText(
+                                                          activeFlow.id,
+                                                          task,
+                                                          currentDraftText
+                                                        )
+                                                      }
+                                                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl transition-colors shadow-2xs flex-shrink-0 flex items-center space-x-1"
+                                                    >
+                                                      <i className="fa-solid fa-floppy-disk"></i>
+                                                      <span>Save</span>
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 font-mono font-medium truncate">
+                                                    {task.textValue || "No notes entered"}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {task.completedAt ? (
+                                              <div className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 p-1.5 rounded-lg font-bold flex items-center justify-between">
+                                                <span>✓ {new Date(task.completedAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
+                                                <span className="truncate max-w-[90px]">{task.completedBy?.split("@")[0]}</span>
+                                              </div>
+                                            ) : (
+                                              <div className="text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-200 p-1 rounded-lg font-medium text-center">
+                                                ⏳ Status: Pending
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
-                                </div>
-                              )}
-
-                              {/* Completion Timestamp Tag */}
-                              {task.completedAt ? (
-                                <div className="text-[10px] font-mono text-emerald-800 bg-emerald-100/90 border border-emerald-300 p-1.5 rounded-lg font-extrabold flex items-center justify-between">
-                                  <span>✓ {new Date(task.completedAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
-                                  <span className="truncate max-w-[90px]">{task.completedBy?.split("@")[0]}</span>
-                                </div>
-                              ) : (
-                                <div className="text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-200 p-1 rounded-lg font-bold text-center">
-                                  ⏳ Status: Pending
                                 </div>
                               )}
                             </div>
@@ -879,21 +1163,311 @@ export default function ManagementPage() {
                         })
                       )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-      </div>
-    )}
+                  )}
+
+                  {/* DISPLAY MODE 2: KANBAN GRID COLUMNS VIEW */}
+                  {roleLayoutMode === "grid" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+                      {filteredRoles.map((role) => {
+                        const isMyRoleColumn =
+                          isAdmin ||
+                          userData?.roleId === role.id ||
+                          userData?.roleName?.toLowerCase() === role.name.toLowerCase();
+
+                        const roleTasks = activeFlow.tasks.filter(
+                          (t) =>
+                            t.roleId === role.id ||
+                            t.roleName.toLowerCase() === role.name.toLowerCase()
+                        );
+
+                        const staffForRole = usersList.filter(
+                          (u) =>
+                            u.roleId === role.id ||
+                            u.roleName?.toLowerCase() === role.name.toLowerCase()
+                        );
+
+                        const completedRoleTasksCount = roleTasks.filter((t) => t.isCompleted).length;
+
+                        return (
+                          <div
+                            key={role.id}
+                            className={`rounded-2xl border p-4 space-y-4 flex flex-col justify-between transition-all ${
+                              isMyRoleColumn
+                                ? "bg-indigo-50/40 border-indigo-200 ring-1 ring-indigo-500/20 shadow-2xs"
+                                : "bg-slate-50/70 border-slate-200"
+                            }`}
+                          >
+                            <div className="border-b border-slate-200 pb-3 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-extrabold text-slate-900 flex items-center space-x-1.5">
+                                  <span>{role.name}</span>
+                                  {isMyRoleColumn && (
+                                    <span className="text-[9px] bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 rounded-full">
+                                      Your Role ✓
+                                    </span>
+                                  )}
+                                </h3>
+
+                                <span className="text-[10px] font-mono font-bold bg-white text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
+                                  {completedRoleTasksCount}/{roleTasks.length} Done
+                                </span>
+                              </div>
+
+                              {staffForRole.length > 0 ? (
+                                <div className="text-[10px] font-mono font-semibold text-indigo-700 bg-white border border-indigo-100 px-2 py-0.5 rounded-lg truncate">
+                                  ✉️ {staffForRole.map((s) => s.email).join(", ")}
+                                </div>
+                              ) : (
+                                <div className="text-[10px] font-mono text-slate-400 italic">
+                                  👤 Unassigned Email
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-3">
+                              {roleTasks.length === 0 ? (
+                                <div className="p-4 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs italic">
+                                  No tasks assigned to {role.name}.
+                                </div>
+                              ) : (
+                                roleTasks.map((task) => {
+                                  const isTaskDone = Boolean(task.isCompleted === true);
+                                  const originalStepIdx = activeFlow.tasks.findIndex((t) => t.id === task.id) + 1;
+                                  const currentDraftText =
+                                    draftTexts[task.id] !== undefined ? draftTexts[task.id] : (task.textValue || "");
+
+                                  return (
+                                    <div
+                                      key={task.id}
+                                      className={`bg-white border rounded-xl p-3.5 space-y-2.5 shadow-2xs transition-all ${
+                                        isTaskDone
+                                          ? "border-emerald-200 bg-emerald-50/20"
+                                          : isMyRoleColumn
+                                          ? "border-slate-300 hover:border-indigo-400"
+                                          : "border-slate-200 opacity-90"
+                                      }`}
+                                    >
+                                      <div className="flex items-start space-x-2">
+                                        <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
+                                          #{originalStepIdx}
+                                        </span>
+                                        <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                                          {task.title}
+                                        </h4>
+                                      </div>
+
+                                      {(task.type === "checkbox" || task.type === "both") && (
+                                        <div>
+                                          {isMyRoleColumn ? (
+                                            <label className="flex items-center space-x-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
+                                              <input
+                                                type="checkbox"
+                                                checked={isTaskDone}
+                                                onChange={() =>
+                                                  handleToggleTaskCheckbox(
+                                                    activeFlow.id,
+                                                    task,
+                                                    currentDraftText
+                                                  )
+                                                }
+                                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                              />
+                                              <span
+                                                className={`text-xs font-bold ${
+                                                  isTaskDone
+                                                    ? "text-emerald-800 line-through"
+                                                    : "text-slate-800"
+                                                }`}
+                                              >
+                                                {isTaskDone ? "Completed Step" : "Mark as Done"}
+                                              </span>
+                                            </label>
+                                          ) : (
+                                            <div className="flex items-center space-x-2 p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-400">
+                                              <input
+                                                type="checkbox"
+                                                checked={isTaskDone}
+                                                disabled
+                                                className="w-4 h-4 text-slate-400 rounded cursor-not-allowed"
+                                              />
+                                              <span className="text-[11px] font-bold text-slate-500">
+                                                {isTaskDone ? "Completed" : "🔒 Read-Only"}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {(task.type === "text" || task.type === "both") && (
+                                        <div className="space-y-1">
+                                          {isMyRoleColumn ? (
+                                            <div className="flex items-center space-x-1.5">
+                                              <input
+                                                type="text"
+                                                placeholder="Type work notes / link..."
+                                                value={currentDraftText}
+                                                onChange={(e) =>
+                                                  setDraftTexts((prev) => ({
+                                                    ...prev,
+                                                    [task.id]: e.target.value,
+                                                  }))
+                                                }
+                                                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleInitiateSaveText(
+                                                    activeFlow.id,
+                                                    task,
+                                                    currentDraftText
+                                                  )
+                                                }
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl transition-colors shadow-2xs flex-shrink-0 flex items-center space-x-1"
+                                              >
+                                                <i className="fa-solid fa-floppy-disk"></i>
+                                                <span>Save</span>
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 font-mono font-medium truncate">
+                                              {task.textValue || "No notes entered"}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {task.completedAt ? (
+                                        <div className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 p-1.5 rounded-lg font-bold flex items-center justify-between">
+                                          <span>✓ {new Date(task.completedAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
+                                          <span className="truncate max-w-[90px]">{task.completedBy?.split("@")[0]}</span>
+                                        </div>
+                                      ) : (
+                                        <div className="text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-200 p-1 rounded-lg font-medium text-center">
+                                          ⏳ Status: Pending
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* DISPLAY MODE 3: HIGH-DENSITY TABLE MATRIX VIEW */}
+                  {roleLayoutMode === "matrix" && (
+                    <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 border-b border-slate-200 font-extrabold text-slate-700 uppercase tracking-wider">
+                            <tr>
+                              <th className="p-3.5">Role Name</th>
+                              <th className="p-3.5">Assigned Staff Email</th>
+                              <th className="p-3.5">Task Progress</th>
+                              <th className="p-3.5">Next Pending Task</th>
+                              <th className="p-3.5 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-medium">
+                            {filteredRoles.map((role) => {
+                              const isMyRoleColumn =
+                                isAdmin ||
+                                userData?.roleId === role.id ||
+                                userData?.roleName?.toLowerCase() === role.name.toLowerCase();
+
+                              const roleTasks = activeFlow.tasks.filter(
+                                (t) =>
+                                  t.roleId === role.id ||
+                                  t.roleName.toLowerCase() === role.name.toLowerCase()
+                              );
+
+                              const staffForRole = usersList.filter(
+                                (u) =>
+                                  u.roleId === role.id ||
+                                  u.roleName?.toLowerCase() === role.name.toLowerCase()
+                              );
+
+                              const completedCount = roleTasks.filter((t) => t.isCompleted).length;
+                              const firstPendingTask = roleTasks.find((t) => !t.isCompleted);
+
+                              return (
+                                <tr
+                                  key={role.id}
+                                  className={`hover:bg-slate-50/80 transition-colors ${
+                                    isMyRoleColumn ? "bg-indigo-50/20" : ""
+                                  }`}
+                                >
+                                  <td className="p-3.5">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-extrabold text-slate-900">{role.name}</span>
+                                      {isMyRoleColumn && (
+                                        <span className="bg-indigo-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                                          Mine
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="p-3.5 font-mono text-slate-600">
+                                    {staffForRole.length > 0 ? staffForRole.map((s) => s.email).join(", ") : "Unassigned"}
+                                  </td>
+
+                                  <td className="p-3.5">
+                                    <span className="font-mono font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded-lg border border-slate-200">
+                                      {completedCount}/{roleTasks.length} Done
+                                    </span>
+                                  </td>
+
+                                  <td className="p-3.5 max-w-xs truncate">
+                                    {firstPendingTask ? (
+                                      <span className="text-amber-700 font-semibold truncate block">
+                                        ⏳ #{activeFlow.tasks.findIndex((t) => t.id === firstPendingTask.id) + 1} {firstPendingTask.title}
+                                      </span>
+                                    ) : roleTasks.length > 0 ? (
+                                      <span className="text-emerald-700 font-bold">✓ All Tasks Done</span>
+                                    ) : (
+                                      <span className="text-slate-400 italic">No tasks</span>
+                                    )}
+                                  </td>
+
+                                  <td className="p-3.5 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRoleLayoutMode("accordion");
+                                        setSelectedRoleDropdown(role.id);
+                                        setCollapsedRoleIds((prev) => ({ ...prev, [role.id]: false }));
+                                      }}
+                                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl transition-all"
+                                    >
+                                      View Tasks ➔
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </main>
 
-      {/* UNCHECK WARNING MODAL POPUP */}
+      {/* UNCHECK WARNING MODAL */}
       {uncheckWarningModalData && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="fixed inset-0" onClick={() => setUncheckWarningModalData(null)} />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-amber-200 z-10 font-sans animate-in fade-in zoom-in duration-150">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-amber-200 z-10 font-sans">
             <div className="flex items-center space-x-3 text-amber-600">
               <div className="w-10 h-10 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-lg font-black shadow-2xs">
                 ⚠️
@@ -927,25 +1501,25 @@ export default function ManagementPage() {
                 type="button"
                 disabled={isUpdatingTask}
                 onClick={handleConfirmUncheckTask}
-                className="px-5 py-2 rounded-xl text-xs font-extrabold bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
               >
                 {isUpdatingTask ? (
                   <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                 ) : (
                   <i className="fa-solid fa-rotate-left text-xs"></i>
                 )}
-                <span>Reset & Mark In Progress ⏳</span>
+                <span>Reset & Mark In Progress</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* EDIT TEXT WARNING MODAL POPUP (NEW TIMESTAMP WARNING) */}
+      {/* EDIT TEXT WARNING MODAL */}
       {editTextWarningModalData && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="fixed inset-0" onClick={() => setEditTextWarningModalData(null)} />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-indigo-200 z-10 font-sans animate-in fade-in zoom-in duration-150">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-indigo-200 z-10 font-sans">
             <div className="flex items-center space-x-3 text-indigo-600">
               <div className="w-10 h-10 rounded-2xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-lg font-black shadow-2xs">
                 🕒
@@ -990,14 +1564,14 @@ export default function ManagementPage() {
                     editTextWarningModalData.newText
                   )
                 }
-                className="px-5 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
               >
                 {isUpdatingTask ? (
                   <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                 ) : (
                   <i className="fa-solid fa-floppy-disk text-xs"></i>
                 )}
-                <span>Save & Set New Date/Time 🕒</span>
+                <span>Save & Set New Timestamp</span>
               </button>
             </div>
           </div>
@@ -1035,7 +1609,7 @@ export default function ManagementPage() {
               </div>
             )}
 
-            <form onSubmit={handleRaiseTicketSubmit} className="space-y-4 text-xs font-bold text-slate-700">
+            <form onSubmit={handleRaiseTicketSubmit} className="space-y-4 text-xs font-medium text-slate-700">
               <div>
                 <label className="block mb-1.5 text-slate-900 font-extrabold">Select Urgency Level *</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -1102,26 +1676,26 @@ export default function ManagementPage() {
               </div>
 
               <div>
-                <label className="block mb-1 text-slate-900 font-extrabold">Subject / Issue Title *</label>
+                <label className="block mb-1 text-slate-900 font-bold">Subject / Issue Title *</label>
                 <input
                   type="text"
                   required
                   value={ticketSubject}
                   onChange={(e) => setTicketSubject(e.target.value)}
                   placeholder="e.g. Unable to complete task #2 in workflow"
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-bold"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block mb-1 text-slate-900 font-extrabold">Detailed Description *</label>
+                <label className="block mb-1 text-slate-900 font-bold">Detailed Description *</label>
                 <textarea
                   required
                   rows={4}
                   value={ticketDescription}
                   onChange={(e) => setTicketDescription(e.target.value)}
                   placeholder="Please write the issue details here..."
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-bold"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium"
                 />
               </div>
 
@@ -1129,35 +1703,35 @@ export default function ManagementPage() {
                 <button
                   type="button"
                   onClick={() => setIsRaiseTicketModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingTicket}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {isSubmittingTicket && <i className="fa-solid fa-circle-notch fa-spin"></i>}
-                  <span>Submit Ticket & Alert Admin 🚀</span>
+                  <span>Submit Ticket 🚀</span>
                 </button>
               </div>
             </form>
 
-            {/* MY PREVIOUSLY RAISED TICKETS */}
+            {/* Previous Tickets */}
             {myTicketsList.length > 0 && (
               <div className="pt-4 border-t border-slate-100 space-y-3">
-                <h4 className="text-xs font-black text-slate-900 flex items-center space-x-1.5">
+                <h4 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
                   <i className="fa-solid fa-clock-rotate-left text-slate-500"></i>
-                  <span>My Submitted Tickets ({myTicketsList.length})</span>
+                  <span>Submitted Tickets ({myTicketsList.length})</span>
                 </h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {myTicketsList.map((t) => (
                     <div key={t.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-slate-900 font-mono">#{t.ticketNumber}</span>
+                        <span className="font-bold text-slate-900 font-mono">#{t.ticketNumber}</span>
                         <span
-                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             t.status === "resolved"
                               ? "bg-emerald-100 text-emerald-800"
                               : t.status === "in_progress"
@@ -1168,7 +1742,7 @@ export default function ManagementPage() {
                           {t.status === "resolved" ? "✅ Resolved" : t.status === "in_progress" ? "🟡 In Progress" : "🔴 Open"}
                         </span>
                       </div>
-                      <p className="font-bold text-slate-800">{t.subject}</p>
+                      <p className="font-semibold text-slate-800">{t.subject}</p>
                       <div className="flex items-center justify-between text-[10px] text-slate-500">
                         <span>{t.levelLabel}</span>
                         <span>{new Date(t.createdAt).toLocaleDateString()}</span>

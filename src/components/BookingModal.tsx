@@ -313,6 +313,60 @@ export function BookingModal({
   }, [isOpen, initialStep, initialLeadId, initialCreatedDate, activeCampaign.id, isReselectingSlot, hasRestoredLead]);
 
 
+  // Track if date auto-advance check has run for current modal step 3 session
+  const [hasAutoAdvancedDate, setHasAutoAdvancedDate] = useState<boolean>(false);
+
+  // Auto-advance to the first available date if today (or current date) has no available slots
+  useEffect(() => {
+    if (!isOpen) {
+      setHasAutoAdvancedDate(false);
+      return;
+    }
+
+    if (step === 3 && !hasAutoAdvancedDate) {
+      async function autoAdvanceToFirstAvailableDate() {
+        const start = new Date();
+        let checkDate = new Date(start);
+
+        for (let i = 0; i < 30; i++) {
+          const year = checkDate.getFullYear();
+          const monthIndex = checkDate.getMonth();
+          const day = checkDate.getDate();
+
+          const formattedMonth = (monthIndex + 1).toString().padStart(2, "0");
+          const formattedDay = day.toString().padStart(2, "0");
+          const dateStr = `${year}-${formattedMonth}-${formattedDay}`;
+
+          const bookedMap = await getBookedSlotsForDate(dateStr, activeCampaign.id);
+
+          if (!bookedMap["_blockedDate"]) {
+            const hasAvailableSlot = DAILY_TIME_SLOTS.some((timeStr) => {
+              const isPassed = isSlotTimePassed(timeStr, day, monthIndex, year);
+              const slotKey = sanitizeSlotKey(timeStr);
+              const isBooked = bookedMap[slotKey] === true;
+              return !isPassed && !isBooked;
+            });
+
+            if (hasAvailableSlot) {
+              setCurrentYear(year);
+              setCurrentMonthIndex(monthIndex);
+              setSelectedDay(day);
+              setBookedSlotsMap(bookedMap);
+              setHasAutoAdvancedDate(true);
+              return;
+            }
+          }
+
+          checkDate.setDate(checkDate.getDate() + 1);
+        }
+
+        setHasAutoAdvancedDate(true);
+      }
+
+      autoAdvanceToFirstAvailableDate();
+    }
+  }, [isOpen, step, activeCampaign.id, hasAutoAdvancedDate]);
+
   // Realtime Booked Slots Listener whenever selected date changes
   useEffect(() => {
     async function fetchSlots() {
@@ -1187,8 +1241,22 @@ export function BookingModal({
                 <span className="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
               </div>
 
-              {/* Filter out slots that have already passed for the selected date */}
+              {/* Filter out slots that have already passed or dates that are blocked */}
               {(() => {
+                if (bookedSlotsMap["_blockedDate"]) {
+                  return (
+                    <div className="p-3.5 text-center rounded-xl bg-red-950/40 border border-red-800/60 space-y-1.5 my-1">
+                      <p className="text-xs text-red-400 font-bold flex items-center justify-center space-x-1.5">
+                        <i className="fa-solid fa-ban"></i>
+                        <span>This date is marked as booked / unavailable.</span>
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Please select another date from the calendar above.
+                      </p>
+                    </div>
+                  );
+                }
+
                 const activeSlots = DAILY_TIME_SLOTS.filter(
                   (time) => !isSlotTimePassed(time, selectedDay, currentMonthIndex, currentYear)
                 );

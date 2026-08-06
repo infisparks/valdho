@@ -193,8 +193,14 @@ export async function getBookedSlotsForDate(
     if (snapshot.exists()) {
       const data = snapshot.val();
       const bookedMap: Record<string, boolean> = {};
+      
+      if (data._blockedDate && data._blockedDate.blocked) {
+        bookedMap["_blockedDate"] = true;
+      }
+
       Object.keys(data).forEach((key) => {
-        if (data[key] && data[key].booked) {
+        if (key === "_blockedDate") return;
+        if (data[key] && (data[key].booked || data[key].blocked)) {
           bookedMap[key] = true;
         }
       });
@@ -204,6 +210,193 @@ export async function getBookedSlotsForDate(
   } catch (error) {
     console.error("Firebase getBookedSlotsForDate Error:", error);
     return {};
+  }
+}
+
+/**
+ * Standard daily time slots matching system configuration
+ */
+export const DEFAULT_DAILY_TIME_SLOTS = [
+  "09:00 AM",
+  "10:00 AM",
+  "11:00 AM",
+  "12:00 PM",
+  "02:00 PM",
+  "03:00 PM",
+  "07:00 PM",
+  "09:00 PM",
+];
+
+/**
+ * Mark a full date or range of dates as booked/blocked in Firebase CRM
+ */
+export async function markDateAsBooked(
+  startDateStr: string,
+  endDateStr: string,
+  reason: string = "Marked as booked by admin",
+  campaignName: string = "firstoptionagency"
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return { success: false, message: "Invalid date range selected." };
+    }
+
+    const updates: Record<string, any> = {};
+    const curr = new Date(start);
+
+    while (curr <= end) {
+      const year = curr.getFullYear();
+      const month = String(curr.getMonth() + 1).padStart(2, "0");
+      const day = String(curr.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+
+      updates[`slots/${campaignName}/${dateStr}/_blockedDate`] = {
+        blocked: true,
+        date: dateStr,
+        reason: reason || "Marked as booked",
+        createdAt: Date.now(),
+      };
+
+      DEFAULT_DAILY_TIME_SLOTS.forEach((slotTime) => {
+        const slotKey = sanitizeSlotKey(slotTime);
+        updates[`slots/${campaignName}/${dateStr}/${slotKey}`] = {
+          booked: true,
+          blocked: true,
+          reason: reason || "Marked as booked",
+          bookedAt: Date.now(),
+        };
+      });
+
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    await update(ref(db), updates);
+    return { success: true, message: "Dates marked as booked successfully." };
+  } catch (error: any) {
+    console.error("Firebase markDateAsBooked Error:", error);
+    return { success: false, message: error.message || "Failed to mark dates as booked." };
+  }
+}
+
+/**
+ * Mark specific time slots on a date as booked/blocked in Firebase CRM
+ */
+export async function markSlotsAsBooked(
+  dateStr: string,
+  timeSlots: string[],
+  reason: string = "Marked as booked by admin",
+  campaignName: string = "firstoptionagency"
+): Promise<{ success: boolean; message: string }> {
+  try {
+    if (!dateStr || !timeSlots || timeSlots.length === 0) {
+      return { success: false, message: "Please select a date and at least one time slot." };
+    }
+
+    const updates: Record<string, any> = {};
+    timeSlots.forEach((slotTime) => {
+      const slotKey = sanitizeSlotKey(slotTime);
+      updates[`slots/${campaignName}/${dateStr}/${slotKey}`] = {
+        booked: true,
+        blocked: true,
+        reason: reason || "Marked as booked",
+        bookedAt: Date.now(),
+      };
+    });
+
+    await update(ref(db), updates);
+    return { success: true, message: "Time slots marked as booked successfully." };
+  } catch (error: any) {
+    console.error("Firebase markSlotsAsBooked Error:", error);
+    return { success: false, message: error.message || "Failed to mark slots as booked." };
+  }
+}
+
+/**
+ * Unmark / unblock a specific date or time slot in Firebase CRM
+ */
+export async function unmarkDateOrSlot(
+  dateStr: string,
+  timeSlot?: string,
+  campaignName: string = "firstoptionagency"
+): Promise<{ success: boolean; message: string }> {
+  try {
+    if (!dateStr) return { success: false, message: "Date is required." };
+
+    if (timeSlot) {
+      const slotKey = sanitizeSlotKey(timeSlot);
+      const updates: Record<string, any> = {};
+      updates[`slots/${campaignName}/${dateStr}/${slotKey}`] = null;
+      await update(ref(db), updates);
+    } else {
+      const updates: Record<string, any> = {};
+      updates[`slots/${campaignName}/${dateStr}`] = null;
+      await update(ref(db), updates);
+    }
+    return { success: true, message: "Unmarked successfully." };
+  } catch (error: any) {
+    console.error("Firebase unmarkDateOrSlot Error:", error);
+    return { success: false, message: error.message || "Failed to unmark." };
+  }
+}
+
+/**
+ * Fetch all blocked dates and slots for CRM management view
+ */
+export async function getAllBlockedSlotsAndDates(
+  campaignName: string = "firstoptionagency"
+): Promise<Array<{
+  dateStr: string;
+  isFullDateBlocked: boolean;
+  blockedSlots: string[];
+  reason?: string;
+}>> {
+  try {
+    const slotsRef = ref(db, `slots/${campaignName}`);
+    const snapshot = await get(slotsRef);
+    if (!snapshot.exists()) return [];
+
+    const data = snapshot.val();
+    const result: Array<{
+      dateStr: string;
+      isFullDateBlocked: boolean;
+      blockedSlots: string[];
+      reason?: string;
+    }> = [];
+
+    Object.keys(data).forEach((dateStr) => {
+      const dateObj = data[dateStr];
+      if (!dateObj || typeof dateObj !== "object") return;
+
+      const isFullDateBlocked = Boolean(dateObj._blockedDate && dateObj._blockedDate.blocked);
+      const blockedSlots: string[] = [];
+      let reason = dateObj._blockedDate?.reason;
+
+      Object.keys(dateObj).forEach((key) => {
+        if (key === "_blockedDate") return;
+        const slotData = dateObj[key];
+        if (slotData && slotData.blocked) {
+          if (!reason && slotData.reason) reason = slotData.reason;
+          // Re-convert sanitized slot key to human readable if possible
+          blockedSlots.push(key);
+        }
+      });
+
+      if (isFullDateBlocked || blockedSlots.length > 0) {
+        result.push({
+          dateStr,
+          isFullDateBlocked,
+          blockedSlots,
+          reason: reason || "Marked as booked",
+        });
+      }
+    });
+
+    return result.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+  } catch (error) {
+    console.error("Firebase getAllBlockedSlotsAndDates Error:", error);
+    return [];
   }
 }
 
@@ -1352,6 +1545,25 @@ export interface ClientFlowInstance {
   assignedAt: string;
   assignedBy: string;
   tasks: ClientFlowTask[];
+  roleOrder?: string[];
+}
+
+/**
+ * Update role sequence order for a Client Flow Instance (Admin Action).
+ */
+export async function updateClientFlowRoleOrder(
+  clientFlowId: string,
+  roleOrder: string[]
+): Promise<{ success: boolean }> {
+  try {
+    await update(ref(db, `clientFlows/${clientFlowId}`), {
+      roleOrder,
+    });
+    return { success: true };
+  } catch (err) {
+    console.error("Firebase updateClientFlowRoleOrder Error:", err);
+    return { success: false };
+  }
 }
 
 /**

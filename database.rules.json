@@ -18,7 +18,7 @@
       }
     },
     "campaigns": {
-      ".read": "auth != null",
+      ".read": true,
       ".write": true
     },
     "leads": {

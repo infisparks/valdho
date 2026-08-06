@@ -1510,11 +1510,20 @@ export default function CRMPage() {
         leadToDelete.createdDate,
         leadToDelete.campaign || selectedCampaign,
         leadToDelete.meeting?.meetingDate,
-        leadToDelete.meeting?.meetingTime
+        leadToDelete.meeting?.meetingTime,
+        leadToDelete.email
       );
       if (res.success) {
         setAllLeadsList((prev) => prev.filter((l) => l.id !== targetLeadId && l.id !== leadToDelete.id));
         setLeadsList((prev) => prev.filter((l) => l.id !== targetLeadId && l.id !== leadToDelete.id));
+        setClientFlowInstancesList((prev) =>
+          prev.filter(
+            (cf) =>
+              cf.clientOnboardId !== targetLeadId &&
+              cf.clientOnboardId !== leadToDelete.id &&
+              (!leadToDelete.email || cf.clientEmail.toLowerCase() !== leadToDelete.email.toLowerCase())
+          )
+        );
         if (selectedLead && (selectedLead.id === targetLeadId || selectedLead.id === leadToDelete.id)) {
           setIsDrawerOpen(false);
           setSelectedLead(null);

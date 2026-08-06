@@ -893,21 +893,24 @@ export async function saveOrUpdateLead(
 }
 
 /**
- * Permanently delete a lead record from Firebase RTDB
+ * Permanently delete a lead record from Firebase RTDB along with all assigned client flows
  */
 export async function deleteLead(
   leadId: string,
   createdDate?: string | null,
   campaignName: string = "firstoptionagency",
   meetingDate?: string | null,
-  meetingTime?: string | null
+  meetingTime?: string | null,
+  leadEmail?: string | null
 ): Promise<{ success: boolean; message?: string }> {
   try {
     const todayStr = new Date().toISOString().split("T")[0];
     const targetCreatedDate = createdDate || todayStr;
     const updates: Record<string, any> = {};
 
-    // Fetch lead phone to cancel pending Cloud Tasks (Zombie Messages prevention)
+    let targetEmail = leadEmail || null;
+
+    // Fetch lead phone & email to cancel pending Cloud Tasks and find clientFlows
     try {
       const leadRefPath = `campaigns/${campaignName}/leads/${targetCreatedDate}/${leadId}`;
       const leadSnap = await get(ref(db, leadRefPath));
@@ -916,15 +919,44 @@ export async function deleteLead(
         if (lData?.phone) {
           cancelLeadCloudTasks(lData.phone).catch(() => {});
         }
+        if (!targetEmail && lData?.email) {
+          targetEmail = lData.email;
+        }
       }
     } catch (e) {}
 
+    // Delete lead node
     updates[`campaigns/${campaignName}/leads/${targetCreatedDate}/${leadId}`] = null;
 
+    // Delete meeting and slot if present
     if (meetingDate && meetingTime) {
       const slotKey = sanitizeSlotKey(meetingTime);
       updates[`campaigns/${campaignName}/meetings/${meetingDate}/${leadId}`] = null;
       updates[`slots/${campaignName}/${meetingDate}/${slotKey}`] = null;
+    }
+
+    // Permanently purge associated assigned Client Flow Instance(s) from /clientFlows node
+    try {
+      const clientFlowsSnap = await get(ref(db, "clientFlows"));
+      if (clientFlowsSnap.exists()) {
+        const flowsData = clientFlowsSnap.val();
+        Object.keys(flowsData).forEach((flowKey) => {
+          const flow = flowsData[flowKey];
+          if (flow) {
+            const matchesId = flow.clientOnboardId === leadId;
+            const matchesEmail =
+              targetEmail &&
+              flow.clientEmail &&
+              flow.clientEmail.toLowerCase().trim() === targetEmail.toLowerCase().trim();
+
+            if (matchesId || matchesEmail) {
+              updates[`clientFlows/${flowKey}`] = null;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.error("Error finding clientFlows for lead deletion:", e);
     }
 
     await update(ref(db), updates);

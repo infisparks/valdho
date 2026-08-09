@@ -453,11 +453,26 @@ export async function findExistingLead(
       const allDatesObj = snapshot.val();
       const dateKeys = Object.keys(allDatesObj).sort().reverse();
       for (const dKey of dateKeys) {
-        if (allDatesObj[dKey] && allDatesObj[dKey][leadId]) {
+        if (!allDatesObj[dKey]) continue;
+        if (allDatesObj[dKey][leadId]) {
           return {
             lead: allDatesObj[dKey][leadId] as LeadData,
             createdDate: dKey,
           };
+        }
+        // Fallback: search by lead id or sanitized email within the date group
+        for (const [lKey, lVal] of Object.entries(allDatesObj[dKey])) {
+          const lObj = lVal as LeadData;
+          if (!lObj) continue;
+          if (
+            lKey === leadId ||
+            (lObj.email && sanitizeEmailToId(lObj.email) === leadId)
+          ) {
+            return {
+              lead: lObj,
+              createdDate: dKey,
+            };
+          }
         }
       }
     }
@@ -727,11 +742,66 @@ export async function saveOrUpdateLead(
     // Merge meeting data: use new meeting if user selected/re-selected a slot (lead.meeting), otherwise keep existing meeting
     const mergedMeeting = lead.meeting || existingLead?.meeting;
 
-    // Preserve existing pipelineStage & stageMovedAt if lead already exists in CRM, otherwise fallback to lead.pipelineStage
+    // Funnel Stage Precedence Resolution:
+    // raw (1) -> in_progress (2) -> survey_completed (3) -> meeting_booked (4) -> proposal_sent (5) -> won (6) -> not_qualified (7)
+    const getStageWeight = (st?: string | null): number => {
+      if (!st) return 0;
+      if (st === "raw") return 1;
+      if (st === "in_progress") return 2;
+      if (st === "survey_completed") return 3;
+      if (st === "meeting_booked") return 4;
+      if (st === "proposal_sent") return 5;
+      if (st === "won") return 6;
+      if (st === "not_qualified") return 7;
+      return 2;
+    };
+
+    const hasMeetingBooked =
+      !!(mergedMeeting?.meetingDate && mergedMeeting?.meetingTime) ||
+      finalStatus === "completed" ||
+      lead.pipelineStage === "meeting_booked";
+
+    const hasSurveyFilled =
+      !!(mergedSurvey && Object.keys(mergedSurvey).length > 0) ||
+      finalStatus === "survey_completed" ||
+      lead.pipelineStage === "survey_completed";
+
+    const currentExistingWeight = getStageWeight(existingLead?.pipelineStage);
+    let targetPipelineStage: string;
+
+    if (hasMeetingBooked) {
+      // If meeting is booked, move to meeting_booked unless already in a post-meeting sales stage (proposal_sent, won, not_qualified)
+      if (currentExistingWeight <= 3 || !existingLead?.pipelineStage) {
+        targetPipelineStage = "meeting_booked";
+      } else {
+        targetPipelineStage = existingLead?.pipelineStage || "meeting_booked";
+      }
+    } else if (hasSurveyFilled) {
+      // If survey is filled, move to survey_completed unless already at meeting_booked or beyond
+      if (currentExistingWeight <= 2 || !existingLead?.pipelineStage) {
+        targetPipelineStage = "survey_completed";
+      } else {
+        targetPipelineStage = existingLead?.pipelineStage || "survey_completed";
+      }
+    } else if (lead.pipelineStage) {
+      const newStageWeight = getStageWeight(lead.pipelineStage);
+      if (newStageWeight > currentExistingWeight || !existingLead?.pipelineStage) {
+        targetPipelineStage = lead.pipelineStage;
+      } else {
+        targetPipelineStage = existingLead?.pipelineStage || lead.pipelineStage;
+      }
+    } else {
+      targetPipelineStage = existingLead?.pipelineStage || "in_progress";
+    }
+
+    const stageChanged = !existingLead?.pipelineStage || existingLead.pipelineStage !== targetPipelineStage;
+    const mergedPipelineStage = targetPipelineStage;
+    const mergedStageMovedAt = stageChanged
+      ? (lead.stageMovedAt || timestamp)
+      : (existingLead?.stageMovedAt || lead.stageMovedAt || timestamp);
+
     const mergedNotes = lead.notes || existingLead?.notes;
     const mergedFollowUpDate = lead.followUpDate || existingLead?.followUpDate;
-    const mergedPipelineStage = existingLead?.pipelineStage || lead.pipelineStage;
-    const mergedStageMovedAt = existingLead?.pipelineStage ? existingLead?.stageMovedAt : (lead.stageMovedAt || timestamp);
     const mergedDealValue = lead.dealValue !== undefined ? lead.dealValue : existingLead?.dealValue;
     const mergedOnboarded = lead.onboarded !== undefined ? lead.onboarded : existingLead?.onboarded;
     const mergedOnboardedAt = lead.onboardedAt || existingLead?.onboardedAt;

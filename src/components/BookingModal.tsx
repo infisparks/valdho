@@ -291,14 +291,21 @@ export function BookingModal({
           // Fully registered & meeting booked -> Show Already Submitted Popup or Step 4
           if (initialStep === 1) {
             setShowAlreadySubmittedPopup(true);
+          } else if (initialStep === 2) {
+            setStep(2);
+            setShowAlreadySubmittedPopup(false);
           } else if (initialStep === 3 || initialStep === 4) {
             setStep(4);
             setShowAlreadySubmittedPopup(false);
           }
         } else if (hasSurvey || leadStatus === "survey_completed") {
-          // Survey done, Meeting booking is pending -> Show Step 3 (Meeting Calendar Slot Booking)
+          // Survey done, Meeting booking is pending -> If explicitly on survey page show Step 2, otherwise Step 3 (Meeting Calendar Slot Booking)
           setShowAlreadySubmittedPopup(false);
-          setStep(3);
+          if (initialStep === 2) {
+            setStep(2);
+          } else {
+            setStep(3);
+          }
         } else {
           // Contact info submitted, Survey is pending -> Show Step 2 (Qualification Survey Questionnaire)
           setShowAlreadySubmittedPopup(false);

@@ -914,6 +914,55 @@ router.post("/auto-send-survey", async (req, res) => {
       console.error("[Auto Send Survey] Task queue purge exception:", err);
     }
 
+    // Ensure lead status & pipelineStage updated in Firebase RTDB if in initial stage
+    if (email || phone) {
+      try {
+        const cleanPhoneNum = cleanNumber;
+        const cleanEmailStr = email ? email.toLowerCase().trim() : "";
+        const emailPrefix = cleanEmailStr ? cleanEmailStr.replace(/[^a-z0-9]/g, "_") : "";
+
+        const campaignsObj = (await firebaseDb("campaigns")) || {};
+        for (const [cKey, campaignData] of Object.entries(campaignsObj)) {
+          if (!campaignData || typeof campaignData !== "object") continue;
+          const leadsNode = campaignData.leads || {};
+
+          for (const [dKey, leadsDateGroup] of Object.entries(leadsNode)) {
+            if (!leadsDateGroup || typeof leadsDateGroup !== "object") continue;
+
+            for (const [lId, leadObj] of Object.entries(leadsDateGroup)) {
+              if (leadObj && typeof leadObj === "object") {
+                const lEmail = (leadObj.email || "").toLowerCase().trim();
+                const lPhone = sanitizePhoneNumber(leadObj.phone);
+                if (
+                  (cleanEmailStr && lEmail === cleanEmailStr) ||
+                  (cleanPhoneNum && lPhone === cleanPhoneNum) ||
+                  (emailPrefix && lId.includes(emailPrefix))
+                ) {
+                  const curStage = leadObj.pipelineStage;
+                  const shouldAdvance = !curStage || ["raw", "in_progress"].includes(curStage);
+                  const patchPayload = {
+                    status: leadObj.status === "completed" ? "completed" : "survey_completed",
+                    updatedAt: new Date().toISOString(),
+                  };
+                  if (shouldAdvance) {
+                    patchPayload.pipelineStage = "survey_completed";
+                    patchPayload.stageMovedAt = new Date().toISOString();
+                  }
+                  await firebaseDb(
+                    `campaigns/${cKey}/leads/${dKey}/${lId}`,
+                    "PATCH",
+                    patchPayload
+                  );
+                }
+              }
+            }
+          }
+        }
+      } catch (dbErr) {
+        console.error("[Auto Send Survey] DB status patch error:", dbErr);
+      }
+    }
+
     const evoRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", { number: cleanNumber, text: formattedMessage });
 
     if (evoRes.ok) {
@@ -1008,7 +1057,7 @@ router.post("/auto-send-meeting", async (req, res) => {
       console.error("[Auto Send Meeting] Task queue purge exception:", err);
     }
 
-    // Save resolved meeting URL on actual lead & meeting objects in Firebase RTDB
+    // Save resolved meeting URL and update lead & meeting status in Firebase RTDB
     if (email || phone) {
       const cleanPhoneNum = sanitizePhoneNumber(phone);
       const cleanEmailStr = email ? email.toLowerCase().trim() : "";
@@ -1038,6 +1087,23 @@ router.post("/auto-send-meeting", async (req, res) => {
                 (cleanPhoneNum && lPhone === cleanPhoneNum) ||
                 (emailPrefix && lId.includes(emailPrefix))
               ) {
+                const curStage = leadObj.pipelineStage;
+                const shouldAdvance = !curStage || ["raw", "in_progress", "survey_completed"].includes(curStage);
+                const patchPayload = {
+                  status: "completed",
+                  updatedAt: new Date().toISOString(),
+                };
+                if (shouldAdvance) {
+                  patchPayload.pipelineStage = "meeting_booked";
+                  patchPayload.stageMovedAt = new Date().toISOString();
+                }
+
+                await firebaseDb(
+                  `campaigns/${cKey}/leads/${dKey}/${lId}`,
+                  "PATCH",
+                  patchPayload
+                );
+
                 await firebaseDb(
                   `campaigns/${cKey}/leads/${dKey}/${lId}/meeting`,
                   "PATCH",
@@ -1063,7 +1129,7 @@ router.post("/auto-send-meeting", async (req, res) => {
                 await firebaseDb(
                   `campaigns/${cKey}/meetings/${date}/${lId}`,
                   "PATCH",
-                  { meetingUrl: resolvedMeetingUrl }
+                  { meetingUrl: resolvedMeetingUrl, pipelineStage: "meeting_booked", status: "booked" }
                 );
               }
             }

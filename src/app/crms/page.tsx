@@ -212,7 +212,24 @@ function isMeetingInPast(meetingDateStr?: string, timeStr?: string): boolean {
 }
 
 function getLeadEffectiveStage(lead: LeadData): string {
-  return lead.pipelineStage || "raw";
+  // If explicitly moved by staff to a downstream CRM sales stage or custom stage, respect it
+  if (lead.pipelineStage && !["raw", "in_progress", "survey_completed"].includes(lead.pipelineStage)) {
+    return lead.pipelineStage;
+  }
+
+  // Automatic stage resolution: Meeting Booked
+  const hasMeeting = !!(lead.meeting?.meetingDate && lead.meeting?.meetingTime) || lead.status === "completed";
+  if (hasMeeting) {
+    return "meeting_booked";
+  }
+
+  // Automatic stage resolution: Survey Completed
+  const hasSurvey = (lead.survey && Object.keys(lead.survey).length > 0) || lead.status === "survey_completed";
+  if (hasSurvey) {
+    return "survey_completed";
+  }
+
+  return lead.pipelineStage || (lead.status === "partial" ? "in_progress" : "raw");
 }
 
 export default function CRMPage() {

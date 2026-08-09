@@ -115,8 +115,13 @@ export default function ManagementPage() {
       );
       setMyTicketsList(filteredTickets);
 
-      if (flows.length > 0 && !activeFlowId) {
-        setActiveFlowId(flows[0].id);
+      // Read initial flow ID from URL if explicitly passed in query (?id=... or ?flowId=...)
+      if (typeof window !== "undefined" && !activeFlowId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryFlowId = urlParams.get("id") || urlParams.get("flowId");
+        if (queryFlowId && flows.some((f) => f.id === queryFlowId)) {
+          setActiveFlowId(queryFlowId);
+        }
       }
     } catch (err) {
       console.error("Management Fetch Error:", err);
@@ -435,11 +440,20 @@ export default function ManagementPage() {
   const inProgressFlowsCount = clientFlows.filter((cf) => cf.status !== "completed").length;
   const completedFlowsCount = clientFlows.filter((cf) => cf.status === "completed").length;
 
-  // Active Flow Instance
-  const activeFlow =
-    filteredFlows.find((f) => f.id === activeFlowId) ||
-    filteredFlows[0] ||
-    clientFlows[0];
+  // Active Flow Instance: null by default until user selects a client flow
+  const activeFlow = activeFlowId ? clientFlows.find((f) => f.id === activeFlowId) || null : null;
+
+  // Calculate pending tasks assigned to current user's role across all client flows
+  const myRoleNameLower = (userData?.roleName || "").toLowerCase();
+  const myRoleId = userData?.roleId || "";
+  const myAssignedTasksCount = clientFlows.reduce((acc, flow) => {
+    const matchingTasks = flow.tasks.filter(
+      (t) =>
+        !t.isCompleted &&
+        (t.roleId === myRoleId || (myRoleNameLower && t.roleName.toLowerCase() === myRoleNameLower))
+    );
+    return acc + matchingTasks.length;
+  }, 0);
 
   // Distinct roles in active flow
   const activeFlowRoles: Array<{ id: string; name: string }> = [];
@@ -449,13 +463,13 @@ export default function ManagementPage() {
         activeFlowRoles.push({ id: t.roleId, name: t.roleName });
       }
     });
-  }
 
-  rolesList.forEach((r) => {
-    if (!activeFlowRoles.some((ar) => ar.name.toLowerCase() === r.name.toLowerCase())) {
-      activeFlowRoles.push({ id: r.id, name: r.name });
-    }
-  });
+    rolesList.forEach((r) => {
+      if (!activeFlowRoles.some((ar) => ar.name.toLowerCase() === r.name.toLowerCase())) {
+        activeFlowRoles.push({ id: r.id, name: r.name });
+      }
+    });
+  }
 
   const userInitial = (currentUser?.email?.[0] || "U").toUpperCase();
 
@@ -471,7 +485,7 @@ export default function ManagementPage() {
             </div>
             <div className="min-w-0">
               <h1 className="text-sm sm:text-base font-extrabold text-slate-900 truncate leading-snug">
-                Team Workflow Board
+                Team Workflow Management
               </h1>
               <div className="flex items-center space-x-2 mt-0.5">
                 <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase">
@@ -497,7 +511,7 @@ export default function ManagementPage() {
             {isAdmin && (
               <button
                 onClick={() => router.push("/crms")}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center space-x-1"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
               >
                 <i className="fa-solid fa-sliders text-xs"></i>
                 <span className="hidden sm:inline">CRM Portal</span>
@@ -519,36 +533,69 @@ export default function ManagementPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         
         {/* Workspace Title Bar */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-2">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                Workflow Board ({activeFlowRoles.length} Roles Active) 👋
-              </h2>
-              <p className="text-xs text-slate-500 font-medium mt-1">
-                Tasks assigned to your role (<strong className="text-indigo-600">{userData?.roleName || "Staff"}</strong>) are editable. Use view toggles below to easily view all 20+ roles on mobile or desktop!
-              </p>
+            <div className="space-y-1">
+              {activeFlow ? (
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setActiveFlowId(null)}
+                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                    title="Back to All Client Flows"
+                  >
+                    <i className="fa-solid fa-arrow-left"></i>
+                  </button>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                      Workflow Board — {activeFlow.clientName}
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Managing tasks for <strong className="text-indigo-600">{activeFlow.flowName}</strong> ({activeFlowRoles.length} Roles Active).
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                    Client Workflows & Deliverables 👋
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Welcome, <strong className="text-indigo-600">{userData?.roleName || "Staff"}</strong>. Select a client flow below to review deliverables, update task notes, and track progress.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={fetchData}
-              disabled={isDataLoading}
-              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors self-start sm:self-auto flex items-center space-x-1.5 shadow-2xs"
-            >
-              <i className={`fa-solid fa-rotate-right ${isDataLoading ? "fa-spin" : ""}`}></i>
-              <span>Refresh Board</span>
-            </button>
+            <div className="flex items-center space-x-2 self-start sm:self-auto">
+              {activeFlow && (
+                <button
+                  onClick={() => setActiveFlowId(null)}
+                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                >
+                  <i className="fa-solid fa-layer-group text-xs"></i>
+                  <span>All Client Flows</span>
+                </button>
+              )}
+              <button
+                onClick={fetchData}
+                disabled={isDataLoading}
+                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+              >
+                <i className={`fa-solid fa-rotate-right ${isDataLoading ? "fa-spin" : ""}`}></i>
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Filters & Flow Selection Bar */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-4">
+        {/* Global Filter & Selector Toolbar */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-3">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Status Tabs */}
+            {/* Status Filter Tabs */}
             <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold self-start">
               <button
                 onClick={() => setActiveTab("in_progress")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 cursor-pointer ${
                   activeTab === "in_progress"
                     ? "bg-white text-indigo-700 shadow-2xs font-extrabold"
                     : "text-slate-500 hover:text-slate-900"
@@ -560,7 +607,7 @@ export default function ManagementPage() {
 
               <button
                 onClick={() => setActiveTab("completed")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 cursor-pointer ${
                   activeTab === "completed"
                     ? "bg-white text-emerald-700 shadow-2xs font-extrabold"
                     : "text-slate-500 hover:text-slate-900"
@@ -576,61 +623,250 @@ export default function ManagementPage() {
               <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
               <input
                 type="text"
-                placeholder="Search client or task..."
+                placeholder="Search client, email, task..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 shadow-2xs"
               />
             </div>
           </div>
 
-          {/* Client Flow Pill Selector */}
-          {filteredFlows.length > 0 && (
-            <div className="pt-3 border-t border-slate-100 flex items-center space-x-2 overflow-x-auto pb-1">
-              <span className="text-xs font-bold text-slate-500 flex-shrink-0 pr-1">
-                Select Client Flow:
-              </span>
-              {filteredFlows.map((cf) => {
-                const isActive = activeFlow && activeFlow.id === cf.id;
-                const completedCount = cf.tasks.filter((t) => t.isCompleted).length;
+          {/* Primary Select Client Flow Dropdown Control */}
+          <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-2.5 w-full sm:w-auto">
+              <label className="text-xs font-bold text-slate-700 flex-shrink-0 flex items-center space-x-1.5">
+                <i className="fa-solid fa-user-gear text-indigo-600"></i>
+                <span>Select Client Flow:</span>
+              </label>
 
-                return (
-                  <button
-                    key={cf.id}
-                    onClick={() => setActiveFlowId(cf.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all flex-shrink-0 flex items-center space-x-2 border ${
-                      isActive
-                        ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
-                        : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
-                    }`}
-                  >
-                    <span>{cf.clientName} ({cf.flowName})</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                        isActive ? "bg-indigo-800 text-white" : "bg-slate-200 text-slate-700"
+              <select
+                value={activeFlowId || ""}
+                onChange={(e) => setActiveFlowId(e.target.value || null)}
+                className="w-full sm:w-80 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 shadow-2xs cursor-pointer"
+              >
+                <option value="">— Choose a Client Flow ({filteredFlows.length} available) —</option>
+                {filteredFlows.map((cf) => {
+                  const completed = cf.tasks.filter((t) => t.isCompleted).length;
+                  return (
+                    <option key={cf.id} value={cf.id}>
+                      {cf.clientName} — {cf.flowName} ({completed}/{cf.tasks.length} tasks)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Quick Pill Chips for Fast 1-Click Navigation */}
+            {filteredFlows.length > 0 && (
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 max-w-full sm:max-w-md">
+                {filteredFlows.slice(0, 5).map((cf) => {
+                  const isActive = activeFlow && activeFlow.id === cf.id;
+                  const completedCount = cf.tasks.filter((t) => t.isCompleted).length;
+
+                  return (
+                    <button
+                      key={cf.id}
+                      onClick={() => setActiveFlowId(cf.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center space-x-1.5 border cursor-pointer ${
+                        isActive
+                          ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                          : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
                       }`}
                     >
-                      {completedCount}/{cf.tasks.length}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                      <span className="truncate max-w-[120px]">{cf.clientName}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                          isActive ? "bg-indigo-800 text-white" : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {completedCount}/{cf.tasks.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Empty State */}
+        {/* DEFAULT VIEW: When No Client Flow is Selected -> Render Client Flows Directory */}
         {!activeFlow ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3 shadow-2xs font-sans">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-xl mx-auto">
-              <i className="fa-solid fa-layer-group"></i>
+          <div className="space-y-6">
+            {/* KPI Summary Statistics Bar */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs flex items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-lg flex-shrink-0">
+                  <i className="fa-solid fa-folder-tree"></i>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Flows</p>
+                  <p className="text-xl font-extrabold text-slate-900">{clientFlows.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs flex items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center text-lg flex-shrink-0">
+                  <i className="fa-solid fa-spinner"></i>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">In Progress</p>
+                  <p className="text-xl font-extrabold text-slate-900">{inProgressFlowsCount}</p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs flex items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center text-lg flex-shrink-0">
+                  <i className="fa-solid fa-circle-check"></i>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Completed</p>
+                  <p className="text-xl font-extrabold text-slate-900">{completedFlowsCount}</p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs flex items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center text-lg flex-shrink-0">
+                  <i className="fa-solid fa-list-check"></i>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Pending Tasks</p>
+                  <p className="text-xl font-extrabold text-purple-700">{myAssignedTasksCount}</p>
+                </div>
+              </div>
             </div>
-            <h3 className="text-base font-extrabold text-slate-900">
-              No Client Workflows Found
-            </h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              No project flows match your current filter criteria.
-            </p>
+
+            {/* Client Flows Directory Section */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs p-5 sm:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center space-x-2">
+                    <i className="fa-solid fa-layer-group text-indigo-600"></i>
+                    <span>Select a Client Workflow</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Click any client card below to open their workflow board and start updating tasks.
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-slate-400">
+                  Showing {filteredFlows.length} of {clientFlows.length} Workflows
+                </span>
+              </div>
+
+              {filteredFlows.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-xl mx-auto">
+                    <i className="fa-solid fa-magnifying-glass"></i>
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-900">
+                    No Client Flows Match Criteria
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Try adjusting your search keywords or switching between "In Progress" and "Completed" filters.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredFlows.map((cf) => {
+                    const completedCount = cf.tasks.filter((t) => t.isCompleted).length;
+                    const totalTasks = cf.tasks.length;
+                    const progressPct = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+                    const isCompleted = cf.status === "completed" || progressPct === 100;
+                    const firstPending = cf.tasks.find((t) => !t.isCompleted);
+
+                    const distinctRoles = Array.from(new Set(cf.tasks.map((t) => t.roleName)));
+                    const initials = cf.clientName
+                      ? cf.clientName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()
+                      : "CL";
+
+                    return (
+                      <div
+                        key={cf.id}
+                        onClick={() => setActiveFlowId(cf.id)}
+                        className="bg-white border border-slate-200 hover:border-indigo-500 hover:shadow-md rounded-2xl p-5 transition-all duration-200 cursor-pointer flex flex-col justify-between group space-y-4"
+                      >
+                        {/* Top: Avatar, Client Name, Status */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 font-extrabold text-sm flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-2xs">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">
+                                {cf.clientName}
+                              </h4>
+                              <p className="text-xs text-slate-400 font-mono truncate">{cf.clientEmail}</p>
+                            </div>
+                          </div>
+
+                          {isCompleted ? (
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex-shrink-0 flex items-center space-x-1 uppercase">
+                              <i className="fa-solid fa-check text-[10px]"></i>
+                              <span>Completed</span>
+                            </span>
+                          ) : (
+                            <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex-shrink-0 flex items-center space-x-1 uppercase">
+                              <i className="fa-solid fa-clock text-[10px]"></i>
+                              <span>In Progress</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Flow Info & Campaign */}
+                        <div className="space-y-1.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
+                          <div className="flex items-center justify-between text-xs font-semibold">
+                            <span className="text-indigo-700 truncate font-mono">🚀 {cf.flowName}</span>
+                            <span className="text-slate-500 text-[11px] uppercase tracking-wider font-mono">{cf.campaign}</span>
+                          </div>
+                          {firstPending ? (
+                            <p className="text-xs text-slate-600 font-medium truncate pt-0.5">
+                              <span className="text-slate-400 font-normal">Next:</span> #{cf.tasks.findIndex((t) => t.id === firstPending.id) + 1} {firstPending.title} ({firstPending.roleName})
+                            </p>
+                          ) : (
+                            <p className="text-xs text-emerald-600 font-semibold truncate pt-0.5">
+                              ✓ All {totalTasks} deliverables completed!
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                            <span>Progress</span>
+                            <span className="font-mono text-slate-900 font-extrabold">
+                              {completedCount}/{totalTasks} Tasks ({progressPct}%)
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                isCompleted ? "bg-emerald-500" : "bg-indigo-600"
+                              }`}
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Card Footer: Roles & Action */}
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-xs text-slate-400 font-medium">
+                            {distinctRoles.length} {distinctRoles.length === 1 ? "Role" : "Roles"} involved
+                          </span>
+                          <span className="text-xs font-extrabold text-indigo-600 group-hover:text-indigo-700 flex items-center space-x-1.5">
+                            <span>Open Workflow</span>
+                            <i className="fa-solid fa-arrow-right text-[11px] group-hover:translate-x-1 transition-transform"></i>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden font-sans p-5 sm:p-6 space-y-6">
@@ -659,6 +895,14 @@ export default function ManagementPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setActiveFlowId(null)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <i className="fa-solid fa-arrow-left text-xs"></i>
+                  <span>Change Client</span>
+                </button>
+
                 <button
                   onClick={() => router.push(`/crms/view-flow?id=${activeFlow.id}`)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"

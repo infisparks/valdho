@@ -214,12 +214,31 @@ export default function ManagementPage() {
     }
   };
 
-  // Toggle Checkbox Status Handler
+  // Helper to check if current logged in user can edit a specific task/role
+  const canUserEditRoleTask = (roleId?: string, roleName?: string) => {
+    if (!userData) return false;
+    const userRoleId = userData.roleId || "";
+    const userRoleNameLower = (userData.roleName || "").toLowerCase().trim();
+    const taskRoleId = roleId || "";
+    const taskRoleNameLower = (roleName || "").toLowerCase().trim();
+
+    return (
+      (userRoleId && taskRoleId && userRoleId === taskRoleId) ||
+      (userRoleNameLower && taskRoleNameLower && userRoleNameLower === taskRoleNameLower)
+    );
+  };
+
+  // Toggle Checkbox Status Handler: Strictly restricted to assigned role specialist
   const handleToggleTaskCheckbox = async (
     clientFlowId: string,
     task: ClientFlowTask,
     currentText: string
   ) => {
+    if (!canUserEditRoleTask(task.roleId, task.roleName)) {
+      alert(`⚠️ Permission Denied: Only staff assigned to the '${task.roleName}' role can edit or complete this task.`);
+      return;
+    }
+
     if (task.isCompleted) {
       setUncheckWarningModalData({
         clientFlowId,
@@ -331,6 +350,11 @@ export default function ManagementPage() {
     task: ClientFlowTask,
     newText: string
   ) => {
+    if (!canUserEditRoleTask(task.roleId, task.roleName)) {
+      alert(`⚠️ Permission Denied: Only staff assigned to the '${task.roleName}' role can update notes for this task.`);
+      return;
+    }
+
     setIsUpdatingTask(true);
     const userEmail = currentUser?.email || "Staff";
     const nowIso = new Date().toISOString();
@@ -977,7 +1001,7 @@ export default function ManagementPage() {
 
                 if (selectedRoleDropdown !== "all" && role.id !== selectedRoleDropdown) return false;
 
-                if (roleFilterMode === "my_role" && !isMyRole && !isAdmin) return false;
+                if (roleFilterMode === "my_role" && !isMyRole) return false;
                 if (roleFilterMode === "pending" && !hasPending) return false;
                 if (roleFilterMode === "assigned" && staffForRole.length === 0) return false;
 
@@ -1201,7 +1225,6 @@ export default function ManagementPage() {
                       ) : (
                         filteredRoles.map((role) => {
                           const isMyRoleColumn =
-                            isAdmin ||
                             userData?.roleId === role.id ||
                             userData?.roleName?.toLowerCase() === role.name.toLowerCase();
 
@@ -1414,7 +1437,6 @@ export default function ManagementPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
                       {filteredRoles.map((role) => {
                         const isMyRoleColumn =
-                          isAdmin ||
                           userData?.roleId === role.id ||
                           userData?.roleName?.toLowerCase() === role.name.toLowerCase();
 
@@ -1619,7 +1641,6 @@ export default function ManagementPage() {
                           <tbody className="divide-y divide-slate-100 font-medium">
                             {filteredRoles.map((role) => {
                               const isMyRoleColumn =
-                                isAdmin ||
                                 userData?.roleId === role.id ||
                                 userData?.roleName?.toLowerCase() === role.name.toLowerCase();
 

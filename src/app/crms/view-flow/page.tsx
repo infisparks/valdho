@@ -157,12 +157,31 @@ function ViewFlowCanvasContent() {
     canvasRef.current.scrollTop = scrollTop - walkY;
   };
 
-  // Toggle Checkbox Status Handler
+  // Helper to check if current logged in user can edit a specific task/role
+  const canUserEditRoleTask = (roleId?: string, roleName?: string) => {
+    if (!userData) return false;
+    const userRoleId = userData.roleId || "";
+    const userRoleNameLower = (userData.roleName || "").toLowerCase().trim();
+    const taskRoleId = roleId || "";
+    const taskRoleNameLower = (roleName || "").toLowerCase().trim();
+
+    return (
+      (userRoleId && taskRoleId && userRoleId === taskRoleId) ||
+      (userRoleNameLower && taskRoleNameLower && userRoleNameLower === taskRoleNameLower)
+    );
+  };
+
+  // Toggle Checkbox Status Handler: Restricted to assigned role specialist
   const handleToggleTaskCheckbox = async (
     clientFlowId: string,
     task: ClientFlowTask,
     currentText: string
   ) => {
+    if (!canUserEditRoleTask(task.roleId, task.roleName)) {
+      alert(`⚠️ Permission Denied: Only staff assigned to the '${task.roleName}' role can edit or complete this task.`);
+      return;
+    }
+
     if (task.isCompleted) {
       setUncheckWarningModalData({
         clientFlowId,
@@ -274,6 +293,11 @@ function ViewFlowCanvasContent() {
     task: ClientFlowTask,
     newText: string
   ) => {
+    if (!canUserEditRoleTask(task.roleId, task.roleName)) {
+      alert(`⚠️ Permission Denied: Only staff assigned to the '${task.roleName}' role can update notes for this task.`);
+      return;
+    }
+
     setIsUpdatingTask(true);
     const userEmail = currentUser?.email || "Staff";
     const nowIso = new Date().toISOString();
@@ -777,7 +801,7 @@ function ViewFlowCanvasContent() {
                           const currentDraftText =
                             draftTexts[task.id] !== undefined ? draftTexts[task.id] : (task.textValue || "");
 
-                          const isEditable = isAdmin || isMyRoleColumn;
+                          const isEditable = isMyRoleColumn;
 
                           return (
                             <div

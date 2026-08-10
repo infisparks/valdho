@@ -1338,6 +1338,7 @@ export const MASTER_ADMIN_UID = "Z6Q2eQIQQuQf1rgk1hdWWxVUdLX2";
 
 const DEFAULT_ROLES: RoleData[] = [
   { id: "role_admin", name: "Admin", description: "Full system administration & role management access", isDeleted: false },
+  { id: "role_appointment_setter_1", name: "Appointment_Setter_1", description: "Access pipeline data and operations, restricted from deleting pipeline data", isDeleted: false },
   { id: "role_onboarding", name: "Onboarding Specialist", description: "Handles client onboarding & contract snapshot creation", isDeleted: false },
   { id: "role_research", name: "Research", description: "Market research & client survey analysis", isDeleted: false },
   { id: "role_editor", name: "Editor", description: "Content & proposal editing staff", isDeleted: false },
@@ -1363,6 +1364,17 @@ export async function getRoles(): Promise<RoleData[]> {
     const result: RoleData[] = Object.keys(data)
       .map((k) => data[k])
       .filter((r) => !r.isDeleted);
+
+    if (!result.some((r) => r.id === "role_appointment_setter_1" || r.name === "Appointment_Setter_1")) {
+      const appSetterRole: RoleData = {
+        id: "role_appointment_setter_1",
+        name: "Appointment_Setter_1",
+        description: "Access pipeline data and operations, restricted from deleting pipeline data",
+        isDeleted: false,
+      };
+      await set(ref(db, "roles/role_appointment_setter_1"), appSetterRole);
+      result.push(appSetterRole);
+    }
 
     return result.sort((a, b) => (a.name.toLowerCase() === "admin" ? -1 : 1));
   } catch (err) {

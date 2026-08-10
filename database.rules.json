@@ -13,7 +13,9 @@
         ".write": "auth != null && (
           auth.uid === 'Z6Q2eQIQQuQf1rgk1hdWWxVUdLX2' ||
           (auth.token.email != null && auth.token.email === 'firstoption@gmai.com') ||
-          (root.child('users').child(auth.uid).child('roleId').val() === 'role_admin')
+          (root.child('users').child(auth.uid).child('roleId').val() === 'role_admin') ||
+          (auth.token.email != null && $userId === auth.token.email.replace('.', '_')) ||
+          $userId === auth.uid
         )"
       }
     },
@@ -23,7 +25,7 @@
     },
     "leads": {
       ".read": "auth != null",
-      ".write": true
+      ".write": "auth != null"
     },
     "slots": {
       ".read": true,

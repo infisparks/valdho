@@ -24,8 +24,10 @@ function LoginContent() {
         const { syncAndGetUser, MASTER_ADMIN_UID } = await import("@/lib/firebase");
         const userData = await syncAndGetUser(user.uid, user.email || "");
         const isAdmin = user.uid === MASTER_ADMIN_UID || userData.roleId === "role_admin" || user.email?.toLowerCase().startsWith("firstoption");
+        const isAppointmentSetter = userData.roleId === "role_appointment_setter_1" || userData.roleName === "Appointment_Setter_1" || userData.roleName?.toLowerCase().includes("appointment_setter");
+        const canAccessCRM = isAdmin || isAppointmentSetter;
 
-        if (isAdmin) {
+        if (canAccessCRM) {
           router.replace(redirectTarget || "/crms");
         } else {
           router.replace("/management");
@@ -47,8 +49,10 @@ function LoginContent() {
       const { syncAndGetUser, MASTER_ADMIN_UID } = await import("@/lib/firebase");
       const userData = await syncAndGetUser(res.user.uid, res.user.email || "");
       const isAdmin = res.user.uid === MASTER_ADMIN_UID || userData.roleId === "role_admin" || res.user.email?.toLowerCase().startsWith("firstoption");
+      const isAppointmentSetter = userData.roleId === "role_appointment_setter_1" || userData.roleName === "Appointment_Setter_1" || userData.roleName?.toLowerCase().includes("appointment_setter");
+      const canAccessCRM = isAdmin || isAppointmentSetter;
 
-      if (isAdmin) {
+      if (canAccessCRM) {
         router.replace(redirectTarget || "/crms");
       } else {
         router.replace("/management");

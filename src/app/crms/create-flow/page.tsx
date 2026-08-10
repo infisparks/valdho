@@ -75,7 +75,7 @@ export default function CreateFlowPage() {
           user.email?.toLowerCase().startsWith("firstoption");
 
         if (!isAdmin) {
-          setAccessDenied(true);
+          router.replace("/crms?tab=pipeline");
         } else {
           setAccessDenied(false);
           // Load Roles & Existing Templates

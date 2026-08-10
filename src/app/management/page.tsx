@@ -442,12 +442,31 @@ export default function ManagementPage() {
     userData?.roleId === "role_admin" ||
     currentUser?.email?.toLowerCase().startsWith("firstoption");
 
-  // Filter flows by tab status & search
+  const canAccessCRM =
+    isAdmin ||
+    userData?.roleId === "role_appointment_setter_1" ||
+    userData?.roleName === "Appointment_Setter_1" ||
+    userData?.roleName?.toLowerCase().includes("appointment_setter");
+
+  // Filter flows by tab status & search & user task assignment
   const filteredFlows = clientFlows.filter((cf) => {
     const isFlowCompleted = cf.status === "completed";
 
     if (activeTab === "in_progress" && isFlowCompleted) return false;
     if (activeTab === "completed" && !isFlowCompleted) return false;
+
+    // For non-admin staff users (e.g. Sadaam Amir), only show workflows containing tasks assigned to their role
+    if (!isAdmin) {
+      const userRoleId = userData?.roleId || "";
+      const userRoleNameLower = (userData?.roleName || "").toLowerCase();
+
+      const hasMyTask = cf.tasks.some(
+        (t) =>
+          (userRoleId && t.roleId === userRoleId) ||
+          (userRoleNameLower && (t.roleName || "").toLowerCase().includes(userRoleNameLower))
+      );
+      if (!hasMyTask) return false;
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -532,13 +551,13 @@ export default function ManagementPage() {
               <span className="hidden sm:inline">Raise Ticket</span>
             </button>
 
-            {isAdmin && (
+            {canAccessCRM && (
               <button
                 onClick={() => router.push("/crms")}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
               >
-                <i className="fa-solid fa-sliders text-xs"></i>
-                <span className="hidden sm:inline">CRM Portal</span>
+                <i className="fa-solid fa-columns text-xs text-indigo-600"></i>
+                <span className="hidden sm:inline">Pipeline Board</span>
               </button>
             )}
 

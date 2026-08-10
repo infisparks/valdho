@@ -262,6 +262,23 @@ export default function CRMPage() {
   const [ticketStatusFilter, setTicketStatusFilter] = useState<string>("all");
   const [ticketLevelFilter, setTicketLevelFilter] = useState<string>("all");
 
+  // User Role & Permission Checks
+  const isUserAdmin = Boolean(
+    currentUser?.uid === MASTER_ADMIN_UID ||
+    currentUserData?.roleId === "role_admin" ||
+    currentUserData?.roleName?.toLowerCase() === "admin" ||
+    currentUser?.email?.toLowerCase().startsWith("firstoption")
+  );
+
+  const isAppointmentSetter = Boolean(
+    currentUserData?.roleId === "role_appointment_setter_1" ||
+    currentUserData?.roleName === "Appointment_Setter_1" ||
+    currentUserData?.roleName?.toLowerCase().includes("appointment_setter")
+  );
+
+  // Appointment_Setter_1 can access pipeline & perform all operations EXCEPT delete pipeline data
+  const canDeletePipelineData = Boolean(isUserAdmin && !isAppointmentSetter);
+
   // Read URL query parameter on initial load to preserve route state on refresh
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -272,6 +289,18 @@ export default function CRMPage() {
       }
     }
   }, []);
+
+  // Non-Admin tab access enforcement: Redirect non-admin staff users to the Pipeline Stage Board
+  useEffect(() => {
+    if (!isUserAdmin && currentUserData && activeTab !== "pipeline") {
+      setActiveTab("pipeline");
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", "pipeline");
+        window.history.pushState({}, "", url.toString());
+      }
+    }
+  }, [isUserAdmin, currentUserData, activeTab]);
 
   // Helper to switch active tab and sync URL query parameter
   const changeTab = useCallback((tab: "leads" | "pipeline" | "meetings" | "calendar" | "onboarded" | "roles" | "tickets") => {
@@ -384,6 +413,7 @@ export default function CRMPage() {
   const [sendRescheduleWhatsapp, setSendRescheduleWhatsapp] = useState<boolean>(true);
   const [isRescheduling, setIsRescheduling] = useState<boolean>(false);
 
+
   // Dashboard Leads Tab Date Filter State
   const [leadsDatePreset, setLeadsDatePreset] = useState<
     "last_7_days" | "today" | "yesterday" | "specific_date" | "custom_range" | "all_time"
@@ -463,6 +493,10 @@ export default function CRMPage() {
 
   // Soft Delete Stage (Move to Recycle Bin)
   const handleSoftDeleteStage = async (stageId: string) => {
+    if (!canDeletePipelineData) {
+      alert("Permission Denied: 'Appointment_Setter_1' role cannot delete pipeline stages.");
+      return;
+    }
     const target = pipelineStages.find((s) => s.id === stageId);
     if (target?.isCompulsory || stageId === "raw" || stageId === "won") {
       alert("Compulsory Core Stages ('Leads' & 'Won') cannot be deleted or removed!");
@@ -915,7 +949,7 @@ export default function CRMPage() {
     }
   };
 
-  // Check Auth State & Access Control (Admin Only Access)
+  // Check Auth State & Access Control (Admin & Appointment Setter 1 Access)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -925,8 +959,11 @@ export default function CRMPage() {
         const userData = await syncAndGetUser(user.uid, user.email || "");
         setCurrentUserData(userData);
 
-        const isAdmin = user.uid === MASTER_ADMIN_UID || userData.roleId === "role_admin" || userData.roleName.toLowerCase() === "admin" || user.email?.toLowerCase().startsWith("firstoption");
-        if (!isAdmin) {
+        const isAdmin = user.uid === MASTER_ADMIN_UID || userData.roleId === "role_admin" || userData.roleName?.toLowerCase() === "admin" || user.email?.toLowerCase().startsWith("firstoption");
+        const isAppointmentSetter = userData.roleId === "role_appointment_setter_1" || userData.roleName === "Appointment_Setter_1" || userData.roleName?.toLowerCase().includes("appointment_setter");
+        const canAccessCRM = isAdmin || isAppointmentSetter;
+
+        if (!canAccessCRM) {
           setAccessDenied(true);
         } else {
           setAccessDenied(false);
@@ -1501,12 +1538,20 @@ export default function CRMPage() {
 
   // Open Delete Confirmation Modal
   const handleDeleteLead = (leadToDelete: LeadData) => {
+    if (!canDeletePipelineData) {
+      alert("Permission Denied: 'Appointment_Setter_1' role has access to pipeline data but cannot delete records.");
+      return;
+    }
     setDeleteConfirmModalLead(leadToDelete);
     setDeleteInputText("");
   };
 
   // Perform Permanent Delete upon typing 'delete' in confirmation modal
   const handleConfirmDeleteLeadAction = async () => {
+    if (!canDeletePipelineData) {
+      alert("Permission Denied: 'Appointment_Setter_1' role has access to pipeline data but cannot delete records.");
+      return;
+    }
     if (!deleteConfirmModalLead) return;
     if (deleteInputText.trim().toLowerCase() !== "delete") {
       alert("Please type 'delete' to confirm deletion.");
@@ -1648,12 +1693,20 @@ export default function CRMPage() {
 
   // Trigger Delete Onboard Confirmation Modal
   const handleOpenDeleteOnboardModal = (record: OnboardRecord) => {
+    if (!canDeletePipelineData) {
+      alert("Permission Denied: 'Appointment_Setter_1' role cannot delete onboarded records.");
+      return;
+    }
     setDeleteOnboardModalRecord(record);
     setDeleteConfirmInput("");
   };
 
   // Execute Onboard Record Deletion
   const handleConfirmDeleteOnboard = async () => {
+    if (!canDeletePipelineData) {
+      alert("Permission Denied: 'Appointment_Setter_1' role cannot delete onboarded records.");
+      return;
+    }
     if (!deleteOnboardModalRecord || deleteConfirmInput.trim() !== "CONFIRM") return;
     setIsDeletingOnboard(true);
 
@@ -2224,96 +2277,100 @@ export default function CRMPage() {
                 <span>Pipeline Stage Board</span>
               </button>
 
-              <button
-                onClick={() => {
-                  changeTab("leads");
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  activeTab === "leads"
-                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <i className="fa-solid fa-chart-line text-sm text-indigo-600"></i>
-                <span>Dashboard & Leads</span>
-              </button>
+              {isUserAdmin && (
+                <>
+                  <button
+                    onClick={() => {
+                      changeTab("leads");
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "leads"
+                        ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="fa-solid fa-chart-line text-sm text-indigo-600"></i>
+                    <span>Dashboard & Leads</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  changeTab("meetings");
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  activeTab === "meetings"
-                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <i className="fa-solid fa-calendar-check text-sm text-indigo-600"></i>
-                <span>Scheduled Meetings</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      changeTab("meetings");
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "meetings"
+                        ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="fa-solid fa-calendar-check text-sm text-indigo-600"></i>
+                    <span>Scheduled Meetings</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  changeTab("calendar");
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  activeTab === "calendar"
-                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <i className="fa-solid fa-calendar-days text-sm text-indigo-600"></i>
-                <span>Meetings Calendar</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      changeTab("calendar");
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "calendar"
+                        ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="fa-solid fa-calendar-days text-sm text-indigo-600"></i>
+                    <span>Meetings Calendar</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  changeTab("onboarded");
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  activeTab === "onboarded"
-                    ? "bg-emerald-50 text-emerald-700 shadow-2xs font-extrabold border-l-4 border-emerald-600"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <i className="fa-solid fa-award text-sm text-emerald-600"></i>
-                <div className="flex items-center justify-between w-full">
-                  <span>Onboarded Clients</span>
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                    {allOnboardedList.length}
-                  </span>
-                </div>
-              </button>
+                  <button
+                    onClick={() => {
+                      changeTab("onboarded");
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "onboarded"
+                        ? "bg-emerald-50 text-emerald-700 shadow-2xs font-extrabold border-l-4 border-emerald-600"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="fa-solid fa-award text-sm text-emerald-600"></i>
+                    <div className="flex items-center justify-between w-full">
+                      <span>Onboarded Clients</span>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                        {allOnboardedList.length}
+                      </span>
+                    </div>
+                  </button>
 
-              <button
-                onClick={() => {
-                  changeTab("tickets");
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  activeTab === "tickets"
-                    ? "bg-rose-50 text-rose-700 shadow-2xs font-extrabold border-l-4 border-rose-600"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <i className="fa-solid fa-ticket text-sm text-rose-600"></i>
-                <div className="flex items-center justify-between w-full">
-                  <span>Support Tickets</span>
-                  {supportTickets.filter((t) => t.status === "open").length > 0 ? (
-                    <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-2xs">
-                      {supportTickets.filter((t) => t.status === "open").length}
-                    </span>
-                  ) : (
-                    <span className="bg-slate-100 text-slate-600 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                      {supportTickets.length}
-                    </span>
-                  )}
-                </div>
-              </button>
+                  <button
+                    onClick={() => {
+                      changeTab("tickets");
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "tickets"
+                        ? "bg-rose-50 text-rose-700 shadow-2xs font-extrabold border-l-4 border-rose-600"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="fa-solid fa-ticket text-sm text-rose-600"></i>
+                    <div className="flex items-center justify-between w-full">
+                      <span>Support Tickets</span>
+                      {supportTickets.filter((t) => t.status === "open").length > 0 ? (
+                        <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-2xs">
+                          {supportTickets.filter((t) => t.status === "open").length}
+                        </span>
+                      ) : (
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                          {supportTickets.length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </>
+              )}
             </div>
 
             {/* SECTION 2: SYSTEM & INTEGRATIONS */}
@@ -2322,31 +2379,35 @@ export default function CRMPage() {
                 System & Integrations
               </div>
 
-              <button
-                onClick={() => {
-                  router.push("/crms/whatsapp#integrations");
-                  setIsMobileSidebarOpen(false);
-                }}
-                className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs"
-              >
-                <i className="fa-solid fa-video text-sm text-indigo-600"></i>
-                <span>Google Meet & Integrations 🎥</span>
-              </button>
+              {isUserAdmin && (
+                <>
+                  <button
+                    onClick={() => {
+                      router.push("/crms/whatsapp#integrations");
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs"
+                  >
+                    <i className="fa-solid fa-video text-sm text-indigo-600"></i>
+                    <span>Google Meet & Integrations 🎥</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  changeTab("roles");
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  activeTab === "roles"
-                    ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <i className="fa-solid fa-user-gear text-sm text-indigo-600"></i>
-                <span>Roles & Workflow Flows</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      changeTab("roles");
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "roles"
+                        ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="fa-solid fa-user-gear text-sm text-indigo-600"></i>
+                    <span>Roles & Workflow Flows</span>
+                  </button>
+                </>
+              )}
 
               <button
                 onClick={() => router.push("/management")}
@@ -3445,53 +3506,61 @@ export default function CRMPage() {
                       className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none w-36 sm:w-44"
                     />
 
-                    <button
-                      onClick={() => setIsManagePipelineModalOpen(true)}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center space-x-1.5 cursor-pointer"
-                    >
-                      <i className="fa-solid fa-gear"></i>
-                      <span>Manage Stages ⚙️</span>
-                    </button>
+                    {isUserAdmin && (
+                      <button
+                        onClick={() => setIsManagePipelineModalOpen(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                      >
+                        <i className="fa-solid fa-gear"></i>
+                        <span>Manage Stages ⚙️</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2 text-xs font-bold text-slate-500 overflow-x-auto pt-1 scrollbar-thin scroll-smooth touch-pan-x">
-                  <button
-                    onClick={() => changeTab("leads")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
-                  >
-                    All Leads List
-                  </button>
+                  {isUserAdmin && (
+                    <button
+                      onClick={() => changeTab("leads")}
+                      className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
+                    >
+                      All Leads List
+                    </button>
+                  )}
                   <button
                     onClick={() => changeTab("pipeline")}
                     className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-2xs whitespace-nowrap font-extrabold"
                   >
                     Pipeline Board
                   </button>
-                  <button
-                    onClick={() => changeTab("onboarded")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-emerald-700 font-extrabold whitespace-nowrap"
-                  >
-                    Onboarded Directory ({allOnboardedList.length})
-                  </button>
-                  <button
-                    onClick={() => changeTab("roles")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-indigo-700 font-extrabold whitespace-nowrap"
-                  >
-                    Roles & Flows ({flowTemplatesList.length})
-                  </button>
-                  <button
-                    onClick={() => changeTab("meetings")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
-                  >
-                    Scheduled Meetings
-                  </button>
-                  <button
-                    onClick={() => changeTab("calendar")}
-                    className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
-                  >
-                    Meetings Calendar
-                  </button>
+                  {isUserAdmin && (
+                    <>
+                      <button
+                        onClick={() => changeTab("onboarded")}
+                        className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-emerald-700 font-extrabold whitespace-nowrap"
+                      >
+                        Onboarded Directory ({allOnboardedList.length})
+                      </button>
+                      <button
+                        onClick={() => changeTab("roles")}
+                        className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-indigo-700 font-extrabold whitespace-nowrap"
+                      >
+                        Roles & Flows ({flowTemplatesList.length})
+                      </button>
+                      <button
+                        onClick={() => changeTab("meetings")}
+                        className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
+                      >
+                        Scheduled Meetings
+                      </button>
+                      <button
+                        onClick={() => changeTab("calendar")}
+                        className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
+                      >
+                        Meetings Calendar
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -3717,17 +3786,19 @@ export default function CRMPage() {
                                       <i className="fa-solid fa-triangle-exclamation text-amber-600"></i>
                                       <span>⚠️ Phone missing — WhatsApp skipped</span>
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteLead(lead);
-                                      }}
-                                      className="text-rose-600 hover:text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-rose-100 transition-all flex-shrink-0"
-                                      title="Delete lead from database"
-                                    >
-                                      <i className="fa-solid fa-trash-can"></i>
-                                    </button>
+                                    {canDeletePipelineData && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteLead(lead);
+                                        }}
+                                        className="text-rose-600 hover:text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-rose-100 transition-all flex-shrink-0"
+                                        title="Delete lead from database"
+                                      >
+                                        <i className="fa-solid fa-trash-can"></i>
+                                      </button>
+                                    )}
                                   </div>
                                 ) : isMissingMeetingInfo ? (
                                   <div className="bg-rose-50 border border-rose-200 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
@@ -3772,17 +3843,19 @@ export default function CRMPage() {
                                     <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${stage.bgTag}`}>
                                       {stage.name}
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteLead(lead);
-                                      }}
-                                      className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors text-xs opacity-0 group-hover:opacity-100"
-                                      title="Delete Lead"
-                                    >
-                                      <i className="fa-solid fa-trash-can"></i>
-                                    </button>
+                                    {canDeletePipelineData && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteLead(lead);
+                                        }}
+                                        className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors text-xs opacity-0 group-hover:opacity-100"
+                                        title="Delete Lead"
+                                      >
+                                        <i className="fa-solid fa-trash-can"></i>
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
 
@@ -5694,16 +5767,18 @@ export default function CRMPage() {
               </div>
 
               <div className="flex items-center space-x-2 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleDeleteLead(selectedLead)}
-                  disabled={isDeletingLead}
-                  className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all flex items-center space-x-1 cursor-pointer disabled:opacity-50"
-                  title="Delete this lead from database"
-                >
-                  <i className="fa-solid fa-trash-can"></i>
-                  <span>Delete Lead</span>
-                </button>
+                {canDeletePipelineData && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteLead(selectedLead)}
+                    disabled={isDeletingLead}
+                    className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                    title="Delete this lead from database"
+                  >
+                    <i className="fa-solid fa-trash-can"></i>
+                    <span>Delete Lead</span>
+                  </button>
+                )}
                 <button
                   onClick={handleCloseDrawer}
                   className="w-8 h-8 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 flex items-center justify-center text-sm transition-colors"

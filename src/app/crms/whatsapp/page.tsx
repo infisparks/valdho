@@ -179,7 +179,7 @@ export default function WhatsappManagerPage() {
           user.email?.toLowerCase().startsWith("firstoption");
 
         if (!isAdmin) {
-          router.replace("/management");
+          router.replace("/crms?tab=pipeline");
         } else {
           setAuthLoading(false);
         }

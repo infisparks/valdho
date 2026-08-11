@@ -21,15 +21,31 @@ import {
 } from "@/lib/firebase";
 import { signOut, onAuthStateChanged, User } from "firebase/auth";
 
-const SERVER_URL =
+const SERVER_URL = (
+  process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL ||
   process.env.NEXT_PUBLIC_SERVER_URL ||
-  (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:5001` : "http://localhost:5001");
+  "https://first.infiplus.in"
+).replace(/\/$/, "");
 
 export default function ManagementPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+
+  const isAdmin = Boolean(
+    currentUser?.uid === MASTER_ADMIN_UID ||
+    userData?.roleId === "role_admin" ||
+    userData?.roleName?.toLowerCase() === "admin" ||
+    currentUser?.email?.toLowerCase().startsWith("firstoption")
+  );
+
+  const canAccessCRM = Boolean(
+    isAdmin ||
+    userData?.roleId === "role_appointment_setter_1" ||
+    userData?.roleName === "Appointment_Setter_1" ||
+    userData?.roleName?.toLowerCase().includes("appointment_setter")
+  );
 
   // Client Flows & Users State
   const [clientFlows, setClientFlows] = useState<ClientFlowInstance[]>([]);
@@ -137,7 +153,7 @@ export default function ManagementPage() {
     } finally {
       setIsDataLoading(false);
     }
-  }, [currentUser, activeFlowId]);
+  }, [currentUser, userData, activeFlowId, isAdmin]);
 
   useEffect(() => {
     if (currentUser) {
@@ -486,17 +502,6 @@ export default function ManagementPage() {
       </div>
     );
   }
-
-  const isAdmin =
-    currentUser?.uid === MASTER_ADMIN_UID ||
-    userData?.roleId === "role_admin" ||
-    currentUser?.email?.toLowerCase().startsWith("firstoption");
-
-  const canAccessCRM =
-    isAdmin ||
-    userData?.roleId === "role_appointment_setter_1" ||
-    userData?.roleName === "Appointment_Setter_1" ||
-    userData?.roleName?.toLowerCase().includes("appointment_setter");
 
   // Filter flows by tab status & search & user task assignment
   const filteredFlows = clientFlows.filter((cf) => {

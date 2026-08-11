@@ -115,16 +115,45 @@ export default function TicketManagementPage() {
     return sanitizeEmailToId(currentUser.email || currentUser.uid);
   }, [currentUser]);
 
-  // Helper to check if a ticket is seen by current user
+  // Helper to check if a ticket is received by / assigned to current user
+  const isReceivedByMe = useCallback(
+    (ticket: SupportTicket): boolean => {
+      if (!currentUser) return false;
+      const userId = currentUser.uid;
+      const userEmailLower = (currentUser.email || "").toLowerCase();
+
+      // If ticket is assigned to a specific user
+      if (ticket.assignedToType === "user") {
+        return (
+          ticket.assignedToId === userId ||
+          ticket.assignedToId === currentUser.email ||
+          ticket.assignedToEmail?.toLowerCase() === userEmailLower
+        );
+      }
+
+      // If ticket is assigned to Admin
+      if (ticket.assignedToType === "admin" || !ticket.assignedToType) {
+        return isAdmin;
+      }
+
+      return false;
+    },
+    [currentUser, isAdmin]
+  );
+
+  // Helper to check if a ticket is seen
   const isTicketSeenByMe = useCallback(
     (ticket: SupportTicket): boolean => {
       if (!currentUser) return false;
-      if (ticket.seenByUserIds && ticket.seenByUserIds[currentSanitizedKey]) {
-        return true;
+      if (isReceivedByMe(ticket)) {
+        if (ticket.seenByUserIds && ticket.seenByUserIds[currentSanitizedKey]) {
+          return true;
+        }
+        return Boolean(ticket.isSeen);
       }
-      return Boolean(ticket.isSeen);
+      return Boolean(ticket.isSeen || ticket.seenAt || (ticket.seenByUserIds && Object.keys(ticket.seenByUserIds).length > 0));
     },
-    [currentUser, currentSanitizedKey]
+    [currentUser, currentSanitizedKey, isReceivedByMe]
   );
 
   // Filter tickets by scope, seen status, search, level, and status
@@ -136,10 +165,7 @@ export default function TicketManagementPage() {
     return tickets.filter((t) => {
       // Scope Filter
       if (scopeTab === "assigned_to_me") {
-        const isAssigned =
-          t.assignedToId === userId ||
-          t.assignedToEmail?.toLowerCase() === userEmailLower ||
-          (isAdmin && (t.assignedToType === "admin" || !t.assignedToType));
+        const isAssigned = isReceivedByMe(t);
         if (!isAssigned) return false;
       } else if (scopeTab === "raised_by_me") {
         const isRaisedByMe =
@@ -176,7 +202,7 @@ export default function TicketManagementPage() {
 
       return true;
     });
-  }, [tickets, currentUser, isAdmin, scopeTab, seenFilter, statusFilter, levelFilter, searchQuery, isTicketSeenByMe]);
+  }, [tickets, currentUser, isReceivedByMe, scopeTab, seenFilter, statusFilter, levelFilter, searchQuery, isTicketSeenByMe]);
 
   // Counts for KPIs and Badges
   const counts = useMemo(() => {
@@ -184,12 +210,7 @@ export default function TicketManagementPage() {
     const userEmailLower = (currentUser.email || "").toLowerCase();
     const userId = currentUser.uid;
 
-    const assignedTickets = tickets.filter(
-      (t) =>
-        t.assignedToId === userId ||
-        t.assignedToEmail?.toLowerCase() === userEmailLower ||
-        (isAdmin && (t.assignedToType === "admin" || !t.assignedToType))
-    );
+    const assignedTickets = tickets.filter((t) => isReceivedByMe(t));
     const assignedUnread = assignedTickets.filter((t) => !isTicketSeenByMe(t)).length;
 
     const raisedTickets = tickets.filter(
@@ -200,7 +221,7 @@ export default function TicketManagementPage() {
         t.clientEmail?.toLowerCase() === userEmailLower
     );
 
-    const allUnread = tickets.filter((t) => !isTicketSeenByMe(t)).length;
+    const allUnread = tickets.filter((t) => isReceivedByMe(t) && !isTicketSeenByMe(t)).length;
 
     return {
       assignedUnread,
@@ -209,11 +230,24 @@ export default function TicketManagementPage() {
       allUnread,
       total: tickets.length,
     };
-  }, [tickets, currentUser, isAdmin, isTicketSeenByMe]);
+  }, [tickets, currentUser, isReceivedByMe, isTicketSeenByMe]);
 
-  // Handle Mark Single Ticket as Seen
+  // Unread tickets received by current user in the current filtered view
+  const myUnreadReceivedInView = useMemo(() => {
+    return filteredTickets.filter((t) => isReceivedByMe(t) && !isTicketSeenByMe(t)).length;
+  }, [filteredTickets, isReceivedByMe, isTicketSeenByMe]);
+
+  // Handle Mark Single Ticket as Seen (ONLY for recipient)
   const handleMarkSeen = async (ticketId: string) => {
     if (!currentUser) return;
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+
+    if (!isReceivedByMe(ticket)) {
+      alert("Permission restricted: You can only mark tickets received by or assigned to you as seen.");
+      return;
+    }
+
     const userName = userData?.name || currentUser.displayName || currentUser.email?.split("@")[0] || "User";
     const userKey = currentUser.email || currentUser.uid;
 
@@ -236,11 +270,15 @@ export default function TicketManagementPage() {
     await markSupportTicketSeen(ticketId, userKey, userName);
   };
 
-  // Handle Mark All Visible/Unread as Seen
+  // Handle Mark All Received Unread as Seen
   const handleMarkAllSeen = async () => {
     if (!currentUser) return;
-    const unreadTicketIds = filteredTickets.filter((t) => !isTicketSeenByMe(t)).map((t) => t.id);
-    if (unreadTicketIds.length === 0) return;
+    // Only mark tickets that were RECEIVED BY ME and are UNREAD
+    const unreadReceivedTicketIds = filteredTickets
+      .filter((t) => isReceivedByMe(t) && !isTicketSeenByMe(t))
+      .map((t) => t.id);
+
+    if (unreadReceivedTicketIds.length === 0) return;
 
     setIsBatchMarking(true);
     const userName = userData?.name || currentUser.displayName || currentUser.email?.split("@")[0] || "User";
@@ -250,7 +288,7 @@ export default function TicketManagementPage() {
     // Optimistic local update
     setTickets((prev) =>
       prev.map((t) => {
-        if (unreadTicketIds.includes(t.id)) {
+        if (unreadReceivedTicketIds.includes(t.id)) {
           return {
             ...t,
             isSeen: true,
@@ -263,7 +301,7 @@ export default function TicketManagementPage() {
       })
     );
 
-    await markAllSupportTicketsSeen(unreadTicketIds, userKey, userName);
+    await markAllSupportTicketsSeen(unreadReceivedTicketIds, userKey, userName);
     setIsBatchMarking(false);
   };
 
@@ -623,15 +661,15 @@ export default function TicketManagementPage() {
 
             {/* Batch Action: Mark All Seen */}
             <div className="flex items-center space-x-2">
-              {unreadInCurrentView > 0 && (
+              {myUnreadReceivedInView > 0 && (
                 <button
                   onClick={handleMarkAllSeen}
                   disabled={isBatchMarking}
                   className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black px-3.5 py-2 rounded-xl transition-all shadow-2xs flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                  title="Mark all unread tickets in this view as seen"
+                  title="Mark your unread assigned tickets as seen"
                 >
                   <i className={`fa-solid fa-check-double text-indigo-600 ${isBatchMarking ? "fa-spin" : ""}`}></i>
-                  <span>Mark All as Seen ({unreadInCurrentView}) ✓</span>
+                  <span>Mark My Received as Seen ({myUnreadReceivedInView}) ✓</span>
                 </button>
               )}
 
@@ -755,6 +793,7 @@ export default function TicketManagementPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredTickets.map((t) => {
+              const receivedByMe = isReceivedByMe(t);
               const seen = isTicketSeenByMe(t);
               const levelConfig = {
                 level1: { badge: "bg-rose-100 text-rose-800 border-rose-300", icon: "🚨 Level 1 (Critical)" },
@@ -778,7 +817,7 @@ export default function TicketManagementPage() {
                 <div
                   key={t.id}
                   className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3.5 ${
-                    !seen
+                    receivedByMe && !seen
                       ? "border-indigo-400 ring-2 ring-indigo-500/20 bg-gradient-to-br from-white via-indigo-50/10 to-purple-50/20"
                       : "border-slate-200 hover:border-slate-300"
                   }`}
@@ -795,14 +834,24 @@ export default function TicketManagementPage() {
                           {levelConfig.icon}
                         </span>
 
-                        {!seen ? (
-                          <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                            UNSEEN
+                        {receivedByMe ? (
+                          !seen ? (
+                            <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                              UNSEEN (YOUR ACTION)
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <i className="fa-solid fa-check text-[9px]"></i> Seen by You
+                            </span>
+                          )
+                        ) : t.isSeen ? (
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <i className="fa-solid fa-eye text-slate-500 text-[9px]"></i> Seen by {t.seenBy || assigneeDisplayName}
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <i className="fa-solid fa-check text-[9px]"></i> Seen
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <i className="fa-solid fa-clock text-amber-500 text-[9px]"></i> Awaiting review ({assigneeDisplayName})
                           </span>
                         )}
                       </div>
@@ -855,20 +904,27 @@ export default function TicketManagementPage() {
                   {/* Actions & Seen Trigger */}
                   <div className="flex items-center justify-between text-xs pt-1 flex-wrap gap-2">
                     <div className="flex items-center space-x-2 flex-wrap gap-1">
-                      {/* Mark Seen Button */}
-                      {!seen ? (
-                        <button
-                          onClick={() => handleMarkSeen(t.id)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-2xs flex items-center space-x-1.5 cursor-pointer active:scale-95"
-                          title="Mark this ticket as seen"
-                        >
-                          <i className="fa-solid fa-check"></i>
-                          <span>Mark as Seen</span>
-                        </button>
+                      {/* Mark Seen Button: Available ONLY for the assigned recipient */}
+                      {receivedByMe ? (
+                        !seen ? (
+                          <button
+                            onClick={() => handleMarkSeen(t.id)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-2xs flex items-center space-x-1.5 cursor-pointer active:scale-95"
+                            title="Mark this received ticket as seen"
+                          >
+                            <i className="fa-solid fa-check"></i>
+                            <span>Mark as Seen</span>
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg flex items-center space-x-1">
+                            <i className="fa-solid fa-check-circle text-emerald-600 text-xs"></i>
+                            <span>Seen by you {t.seenAt ? `(${new Date(t.seenAt).toLocaleDateString()})` : "✓"}</span>
+                          </span>
+                        )
                       ) : (
-                        <span className="text-[10px] text-slate-400 font-medium flex items-center space-x-1">
-                          <i className="fa-solid fa-eye text-slate-400 text-xs"></i>
-                          <span>Seen {t.seenAt ? `(${new Date(t.seenAt).toLocaleDateString()})` : "✓"}</span>
+                        <span className="text-[10px] text-slate-400 font-medium bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg flex items-center space-x-1">
+                          <i className="fa-solid fa-lock text-slate-400 text-xs"></i>
+                          <span>Recipient action only ({assigneeDisplayName})</span>
                         </span>
                       )}
 

@@ -1397,6 +1397,45 @@ router.post("/webhook", async (req, res) => {
 });
 
 /**
+ * 10. Save WhatsApp Lead Workflow Configuration
+ * POST /api/whatsapp/config
+ */
+router.post("/config", async (req, res) => {
+  try {
+    const { selectedInstanceName, ticketWhatsappInstance, defaultMeetingUrl, step1Welcome, step2Survey, step3Meeting } = req.body;
+    const configPayload = {
+      selectedInstanceName: selectedInstanceName || "",
+      ticketWhatsappInstance: ticketWhatsappInstance || "",
+      defaultMeetingUrl: defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call",
+      step1Welcome: {
+        isEnabled: step1Welcome?.isEnabled !== false,
+        template: step1Welcome?.template || "Hello {{name}}, thank you for contacting First Option Agency! We have received your contact details (Email: {{email}}, Phone: {{phone}}). Our team will get back to you shortly.",
+      },
+      step2Survey: {
+        isEnabled: step2Survey?.isEnabled !== false,
+        template: step2Survey?.template || "Hello {{name}}, thank you for completing our qualification survey! Your answers have been recorded. Proceed to select a meeting time slot to complete your booking.",
+      },
+      step3Meeting: {
+        isEnabled: step3Meeting?.isEnabled !== false,
+        template: step3Meeting?.template || "🎉 Meeting Confirmed! Hello {{name}}, your strategy session with First Option Agency is booked for {{date}} at {{time}}. Click here to join your video call: {{meeting_url}}",
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    await firebaseDb("whatsapp_configuration/firstoptionagency", "PUT", configPayload);
+
+    return res.status(200).json({
+      success: true,
+      message: "WhatsApp configurations saved successfully",
+      data: configPayload,
+    });
+  } catch (err) {
+    console.error("Save Config Exception:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * 15. Send Staff Flow Notification
  * POST /api/whatsapp/notify-staff-flow
  */
@@ -1471,15 +1510,38 @@ Please log in to your dashboard to review and manage your tasks.`;
 });
 
 /**
- * POST /api/whatsapp/notify-admin-ticket
- * Dispatch instant WhatsApp alert to Admin when a client raises a Support Ticket
+ * 16. Send Ticket Notification (Admin or Assigned Staff User)
+ * POST /api/whatsapp/notify-admin-ticket (and alias POST /api/whatsapp/notify-ticket)
  */
-router.post("/notify-admin-ticket", async (req, res) => {
+async function handleTicketNotification(req, res) {
   try {
-    const { ticketId, ticketNumber, clientName, clientEmail, clientPhone, level, levelLabel, subject, description, domain } = req.body;
+    const {
+      ticketId,
+      ticketNumber,
+      clientName,
+      clientEmail,
+      clientPhone,
+      raisedById,
+      raisedByName,
+      raisedByEmail,
+      raisedByPhone,
+      raisedByRole,
+      assignedToType, // 'admin' | 'user'
+      assignedToId,
+      assignedToName,
+      assignedToEmail,
+      assignedToPhone,
+      assignedToRole,
+      level,
+      levelLabel,
+      subject,
+      description,
+      domain,
+    } = req.body;
 
     const config = (await firebaseDb("whatsapp_configuration/firstoptionagency")) || {};
-    let instanceName = config.selectedInstanceName;
+    // Priority: ticketWhatsappInstance -> selectedInstanceName -> first active open instance
+    let instanceName = await resolveActiveInstance(config.ticketWhatsappInstance || config.selectedInstanceName);
 
     if (!instanceName) {
       const fbInstances = (await firebaseDb("whatsapp_unofficial_instances")) || {};
@@ -1489,10 +1551,83 @@ router.post("/notify-admin-ticket", async (req, res) => {
     }
 
     if (!instanceName) {
-      return res.status(400).json({ success: false, error: "No active WhatsApp instance found" });
+      return res.status(400).json({ success: false, error: "No active WhatsApp instance found for dispatching ticket alerts" });
     }
 
-    // Find Admin phone numbers from both users and users_staff nodes in Firebase
+    const urgencyMap = {
+      level1: "🚨 LEVEL 1 (CRITICAL / URGENT)",
+      level2: "⚡ LEVEL 2 (HIGH PRIORITY)",
+      level3: "📌 LEVEL 3 (MEDIUM PRIORITY)",
+      level4: "ℹ️ LEVEL 4 (GENERAL QUERY)",
+    };
+
+    const urgencyTag = urgencyMap[level] || `LEVEL ${level ? String(level).replace("level", "") : "3"} (${levelLabel || "General"})`;
+    const hostDomain = domain || "firstoptionagency.com";
+    const crmUrl = `http://${hostDomain}/crms?tab=tickets`;
+    const managementUrl = `http://${hostDomain}/management`;
+
+    const senderName = raisedByName || clientName || "Team Member";
+    const senderRole = raisedByRole || "Staff";
+    const senderPhone = raisedByPhone || clientPhone || "N/A";
+    const senderEmail = raisedByEmail || clientEmail || "N/A";
+
+    const isTargetStaff = assignedToType === "user" && (assignedToPhone || assignedToId);
+
+    if (isTargetStaff) {
+      // Find staff phone if not directly provided
+      let targetPhone = assignedToPhone;
+      if (!targetPhone && assignedToId) {
+        const usersObj = (await firebaseDb("users")) || {};
+        const usersStaffObj = (await firebaseDb("users_staff")) || {};
+        const allUsers = { ...usersObj, ...usersStaffObj };
+        const found = Object.values(allUsers).find((u) => u.uid === assignedToId || u.id === assignedToId);
+        if (found && found.phone) targetPhone = found.phone;
+      }
+
+      if (targetPhone) {
+        let cleanStaffPhone = sanitizePhoneNumber(targetPhone);
+        if (cleanStaffPhone.length === 10) cleanStaffPhone = "91" + cleanStaffPhone;
+
+        const staffMessageText = `🎫 *NEW SUPPORT TICKET ASSIGNED TO YOU* 🎫
+
+*Ticket Number:* #${ticketNumber || ticketId}
+*Urgency Level:* ${urgencyTag}
+
+👤 *Raised By:* ${senderName} (${senderRole})
+✉️ *Email:* ${senderEmail}
+📞 *Phone:* ${senderPhone}
+🎯 *Assigned To:* ${assignedToName || "You"} (${assignedToRole || "Staff"})
+
+📌 *Subject:* ${subject}
+
+📝 *Details:*
+${description}
+
+📅 *Assigned At:* ${new Date().toLocaleString()}
+🔗 *Management Portal:* ${managementUrl}
+
+Please log in to your portal to review and take action on this ticket.`;
+
+        const sendRes = await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
+          number: cleanStaffPhone,
+          text: staffMessageText,
+        }).catch((err) => console.error(`Error sending ticket alert to staff ${cleanStaffPhone}:`, err));
+
+        const logId = `ticket_staff_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
+          id: logId,
+          type: "ticket_staff_notification",
+          number: cleanStaffPhone,
+          text: staffMessageText,
+          status: sendRes && sendRes.ok ? "sent" : "pending",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return res.status(200).json({ success: true, message: `Ticket notification sent to assigned staff ${assignedToName || ""}` });
+    }
+
+    // Default: Ticket is assigned to Admin or general support
     const usersObj = (await firebaseDb("users")) || {};
     const usersStaffObj = (await firebaseDb("users_staff")) || {};
     const allUserRecords = { ...usersObj, ...usersStaffObj };
@@ -1513,7 +1648,6 @@ router.post("/notify-admin-ticket", async (req, res) => {
       }
     }
 
-    // Fallback: Check configured admin phone or default master admin phone
     if (config.adminPhone) {
       let cleanConfig = sanitizePhoneNumber(config.adminPhone);
       if (cleanConfig.length === 10) cleanConfig = "91" + cleanConfig;
@@ -1524,24 +1658,15 @@ router.post("/notify-admin-ticket", async (req, res) => {
       adminPhones.add("919958399157"); // Default Master Admin
     }
 
-    const urgencyMap = {
-      level1: "🚨 LEVEL 1 (CRITICAL / URGENT)",
-      level2: "⚡ LEVEL 2 (HIGH PRIORITY)",
-      level3: "📌 LEVEL 3 (MEDIUM PRIORITY)",
-      level4: "ℹ️ LEVEL 4 (GENERAL QUERY)",
-    };
-
-    const urgencyTag = urgencyMap[level] || `LEVEL ${level.replace("level", "")} (${levelLabel || "General"})`;
-    const crmUrl = `http://${domain || "firstoptionagency.com"}/crms`;
-
-    const messageText = `🎫 *NEW SUPPORT TICKET RAISED* 🎫
+    const adminMessageText = `🎫 *NEW SUPPORT TICKET FOR ADMIN* 🎫
 
 *Ticket Number:* #${ticketNumber || ticketId}
 *Urgency Level:* ${urgencyTag}
 
-👤 *Client Name:* ${clientName || "Client"}
-✉️ *Email:* ${clientEmail || "N/A"}
-📞 *Phone:* ${clientPhone || "N/A"}
+👤 *Raised By:* ${senderName} (${senderRole})
+✉️ *Email:* ${senderEmail}
+📞 *Phone:* ${senderPhone}
+🎯 *Assigned To:* Admin / Management
 
 📌 *Subject:* ${subject}
 
@@ -1549,24 +1674,35 @@ router.post("/notify-admin-ticket", async (req, res) => {
 ${description}
 
 📅 *Submitted:* ${new Date().toLocaleString()}
-🔗 *View in CRM:* ${crmUrl}?tab=tickets`;
+🔗 *View in CRM:* ${crmUrl}`;
 
     for (const phone of Array.from(adminPhones)) {
       await evoApiCall(`/message/sendText/${instanceName}`, "POST", {
         number: phone,
-        text: messageText,
+        text: adminMessageText,
       }).catch((err) => console.error(`Error sending ticket alert to admin ${phone}:`, err));
+
+      const logId = `ticket_admin_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      await firebaseDb(`whatsapp_logs/${instanceName}/${logId}`, "PUT", {
+        id: logId,
+        type: "ticket_admin_notification",
+        number: phone,
+        text: adminMessageText,
+        status: "sent",
+        timestamp: new Date().toISOString(),
+      });
     }
 
     return res.status(200).json({ success: true, message: "Admin ticket notification sent!" });
   } catch (err) {
-    console.error("Notify Admin Ticket Exception:", err);
+    console.error("Notify Ticket Exception:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
-});
+}
+
+router.post("/notify-admin-ticket", handleTicketNotification);
+router.post("/notify-ticket", handleTicketNotification);
 
 router.sendMetaCloudApiFounderNotification = sendMetaCloudApiFounderNotification;
 module.exports = router;
 module.exports.sendMetaCloudApiFounderNotification = sendMetaCloudApiFounderNotification;
-
-

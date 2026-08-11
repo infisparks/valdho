@@ -1338,7 +1338,7 @@ export const MASTER_ADMIN_UID = "Z6Q2eQIQQuQf1rgk1hdWWxVUdLX2";
 
 const DEFAULT_ROLES: RoleData[] = [
   { id: "role_admin", name: "Admin", description: "Full system administration & role management access", isDeleted: false },
-  { id: "role_appointment_setter_1", name: "Appointment_Setter_1", description: "Access pipeline data and operations, restricted from deleting pipeline data", isDeleted: false },
+  { id: "role_appointment_setter_1", name: "Appointment_Setter_1", description: "Access pipeline and calendar data & operations, restricted from deleting pipeline data", isDeleted: false },
   { id: "role_onboarding", name: "Onboarding Specialist", description: "Handles client onboarding & contract snapshot creation", isDeleted: false },
   { id: "role_research", name: "Research", description: "Market research & client survey analysis", isDeleted: false },
   { id: "role_editor", name: "Editor", description: "Content & proposal editing staff", isDeleted: false },
@@ -1369,7 +1369,7 @@ export async function getRoles(): Promise<RoleData[]> {
       const appSetterRole: RoleData = {
         id: "role_appointment_setter_1",
         name: "Appointment_Setter_1",
-        description: "Access pipeline data and operations, restricted from deleting pipeline data",
+        description: "Access pipeline and calendar data & operations, restricted from deleting pipeline data",
         isDeleted: false,
       };
       await set(ref(db, "roles/role_appointment_setter_1"), appSetterRole);
@@ -1933,6 +1933,17 @@ export interface SupportTicket {
   clientName: string;
   clientEmail: string;
   clientPhone?: string;
+  raisedById?: string;
+  raisedByName?: string;
+  raisedByEmail?: string;
+  raisedByPhone?: string;
+  raisedByRole?: string;
+  assignedToType?: "admin" | "user";
+  assignedToId?: string;
+  assignedToName?: string;
+  assignedToEmail?: string;
+  assignedToPhone?: string;
+  assignedToRole?: string;
   level: "level1" | "level2" | "level3" | "level4";
   levelLabel: string;
   subject: string;
@@ -2023,6 +2034,37 @@ export async function deleteSupportTicket(ticketId: string): Promise<boolean> {
     return true;
   } catch (err) {
     console.error("deleteSupportTicket Error:", err);
+    return false;
+  }
+}
+
+/**
+ * Get ticket WhatsApp dispatcher instance configured by Admin
+ */
+export async function getTicketWhatsappInstance(): Promise<string> {
+  try {
+    const snap = await get(ref(db, "whatsapp_configuration/firstoptionagency/ticketWhatsappInstance"));
+    if (snap.exists()) return snap.val();
+    const selSnap = await get(ref(db, "whatsapp_configuration/firstoptionagency/selectedInstanceName"));
+    if (selSnap.exists()) return selSnap.val();
+    return "";
+  } catch (err) {
+    return "";
+  }
+}
+
+/**
+ * Set ticket WhatsApp dispatcher instance in Firebase RTDB
+ */
+export async function setTicketWhatsappInstance(instanceName: string): Promise<boolean> {
+  try {
+    await update(ref(db, "whatsapp_configuration/firstoptionagency"), {
+      ticketWhatsappInstance: instanceName,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (err) {
+    console.error("Error setting ticket WhatsApp instance:", err);
     return false;
   }
 }

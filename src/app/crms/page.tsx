@@ -32,8 +32,10 @@ import {
   markClientFlowCompleted,
   deleteClientFlowInstance,
   getAllSupportTickets,
+  createSupportTicket,
   updateSupportTicketStatus,
   deleteSupportTicket,
+  setTicketWhatsappInstance as saveTicketWhatsappInstance,
   SupportTicket,
   MASTER_ADMIN_UID,
   sanitizeEmailToId,
@@ -261,6 +263,20 @@ export default function CRMPage() {
   const [ticketSearchQuery, setTicketSearchQuery] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState<string>("all");
   const [ticketLevelFilter, setTicketLevelFilter] = useState<string>("all");
+  const [ticketAssigneeFilter, setTicketAssigneeFilter] = useState<string>("all");
+  const [ticketWhatsappInstance, setTicketWhatsappInstance] = useState<string>("");
+  const [isSavingTicketInstance, setIsSavingTicketInstance] = useState<boolean>(false);
+
+  // CRM Raise Ticket Modal State
+  const [isCrmRaiseTicketModalOpen, setIsCrmRaiseTicketModalOpen] = useState(false);
+  const [crmTicketLevel, setCrmTicketLevel] = useState<"level1" | "level2" | "level3" | "level4">("level3");
+  const [crmTicketTargetType, setCrmTicketTargetType] = useState<"admin" | "user">("admin");
+  const [crmTicketTargetUserId, setCrmTicketTargetUserId] = useState<string>("");
+  const [crmTicketSubject, setCrmTicketSubject] = useState("");
+  const [crmTicketDescription, setCrmTicketDescription] = useState("");
+  const [isSubmittingCrmTicket, setIsSubmittingCrmTicket] = useState(false);
+  const [crmTicketSuccessMsg, setCrmTicketSuccessMsg] = useState("");
+  const [crmTicketErrorMsg, setCrmTicketErrorMsg] = useState("");
 
   // User Role & Permission Checks
   const isUserAdmin = Boolean(
@@ -276,7 +292,7 @@ export default function CRMPage() {
     currentUserData?.roleName?.toLowerCase().includes("appointment_setter")
   );
 
-  // Appointment_Setter_1 can access pipeline & perform all operations EXCEPT delete pipeline data
+  // Appointment_Setter_1 can access pipeline & calendar data, perform all operations EXCEPT delete pipeline data
   const canDeletePipelineData = Boolean(isUserAdmin && !isAppointmentSetter);
 
   // Read URL query parameter on initial load to preserve route state on refresh
@@ -290,17 +306,20 @@ export default function CRMPage() {
     }
   }, []);
 
-  // Non-Admin tab access enforcement: Redirect non-admin staff users to the Pipeline Stage Board
+  // Non-Admin tab access enforcement: Allow pipeline and calendar for appointment setter, else pipeline
   useEffect(() => {
-    if (!isUserAdmin && currentUserData && activeTab !== "pipeline") {
-      setActiveTab("pipeline");
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.set("tab", "pipeline");
-        window.history.pushState({}, "", url.toString());
+    if (!isUserAdmin && currentUserData) {
+      const allowedTabs = isAppointmentSetter ? ["pipeline", "calendar"] : ["pipeline"];
+      if (!allowedTabs.includes(activeTab)) {
+        setActiveTab("pipeline");
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.set("tab", "pipeline");
+          window.history.pushState({}, "", url.toString());
+        }
       }
     }
-  }, [isUserAdmin, currentUserData, activeTab]);
+  }, [isUserAdmin, isAppointmentSetter, currentUserData, activeTab]);
 
   // Helper to switch active tab and sync URL query parameter
   const changeTab = useCallback((tab: "leads" | "pipeline" | "meetings" | "calendar" | "onboarded" | "roles" | "tickets") => {
@@ -1052,6 +1071,139 @@ export default function CRMPage() {
     } else {
       alert("Failed to delete support ticket. Please try again.");
     }
+  };
+
+  // Realtime Sync WhatsApp Configuration for Ticket Dispatcher
+  useEffect(() => {
+    const configRef = ref(db, "whatsapp_configuration/firstoptionagency");
+    const unsubscribe = onValue(configRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        setTicketWhatsappInstance(data.ticketWhatsappInstance || data.selectedInstanceName || "");
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleUpdateTicketWhatsappInstance = async (newInstanceName: string) => {
+    setTicketWhatsappInstance(newInstanceName);
+    setIsSavingTicketInstance(true);
+    try {
+      await saveTicketWhatsappInstance(newInstanceName);
+    } catch (err) {
+      console.error("Failed to update ticket WhatsApp instance:", err);
+    } finally {
+      setTimeout(() => setIsSavingTicketInstance(false), 800);
+    }
+  };
+
+  // Handle CRM Raise Ticket Submit
+  const handleCrmRaiseTicketSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!crmTicketSubject.trim() || !crmTicketDescription.trim()) {
+      setCrmTicketErrorMsg("Please enter subject and description for the support ticket.");
+      return;
+    }
+
+    if (crmTicketTargetType === "user" && !crmTicketTargetUserId) {
+      setCrmTicketErrorMsg("Please select the staff member / user to assign this ticket to.");
+      return;
+    }
+
+    setIsSubmittingCrmTicket(true);
+    setCrmTicketErrorMsg("");
+    setCrmTicketSuccessMsg("");
+
+    const levelLabels = {
+      level1: "Critical / Urgent",
+      level2: "High Priority",
+      level3: "Medium Priority",
+      level4: "Low / General Query",
+    };
+
+    const targetUser = crmTicketTargetType === "user" ? usersList.find((u) => u.uid === crmTicketTargetUserId || u.emailId === crmTicketTargetUserId || u.email === crmTicketTargetUserId) : null;
+
+    const assignedToType: "admin" | "user" = crmTicketTargetType === "user" && targetUser ? "user" : "admin";
+    const assignedToId = targetUser ? (targetUser.uid || targetUser.emailId || targetUser.email || "") : "admin";
+    const assignedToName = targetUser ? (targetUser.name || targetUser.email || "Staff Member") : "Admin / Management";
+    const assignedToEmail = targetUser ? (targetUser.email || "") : "";
+    const assignedToPhone = targetUser ? (targetUser.phone || "") : "";
+    const assignedToRole = targetUser ? (targetUser.roleName || "Staff") : "Admin";
+
+    const raisedById = currentUser?.uid || "";
+    const raisedByName = currentUserData?.name || currentUser?.displayName || currentUser?.email?.split("@")[0] || "Executive Staff";
+    const raisedByEmail = currentUser?.email || "";
+    const raisedByPhone = currentUserData?.phone || "";
+    const raisedByRole = currentUserData?.roleName || (isUserAdmin ? "Admin" : "Staff");
+
+    const res = await createSupportTicket({
+      clientId: currentUser?.uid,
+      clientName: raisedByName,
+      clientEmail: raisedByEmail,
+      clientPhone: raisedByPhone,
+      raisedById,
+      raisedByName,
+      raisedByEmail,
+      raisedByPhone,
+      raisedByRole,
+      assignedToType,
+      assignedToId,
+      assignedToName,
+      assignedToEmail,
+      assignedToPhone,
+      assignedToRole,
+      level: crmTicketLevel,
+      levelLabel: levelLabels[crmTicketLevel],
+      subject: crmTicketSubject.trim(),
+      description: crmTicketDescription.trim(),
+    });
+
+    if (res.success && res.data) {
+      setSupportTickets((prev) => [res.data!, ...prev]);
+      const targetLabel = assignedToType === "user" ? assignedToName : "Admin";
+      setCrmTicketSuccessMsg(`Ticket #${res.data.ticketNumber} created for ${targetLabel}! WhatsApp notification sent.`);
+      setCrmTicketSubject("");
+      setCrmTicketDescription("");
+      setCrmTicketTargetType("admin");
+      setCrmTicketTargetUserId("");
+
+      const domain = typeof window !== "undefined" ? window.location.host : "firstoptionagency.com";
+      fetch(`${SERVER_URL}/api/whatsapp/notify-admin-ticket`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketId: res.data.id,
+          ticketNumber: res.data.ticketNumber,
+          clientName: raisedByName,
+          clientEmail: raisedByEmail,
+          clientPhone: raisedByPhone,
+          raisedById,
+          raisedByName,
+          raisedByEmail,
+          raisedByPhone,
+          raisedByRole,
+          assignedToType,
+          assignedToId,
+          assignedToName,
+          assignedToEmail,
+          assignedToPhone,
+          assignedToRole,
+          level: crmTicketLevel,
+          levelLabel: levelLabels[crmTicketLevel],
+          subject: res.data.subject,
+          description: res.data.description,
+          domain,
+        }),
+      }).catch((err) => console.error("Error sending ticket WhatsApp notification:", err));
+
+      setTimeout(() => {
+        setIsCrmRaiseTicketModalOpen(false);
+        setCrmTicketSuccessMsg("");
+      }, 2500);
+    } else {
+      setCrmTicketErrorMsg(res.error || "Failed to create support ticket.");
+    }
+    setIsSubmittingCrmTicket(false);
   };
 
   useEffect(() => {
@@ -2277,6 +2429,23 @@ export default function CRMPage() {
                 <span>Pipeline Stage Board</span>
               </button>
 
+              {(isUserAdmin || isAppointmentSetter) && (
+                <button
+                  onClick={() => {
+                    changeTab("calendar");
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    activeTab === "calendar"
+                      ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <i className="fa-solid fa-calendar-days text-sm text-indigo-600"></i>
+                  <span>Meetings Calendar</span>
+                </button>
+              )}
+
               {isUserAdmin && (
                 <>
                   <button
@@ -2307,21 +2476,6 @@ export default function CRMPage() {
                   >
                     <i className="fa-solid fa-calendar-check text-sm text-indigo-600"></i>
                     <span>Scheduled Meetings</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      changeTab("calendar");
-                      setIsMobileSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                      activeTab === "calendar"
-                        ? "bg-indigo-50 text-indigo-700 shadow-2xs font-extrabold border-l-4 border-indigo-600"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <i className="fa-solid fa-calendar-days text-sm text-indigo-600"></i>
-                    <span>Meetings Calendar</span>
                   </button>
 
                   <button
@@ -3021,22 +3175,71 @@ export default function CRMPage() {
                   </div>
                   <div>
                     <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                      Client Support Tickets Directory
+                      Support Tickets & Team Escalations
                     </h2>
                     <p className="text-xs text-slate-500 font-medium">
-                      Manage and resolve support tickets raised by clients with urgency levels (Level 1 to Level 4).
+                      Raise, assign, and track support tickets across staff & admin. Instant WhatsApp notifications are dispatched automatically.
                     </p>
                   </div>
                 </div>
 
-                <button
-                  onClick={fetchSupportTickets}
-                  disabled={isLoadingTickets}
-                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-2xs transition-all flex items-center space-x-2 cursor-pointer self-start sm:self-auto"
-                >
-                  <i className={`fa-solid fa-rotate-right ${isLoadingTickets ? "fa-spin" : ""}`}></i>
-                  <span>Refresh Tickets 🔄</span>
-                </button>
+                <div className="flex items-center space-x-2 self-start sm:self-auto flex-wrap gap-2">
+                  <button
+                    onClick={() => setIsCrmRaiseTicketModalOpen(true)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center space-x-2 cursor-pointer active:scale-95"
+                  >
+                    <i className="fa-solid fa-plus text-xs"></i>
+                    <span>Raise New Ticket 🚀</span>
+                  </button>
+
+                  <button
+                    onClick={fetchSupportTickets}
+                    disabled={isLoadingTickets}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-2xs transition-all flex items-center space-x-2 cursor-pointer"
+                  >
+                    <i className={`fa-solid fa-rotate-right ${isLoadingTickets ? "fa-spin" : ""}`}></i>
+                    <span>Refresh 🔄</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 1-TIME ADMIN WHATSAPP DISPATCHER INSTANCE CONFIG CARD */}
+              <div className="bg-gradient-to-r from-indigo-50/70 via-purple-50/50 to-white border border-indigo-200 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm shadow-xs flex-shrink-0">
+                    <i className="fa-brands fa-whatsapp text-lg"></i>
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-xs sm:text-sm font-extrabold text-indigo-950">
+                        Ticket WhatsApp Dispatcher Instance
+                      </h3>
+                      {isSavingTicketInstance && (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <i className="fa-solid fa-check text-[9px]"></i> Saved
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Select which connected WhatsApp instance/number sends ticket notifications to Admin or assigned staff members.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 w-full md:w-auto">
+                  <select
+                    value={ticketWhatsappInstance}
+                    onChange={(e) => handleUpdateTicketWhatsappInstance(e.target.value)}
+                    className="w-full md:w-64 bg-white border border-indigo-300 rounded-xl px-3 py-2 text-xs font-extrabold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                  >
+                    <option value="">-- Use Default / First Open Instance --</option>
+                    {whatsappInstancesList.map((inst: any) => (
+                      <option key={inst.instanceId || inst.instanceName} value={inst.instanceName}>
+                        {inst.status === "open" ? "🟢" : "🟡"} {inst.instanceName} ({inst.status || "active"}) {inst.number ? `• ${inst.number}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* KPI Summary Cards */}
@@ -3072,23 +3275,40 @@ export default function CRMPage() {
               </div>
 
               {/* Filters Bar */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                <div className="relative w-full sm:w-72">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-3 text-xs">
+                <div className="relative w-full lg:w-72">
                   <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
                   <input
                     type="text"
                     value={ticketSearchQuery}
                     onChange={(e) => setTicketSearchQuery(e.target.value)}
-                    placeholder="Search by ticket #, client, subject..."
+                    placeholder="Search ticket #, person, subject..."
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600"
                   />
                 </div>
 
-                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                <div className="flex items-center space-x-2 w-full lg:w-auto flex-wrap gap-2">
+                  <select
+                    value={ticketAssigneeFilter}
+                    onChange={(e) => setTicketAssigneeFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600 cursor-pointer flex-1 sm:flex-none"
+                  >
+                    <option value="all">All Assignees</option>
+                    <option value="admin">🛡️ Admin / Management</option>
+                    {usersList.map((u) => {
+                      const userKey = u.emailId || u.uid || u.email;
+                      return (
+                        <option key={userKey} value={userKey}>
+                          👤 {u.name || u.email} ({u.roleName || "Staff"})
+                        </option>
+                      );
+                    })}
+                  </select>
+
                   <select
                     value={ticketLevelFilter}
                     onChange={(e) => setTicketLevelFilter(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600 cursor-pointer"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600 cursor-pointer flex-1 sm:flex-none"
                   >
                     <option value="all">All Urgency Levels</option>
                     <option value="level1">🚨 Level 1 (Critical)</option>
@@ -3100,7 +3320,7 @@ export default function CRMPage() {
                   <select
                     value={ticketStatusFilter}
                     onChange={(e) => setTicketStatusFilter(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600 cursor-pointer"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-600 cursor-pointer flex-1 sm:flex-none"
                   >
                     <option value="all">All Statuses</option>
                     <option value="open">🔴 Open</option>
@@ -3118,13 +3338,21 @@ export default function CRMPage() {
                       !ticketSearchQuery ||
                       t.ticketNumber.toLowerCase().includes(ticketSearchQuery.toLowerCase()) ||
                       t.clientName.toLowerCase().includes(ticketSearchQuery.toLowerCase()) ||
+                      (t.raisedByName && t.raisedByName.toLowerCase().includes(ticketSearchQuery.toLowerCase())) ||
+                      (t.assignedToName && t.assignedToName.toLowerCase().includes(ticketSearchQuery.toLowerCase())) ||
                       t.clientEmail.toLowerCase().includes(ticketSearchQuery.toLowerCase()) ||
                       t.subject.toLowerCase().includes(ticketSearchQuery.toLowerCase());
 
                     const matchesLevel = ticketLevelFilter === "all" || t.level === ticketLevelFilter;
                     const matchesStatus = ticketStatusFilter === "all" || t.status === ticketStatusFilter;
+                    const matchesAssignee =
+                      ticketAssigneeFilter === "all" ||
+                      (ticketAssigneeFilter === "admin" && (t.assignedToType === "admin" || !t.assignedToType)) ||
+                      (ticketAssigneeFilter !== "admin" &&
+                        (t.assignedToId === ticketAssigneeFilter ||
+                          (t.assignedToName && t.assignedToName.toLowerCase().includes(ticketAssigneeFilter.toLowerCase()))));
 
-                    return matchesSearch && matchesLevel && matchesStatus;
+                    return matchesSearch && matchesLevel && matchesStatus && matchesAssignee;
                   });
 
                   if (filteredSupportTickets.length === 0) {
@@ -3134,7 +3362,7 @@ export default function CRMPage() {
                           <i className="fa-solid fa-ticket-simple"></i>
                         </div>
                         <h3 className="text-sm font-extrabold text-slate-900">No Support Tickets Found</h3>
-                        <p className="text-xs text-slate-500">When clients raise support tickets from their portal, they will appear here instantly.</p>
+                        <p className="text-xs text-slate-500">When tickets are raised or assigned, they will appear here instantly with live status.</p>
                       </div>
                     );
                   }
@@ -3149,8 +3377,16 @@ export default function CRMPage() {
                           level4: { badge: "bg-slate-100 text-slate-800 border-slate-300", icon: "ℹ️ Level 4 (Low)" },
                         }[t.level] || { badge: "bg-slate-100 text-slate-800 border-slate-300", icon: t.levelLabel };
 
-                        const cleanPhone = (t.clientPhone || "").replace(/\D/g, "");
-                        const waNumber = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
+                        const cleanRaiserPhone = (t.raisedByPhone || t.clientPhone || "").replace(/\D/g, "");
+                        const waRaiserNumber = cleanRaiserPhone.length === 10 ? "91" + cleanRaiserPhone : cleanRaiserPhone;
+
+                        const cleanAssigneePhone = (t.assignedToPhone || "").replace(/\D/g, "");
+                        const waAssigneeNumber = cleanAssigneePhone.length === 10 ? "91" + cleanAssigneePhone : cleanAssigneePhone;
+
+                        const raiserDisplayName = t.raisedByName || t.clientName || "User";
+                        const raiserRoleName = t.raisedByRole || "Client / Staff";
+                        const assigneeDisplayName = t.assignedToName || "Admin / Management";
+                        const assigneeRoleName = t.assignedToRole || (t.assignedToType === "user" ? "Staff" : "System Admin");
 
                         return (
                           <div key={t.id} className="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
@@ -3188,39 +3424,66 @@ export default function CRMPage() {
                               {t.description}
                             </p>
 
-                            <div className="flex items-center justify-between text-xs pt-1">
+                            {/* Raised By & Assigned To Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
                               <div className="space-y-0.5">
-                                <p className="font-extrabold text-slate-900 flex items-center space-x-1">
-                                  <i className="fa-solid fa-user text-[10px] text-slate-400"></i>
-                                  <span>{t.clientName}</span>
+                                <span className="text-[10px] font-extrabold uppercase text-slate-400">👤 Raised By:</span>
+                                <p className="font-extrabold text-slate-900 truncate">
+                                  {raiserDisplayName}
                                 </p>
-                                <p className="text-[10px] text-slate-500 font-mono">{t.clientEmail}</p>
+                                <p className="text-[10px] text-slate-500 font-medium truncate">
+                                  {raiserRoleName} {t.raisedByPhone || t.clientPhone ? `• 📞 ${t.raisedByPhone || t.clientPhone}` : ""}
+                                </p>
                               </div>
 
-                              {waNumber && (
-                                <a
-                                  href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${t.clientName}, regarding your support ticket #${t.ticketNumber} (${t.subject}): `)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-3 py-1.5 rounded-xl transition-colors inline-flex items-center space-x-1.5 shadow-2xs"
-                                >
-                                  <i className="fa-brands fa-whatsapp text-emerald-600 text-xs"></i>
-                                  <span>Chat on WhatsApp</span>
-                                </a>
-                              )}
+                              <div className="space-y-0.5">
+                                <span className="text-[10px] font-extrabold uppercase text-indigo-500">🎯 Assigned To:</span>
+                                <p className="font-extrabold text-indigo-900 truncate">
+                                  {assigneeDisplayName}
+                                </p>
+                                <p className="text-[10px] text-indigo-600 font-medium truncate">
+                                  {assigneeRoleName} {t.assignedToPhone ? `• 📞 ${t.assignedToPhone}` : ""}
+                                </p>
+                              </div>
                             </div>
 
-                            <div className="border-t border-slate-100 pt-2 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                              <span>Submitted: {new Date(t.createdAt).toLocaleString()}</span>
+                            {/* Action Buttons */}
+                            <div className="flex items-center justify-between text-xs pt-1 flex-wrap gap-2">
                               <div className="flex items-center space-x-2">
-                                {t.resolvedBy && <span>Resolved by: {t.resolvedBy}</span>}
+                                {waAssigneeNumber && t.assignedToType === "user" && (
+                                  <a
+                                    href={`https://wa.me/${waAssigneeNumber}?text=${encodeURIComponent(`Hi ${assigneeDisplayName}, regarding support ticket #${t.ticketNumber} (${t.subject}): `)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-2.5 py-1 rounded-xl transition-colors inline-flex items-center space-x-1 shadow-2xs"
+                                  >
+                                    <i className="fa-brands fa-whatsapp text-emerald-600 text-xs"></i>
+                                    <span>Chat Assignee</span>
+                                  </a>
+                                )}
+
+                                {waRaiserNumber && (
+                                  <a
+                                    href={`https://wa.me/${waRaiserNumber}?text=${encodeURIComponent(`Hi ${raiserDisplayName}, regarding your support ticket #${t.ticketNumber} (${t.subject}): `)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-extrabold px-2.5 py-1 rounded-xl transition-colors inline-flex items-center space-x-1 shadow-2xs"
+                                  >
+                                    <i className="fa-brands fa-whatsapp text-indigo-600 text-xs"></i>
+                                    <span>Chat Raiser</span>
+                                  </a>
+                                )}
+                              </div>
+
+                              <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-medium ml-auto">
+                                <span>{new Date(t.createdAt).toLocaleDateString()}</span>
                                 <button
                                   onClick={() => handleDeleteTicket(t)}
                                   title="Delete Support Ticket"
                                   className="text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-colors flex items-center space-x-1 cursor-pointer"
                                 >
                                   <i className="fa-solid fa-trash-can text-[10px]"></i>
-                                  <span>Delete Ticket</span>
+                                  <span>Delete</span>
                                 </button>
                               </div>
                             </div>
@@ -3533,6 +3796,14 @@ export default function CRMPage() {
                   >
                     Pipeline Board
                   </button>
+                  {(isUserAdmin || isAppointmentSetter) && (
+                    <button
+                      onClick={() => changeTab("calendar")}
+                      className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
+                    >
+                      Meetings Calendar
+                    </button>
+                  )}
                   {isUserAdmin && (
                     <>
                       <button
@@ -3552,12 +3823,6 @@ export default function CRMPage() {
                         className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
                       >
                         Scheduled Meetings
-                      </button>
-                      <button
-                        onClick={() => changeTab("calendar")}
-                        className="px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
-                      >
-                        Meetings Calendar
                       </button>
                     </>
                   )}
@@ -7641,6 +7906,223 @@ export default function CRMPage() {
                 <span>{isDeletingLead ? "Deleting..." : "Permanently Delete Lead"}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CRM RAISE SUPPORT TICKET MODAL */}
+      {isCrmRaiseTicketModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0"
+            onClick={() => setIsCrmRaiseTicketModalOpen(false)}
+          />
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 space-y-5 font-sans border border-slate-200 z-10 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm shadow-2xs font-extrabold">
+                  <i className="fa-solid fa-ticket"></i>
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+                    Raise Support Ticket / Escalation
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Create a ticket assigned to Admin or specific staff with instant WhatsApp notification.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsCrmRaiseTicketModalOpen(false)}
+                className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark text-sm"></i>
+              </button>
+            </div>
+
+            {crmTicketSuccessMsg && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold p-3 rounded-xl flex items-center space-x-2">
+                <i className="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                <span>{crmTicketSuccessMsg}</span>
+              </div>
+            )}
+
+            {crmTicketErrorMsg && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold p-3 rounded-xl flex items-center space-x-2">
+                <i className="fa-solid fa-circle-exclamation text-rose-600 text-base"></i>
+                <span>{crmTicketErrorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCrmRaiseTicketSubmit} className="space-y-4 text-xs font-medium text-slate-700">
+              {/* ASSIGN TICKET TO SELECTOR */}
+              <div className="space-y-2">
+                <label className="block text-slate-900 font-extrabold">Send / Assign Ticket To *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCrmTicketTargetType("admin");
+                      setCrmTicketTargetUserId("");
+                    }}
+                    className={`p-2.5 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                      crmTicketTargetType === "admin"
+                        ? "bg-indigo-50 border-indigo-400 text-indigo-900 ring-2 ring-indigo-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <i className="fa-solid fa-shield-halved text-indigo-600"></i>
+                    <span>🛡️ Admin / Management</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCrmTicketTargetType("user")}
+                    className={`p-2.5 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                      crmTicketTargetType === "user"
+                        ? "bg-indigo-50 border-indigo-400 text-indigo-900 ring-2 ring-indigo-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <i className="fa-solid fa-user-group text-indigo-600"></i>
+                    <span>👤 Specific Staff User</span>
+                  </button>
+                </div>
+
+                {crmTicketTargetType === "user" && (
+                  <div className="pt-1">
+                    <label className="block mb-1 text-[11px] font-bold text-slate-600">Select Team Member / Staff *</label>
+                    <select
+                      value={crmTicketTargetUserId}
+                      onChange={(e) => setCrmTicketTargetUserId(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium cursor-pointer"
+                      required
+                    >
+                      <option value="">-- Choose Staff / User to Assign --</option>
+                      {usersList
+                        .filter((u) => u.uid !== currentUser?.uid && u.email !== currentUser?.email)
+                        .map((u) => {
+                          const userKey = u.emailId || u.uid || u.email;
+                          return (
+                            <option key={userKey} value={userKey}>
+                              👤 {u.name || u.email} ({u.roleName || "Staff"}) {u.phone ? `• 📞 ${u.phone}` : ""}
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* URGENCY LEVEL */}
+              <div>
+                <label className="block mb-1.5 text-slate-900 font-extrabold">Select Urgency Level *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCrmTicketLevel("level1")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      crmTicketLevel === "level1"
+                        ? "bg-rose-50 border-rose-400 text-rose-900 ring-2 ring-rose-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-rose-600 flex items-center space-x-1">
+                      <span>🚨 Level 1</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">Critical / Urgent Issue</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCrmTicketLevel("level2")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      crmTicketLevel === "level2"
+                        ? "bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-amber-600 flex items-center space-x-1">
+                      <span>⚡ Level 2</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">High Priority Issue</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCrmTicketLevel("level3")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      crmTicketLevel === "level3"
+                        ? "bg-indigo-50 border-indigo-400 text-indigo-900 ring-2 ring-indigo-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-indigo-600 flex items-center space-x-1">
+                      <span>📌 Level 3</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">Medium Priority</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCrmTicketLevel("level4")}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col space-y-0.5 transition-all cursor-pointer ${
+                      crmTicketLevel === "level4"
+                        ? "bg-slate-100 border-slate-400 text-slate-900 ring-2 ring-slate-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <span className="font-extrabold text-slate-700 flex items-center space-x-1">
+                      <span>ℹ️ Level 4</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">Low / General Query</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-slate-900 font-bold">Subject / Issue Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={crmTicketSubject}
+                  onChange={(e) => setCrmTicketSubject(e.target.value)}
+                  placeholder="e.g. Needs immediate review on contract onboarding"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1 text-slate-900 font-bold">Detailed Description *</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={crmTicketDescription}
+                  onChange={(e) => setCrmTicketDescription(e.target.value)}
+                  placeholder="Provide all context and details..."
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCrmRaiseTicketModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCrmTicket}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingCrmTicket && <i className="fa-solid fa-circle-notch fa-spin"></i>}
+                  <span>Submit & Send WhatsApp Alert 🚀</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

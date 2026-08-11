@@ -49,6 +49,8 @@ export default function ManagementPage() {
   // Support Ticket Modal & State
   const [isRaiseTicketModalOpen, setIsRaiseTicketModalOpen] = useState(false);
   const [ticketLevel, setTicketLevel] = useState<"level1" | "level2" | "level3" | "level4">("level3");
+  const [ticketTargetType, setTicketTargetType] = useState<"admin" | "user">("admin");
+  const [ticketTargetUserId, setTicketTargetUserId] = useState<string>("");
   const [ticketSubject, setTicketSubject] = useState("");
   const [ticketDescription, setTicketDescription] = useState("");
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
@@ -111,7 +113,14 @@ export default function ManagementPage() {
 
       const userEmailLower = currentUser.email?.toLowerCase();
       const filteredTickets = tickets.filter(
-        (t) => t.clientId === currentUser.uid || t.clientEmail?.toLowerCase() === userEmailLower
+        (t) =>
+          t.clientId === currentUser.uid ||
+          t.clientEmail?.toLowerCase() === userEmailLower ||
+          t.raisedById === currentUser.uid ||
+          t.raisedByEmail?.toLowerCase() === userEmailLower ||
+          t.assignedToId === currentUser.uid ||
+          t.assignedToEmail?.toLowerCase() === userEmailLower ||
+          (isAdmin && (t.assignedToType === "admin" || !t.assignedToType))
       );
       setMyTicketsList(filteredTickets);
 
@@ -144,6 +153,11 @@ export default function ManagementPage() {
       return;
     }
 
+    if (ticketTargetType === "user" && !ticketTargetUserId) {
+      setTicketErrorMsg("Please select the staff member / user to assign this ticket to.");
+      return;
+    }
+
     setIsSubmittingTicket(true);
     setTicketErrorMsg("");
     setTicketSuccessMsg("");
@@ -155,15 +169,37 @@ export default function ManagementPage() {
       level4: "Low / General Query",
     };
 
-    const clientName = userData?.name || currentUser?.displayName || currentUser?.email?.split("@")[0] || "Client";
-    const clientEmail = currentUser?.email || "";
-    const clientPhone = userData?.phone || "";
+    const targetUser = ticketTargetType === "user" ? usersList.find((u) => u.uid === ticketTargetUserId || u.emailId === ticketTargetUserId || u.email === ticketTargetUserId) : null;
+
+    const assignedToType: "admin" | "user" = ticketTargetType === "user" && targetUser ? "user" : "admin";
+    const assignedToId = targetUser ? (targetUser.uid || targetUser.emailId || targetUser.email || "") : "admin";
+    const assignedToName = targetUser ? (targetUser.name || targetUser.email || "Staff Member") : "Admin / Management";
+    const assignedToEmail = targetUser ? (targetUser.email || "") : "";
+    const assignedToPhone = targetUser ? (targetUser.phone || "") : "";
+    const assignedToRole = targetUser ? (targetUser.roleName || "Staff") : "Admin";
+
+    const raisedById = currentUser?.uid || "";
+    const raisedByName = userData?.name || currentUser?.displayName || currentUser?.email?.split("@")[0] || "User";
+    const raisedByEmail = currentUser?.email || "";
+    const raisedByPhone = userData?.phone || "";
+    const raisedByRole = userData?.roleName || (isAdmin ? "Admin" : "Staff");
 
     const res = await createSupportTicket({
       clientId: currentUser?.uid,
-      clientName,
-      clientEmail,
-      clientPhone,
+      clientName: raisedByName,
+      clientEmail: raisedByEmail,
+      clientPhone: raisedByPhone,
+      raisedById,
+      raisedByName,
+      raisedByEmail,
+      raisedByPhone,
+      raisedByRole,
+      assignedToType,
+      assignedToId,
+      assignedToName,
+      assignedToEmail,
+      assignedToPhone,
+      assignedToRole,
       level: ticketLevel,
       levelLabel: levelLabels[ticketLevel],
       subject: ticketSubject.trim(),
@@ -172,9 +208,12 @@ export default function ManagementPage() {
 
     if (res.success && res.data) {
       setMyTicketsList((prev) => [res.data!, ...prev]);
-      setTicketSuccessMsg(`Ticket #${res.data.ticketNumber} raised successfully! Admin has been notified via WhatsApp.`);
+      const targetLabel = assignedToType === "user" ? assignedToName : "Admin";
+      setTicketSuccessMsg(`Ticket #${res.data.ticketNumber} raised for ${targetLabel}! WhatsApp notification dispatched.`);
       setTicketSubject("");
       setTicketDescription("");
+      setTicketTargetType("admin");
+      setTicketTargetUserId("");
 
       const domain = typeof window !== "undefined" ? window.location.host : "firstoptionagency.com";
       fetch(`${SERVER_URL}/api/whatsapp/notify-admin-ticket`, {
@@ -183,16 +222,27 @@ export default function ManagementPage() {
         body: JSON.stringify({
           ticketId: res.data.id,
           ticketNumber: res.data.ticketNumber,
-          clientName,
-          clientEmail,
-          clientPhone,
+          clientName: raisedByName,
+          clientEmail: raisedByEmail,
+          clientPhone: raisedByPhone,
+          raisedById,
+          raisedByName,
+          raisedByEmail,
+          raisedByPhone,
+          raisedByRole,
+          assignedToType,
+          assignedToId,
+          assignedToName,
+          assignedToEmail,
+          assignedToPhone,
+          assignedToRole,
           level: ticketLevel,
           levelLabel: levelLabels[ticketLevel],
           subject: res.data.subject,
           description: res.data.description,
           domain,
         }),
-      }).catch((err) => console.error("Error sending admin ticket WhatsApp notification:", err));
+      }).catch((err) => console.error("Error sending ticket WhatsApp notification:", err));
 
       setTimeout(() => {
         setIsRaiseTicketModalOpen(false);
@@ -1894,6 +1944,65 @@ export default function ManagementPage() {
             )}
 
             <form onSubmit={handleRaiseTicketSubmit} className="space-y-4 text-xs font-medium text-slate-700">
+              {/* ASSIGN TICKET TO SELECTOR */}
+              <div className="space-y-2">
+                <label className="block text-slate-900 font-extrabold">Send / Assign Ticket To *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTicketTargetType("admin");
+                      setTicketTargetUserId("");
+                    }}
+                    className={`p-2.5 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                      ticketTargetType === "admin"
+                        ? "bg-indigo-50 border-indigo-400 text-indigo-900 ring-2 ring-indigo-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <i className="fa-solid fa-shield-halved text-indigo-600"></i>
+                    <span>🛡️ Admin / Management</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTicketTargetType("user")}
+                    className={`p-2.5 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                      ticketTargetType === "user"
+                        ? "bg-indigo-50 border-indigo-400 text-indigo-900 ring-2 ring-indigo-400/30 font-extrabold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    }`}
+                  >
+                    <i className="fa-solid fa-user-group text-indigo-600"></i>
+                    <span>👤 Specific Staff User</span>
+                  </button>
+                </div>
+
+                {ticketTargetType === "user" && (
+                  <div className="pt-1">
+                    <label className="block mb-1 text-[11px] font-bold text-slate-600">Select Team Member / Staff *</label>
+                    <select
+                      value={ticketTargetUserId}
+                      onChange={(e) => setTicketTargetUserId(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium cursor-pointer"
+                      required
+                    >
+                      <option value="">-- Choose Staff / User to Assign --</option>
+                      {usersList
+                        .filter((u) => u.uid !== currentUser?.uid && u.email !== currentUser?.email)
+                        .map((u) => {
+                          const userKey = u.emailId || u.uid || u.email;
+                          return (
+                            <option key={userKey} value={userKey}>
+                              👤 {u.name || u.email} ({u.roleName || "Staff"}) {u.phone ? `• 📞 ${u.phone}` : ""}
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block mb-1.5 text-slate-900 font-extrabold">Select Urgency Level *</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -2007,7 +2116,7 @@ export default function ManagementPage() {
               <div className="pt-4 border-t border-slate-100 space-y-3">
                 <h4 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
                   <i className="fa-solid fa-clock-rotate-left text-slate-500"></i>
-                  <span>Submitted Tickets ({myTicketsList.length})</span>
+                  <span>Submitted & Assigned Tickets ({myTicketsList.length})</span>
                 </h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {myTicketsList.map((t) => (
@@ -2028,7 +2137,7 @@ export default function ManagementPage() {
                       </div>
                       <p className="font-semibold text-slate-800">{t.subject}</p>
                       <div className="flex items-center justify-between text-[10px] text-slate-500">
-                        <span>{t.levelLabel}</span>
+                        <span>🎯 {t.assignedToName ? `${t.assignedToName} (${t.assignedToRole || "Staff"})` : "Admin"}</span>
                         <span>{new Date(t.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>

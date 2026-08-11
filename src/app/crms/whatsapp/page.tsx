@@ -50,6 +50,7 @@ interface GoogleMeetAccount {
 
 interface WhatsappWorkflowConfig {
   selectedInstanceName: string;
+  ticketWhatsappInstance?: string;
   defaultMeetingUrl: string;
   step1Welcome: StepConfig;
   step2Survey: StepConfig;
@@ -93,6 +94,7 @@ export default function WhatsappManagerPage() {
   // Auto-Workflow Config State for 3 Steps
   const [config, setConfig] = useState<WhatsappWorkflowConfig>({
     selectedInstanceName: "",
+    ticketWhatsappInstance: "",
     defaultMeetingUrl: "https://meet.google.com/firstoption-strategy-call",
     step1Welcome: {
       isEnabled: true,
@@ -216,6 +218,7 @@ export default function WhatsappManagerPage() {
         const data = snapshot.val();
         setConfig({
           selectedInstanceName: data.selectedInstanceName || "",
+          ticketWhatsappInstance: data.ticketWhatsappInstance || "",
           defaultMeetingUrl: data.defaultMeetingUrl || "https://meet.google.com/firstoption-strategy-call",
           step1Welcome: {
             isEnabled: data.step1Welcome?.isEnabled !== false,
@@ -685,20 +688,38 @@ export default function WhatsappManagerPage() {
             </div>
 
             {/* Global Instance Selector for Auto-Notifications */}
-            <div className="space-y-1 w-full sm:w-auto">
-              <label className="text-[11px] font-bold text-slate-700 block">Sender Instance:</label>
-              <select
-                value={config.selectedInstanceName}
-                onChange={(e) => setConfig((prev) => ({ ...prev, selectedInstanceName: e.target.value }))}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-600 cursor-pointer w-full"
-              >
-                <option value="">-- Use First Active Instance --</option>
-                {instances.map((inst) => (
-                  <option key={inst.instanceId} value={inst.instanceName}>
-                    🚀 {inst.instanceName} ({inst.status})
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+              <div className="space-y-1 w-full sm:w-auto">
+                <label className="text-[11px] font-bold text-slate-700 block">Lead Funnel Sender:</label>
+                <select
+                  value={config.selectedInstanceName}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, selectedInstanceName: e.target.value }))}
+                  className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-600 cursor-pointer w-full"
+                >
+                  <option value="">-- Use First Active Instance --</option>
+                  {instances.map((inst) => (
+                    <option key={inst.instanceId} value={inst.instanceName}>
+                      🚀 {inst.instanceName} ({inst.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1 w-full sm:w-auto">
+                <label className="text-[11px] font-bold text-slate-700 block">Ticket Alert Sender:</label>
+                <select
+                  value={config.ticketWhatsappInstance || ""}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, ticketWhatsappInstance: e.target.value }))}
+                  className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-600 cursor-pointer w-full"
+                >
+                  <option value="">-- Default (Same as Lead Funnel) --</option>
+                  {instances.map((inst) => (
+                    <option key={inst.instanceId} value={inst.instanceName}>
+                      🎫 {inst.instanceName} ({inst.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

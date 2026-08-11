@@ -599,10 +599,23 @@ export default function ManagementPage() {
           {/* Header Action Buttons */}
           <div className="flex items-center space-x-2 flex-shrink-0">
             <button
+              onClick={() => router.push("/management/tickets")}
+              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer"
+            >
+              <i className="fa-solid fa-ticket text-xs text-indigo-600"></i>
+              <span className="hidden sm:inline">Support Tickets</span>
+              {myTicketsList.filter((t) => !t.isSeen).length > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {myTicketsList.filter((t) => !t.isSeen).length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => setIsRaiseTicketModalOpen(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer"
             >
-              <i className="fa-solid fa-ticket text-xs"></i>
+              <i className="fa-solid fa-plus text-xs"></i>
               <span className="hidden sm:inline">Raise Ticket</span>
             </button>
 

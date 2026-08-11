@@ -3185,6 +3185,14 @@ export default function CRMPage() {
 
                 <div className="flex items-center space-x-2 self-start sm:self-auto flex-wrap gap-2">
                   <button
+                    onClick={() => router.push("/management/tickets")}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <i className="fa-solid fa-up-right-from-square text-xs text-indigo-600"></i>
+                    <span>Dedicated Screen ↗</span>
+                  </button>
+
+                  <button
                     onClick={() => setIsCrmRaiseTicketModalOpen(true)}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center space-x-2 cursor-pointer active:scale-95"
                   >
@@ -3195,7 +3203,7 @@ export default function CRMPage() {
                   <button
                     onClick={fetchSupportTickets}
                     disabled={isLoadingTickets}
-                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-2xs transition-all flex items-center space-x-2 cursor-pointer"
+                    className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-2xs transition-all flex items-center space-x-2 cursor-pointer"
                   >
                     <i className={`fa-solid fa-rotate-right ${isLoadingTickets ? "fa-spin" : ""}`}></i>
                     <span>Refresh 🔄</span>
@@ -3377,10 +3385,10 @@ export default function CRMPage() {
                           level4: { badge: "bg-slate-100 text-slate-800 border-slate-300", icon: "ℹ️ Level 4 (Low)" },
                         }[t.level] || { badge: "bg-slate-100 text-slate-800 border-slate-300", icon: t.levelLabel };
 
-                        const cleanRaiserPhone = (t.raisedByPhone || t.clientPhone || "").replace(/\D/g, "");
+                        const cleanRaiserPhone = String(t.raisedByPhone || t.clientPhone || "").replace(/\D/g, "");
                         const waRaiserNumber = cleanRaiserPhone.length === 10 ? "91" + cleanRaiserPhone : cleanRaiserPhone;
 
-                        const cleanAssigneePhone = (t.assignedToPhone || "").replace(/\D/g, "");
+                        const cleanAssigneePhone = String(t.assignedToPhone || "").replace(/\D/g, "");
                         const waAssigneeNumber = cleanAssigneePhone.length === 10 ? "91" + cleanAssigneePhone : cleanAssigneePhone;
 
                         const raiserDisplayName = t.raisedByName || t.clientName || "User";

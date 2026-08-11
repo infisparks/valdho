@@ -1949,6 +1949,10 @@ export interface SupportTicket {
   subject: string;
   description: string;
   status: "open" | "in_progress" | "resolved" | "closed";
+  isSeen?: boolean;
+  seenAt?: string;
+  seenBy?: string;
+  seenByUserIds?: Record<string, string>; // userId/emailId -> seenAt ISO string
   createdAt: string;
   updatedAt?: string;
   resolvedAt?: string;
@@ -1975,6 +1979,7 @@ export async function createSupportTicket(
       id: ticketId,
       ticketNumber,
       status: "open",
+      isSeen: false,
       createdAt: timestamp,
     };
 
@@ -1999,6 +2004,60 @@ export async function getAllSupportTickets(): Promise<SupportTicket[]> {
   } catch (err) {
     console.error("getAllSupportTickets Error:", err);
     return [];
+  }
+}
+
+/**
+ * Mark a single ticket as seen
+ */
+export async function markSupportTicketSeen(
+  ticketId: string,
+  userId: string,
+  userName?: string
+): Promise<boolean> {
+  try {
+    const timestamp = new Date().toISOString();
+    const sanitizedUserId = sanitizeEmailToId(userId);
+    const updates: Record<string, any> = {
+      isSeen: true,
+      seenAt: timestamp,
+      seenBy: userName || userId,
+      [`seenByUserIds/${sanitizedUserId}`]: timestamp,
+      updatedAt: timestamp,
+    };
+    await update(ref(db, `support_tickets/${ticketId}`), updates);
+    return true;
+  } catch (err) {
+    console.error("markSupportTicketSeen Error:", err);
+    return false;
+  }
+}
+
+/**
+ * Mark multiple tickets as seen in batch
+ */
+export async function markAllSupportTicketsSeen(
+  ticketIds: string[],
+  userId: string,
+  userName?: string
+): Promise<boolean> {
+  try {
+    if (!ticketIds || ticketIds.length === 0) return true;
+    const timestamp = new Date().toISOString();
+    const sanitizedUserId = sanitizeEmailToId(userId);
+    const updates: Record<string, any> = {};
+    for (const ticketId of ticketIds) {
+      updates[`support_tickets/${ticketId}/isSeen`] = true;
+      updates[`support_tickets/${ticketId}/seenAt`] = timestamp;
+      updates[`support_tickets/${ticketId}/seenBy`] = userName || userId;
+      updates[`support_tickets/${ticketId}/seenByUserIds/${sanitizedUserId}`] = timestamp;
+      updates[`support_tickets/${ticketId}/updatedAt`] = timestamp;
+    }
+    await update(ref(db), updates);
+    return true;
+  } catch (err) {
+    console.error("markAllSupportTicketsSeen Error:", err);
+    return false;
   }
 }
 

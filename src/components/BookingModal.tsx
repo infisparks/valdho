@@ -422,7 +422,7 @@ export function BookingModal({
     const cleanPhone = contactInfo.phone.replace(/\D/g, "");
     let hasInputError = false;
 
-    if (!contactInfo.email || !contactInfo.email.includes("@")) {
+    if (contactInfo.email && !contactInfo.email.includes("@")) {
       setEmailError("Please enter a valid email address");
       hasInputError = true;
     }
@@ -439,14 +439,14 @@ export function BookingModal({
     try {
       // Perform fast Node.js / JS duplicate check
       const checkRes = await checkExistingLeadByEmailOrPhone(
-        contactInfo.email,
+        contactInfo.email || "",
         cleanPhone,
         activeCampaign.id
       );
 
       let isDuplicate = false;
 
-      if (checkRes.emailExists) {
+      if (contactInfo.email && checkRes.emailExists) {
         setEmailError("Email already entered");
         isDuplicate = true;
       }
@@ -456,14 +456,18 @@ export function BookingModal({
         isDuplicate = true;
       }
 
-      // CRITICAL: Block form submission if email or phone number is already registered!
+      // CRITICAL: Block form submission if phone number (or email) is already registered!
       if (isDuplicate) {
         setIsSubmittingStep1(false);
         return;
       }
 
-      // Determine deterministic email prefix lead ID
-      const emailPrefixId = sanitizeEmailToId(contactInfo.email);
+      // Determine deterministic lead ID (email prefix or lead_<phone>)
+      const emailPrefixId = contactInfo.email
+        ? sanitizeEmailToId(contactInfo.email)
+        : cleanPhone
+        ? "lead_" + cleanPhone
+        : "lead_" + Date.now();
 
       // Persist contact to LocalStorage
       try {
@@ -476,7 +480,7 @@ export function BookingModal({
       // Sync to Firebase with status "partial" and pipelineStage "in_progress"
       const leadPayload: LeadData = {
         fullName: contactInfo.fullName,
-        email: contactInfo.email,
+        email: contactInfo.email || "",
         phone: cleanPhone,
         countryCode: contactInfo.countryCode,
         status: "partial",
@@ -927,34 +931,6 @@ export function BookingModal({
                 }}
                 className="w-full bg-zinc-900/90 border border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors"
               />
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Work Email <span className="text-amber-400">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="name@company.com"
-                value={contactInfo.email}
-                onChange={(e) => {
-                  setContactInfo({ ...contactInfo, email: e.target.value });
-                  if (emailError) setEmailError(null);
-                }}
-                onBlur={handleEmailBlur}
-                className={`w-full bg-zinc-900/90 border ${
-                  emailError ? "border-red-500" : "border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
-                } rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors`}
-              />
-              {emailError && (
-                <p className="text-red-400 font-bold text-xs mt-1 animate-pulse flex items-center space-x-1">
-                  <span>⚠</span>
-                  <span>{emailError}</span>
-                </p>
-              )}
             </div>
 
             {/* 10-digit Phone Number with Mobile Numeric Keypad */}

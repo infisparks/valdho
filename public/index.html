@@ -1,0 +1,2236 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth h-full antialiased">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>First Option Agency | Turn Clicks into Real Appointments &amp; Sales</title>
+  <meta name="description" content="We help Doctors, Manufacturers, IT Companies &amp; Growing Businesses generate real buyers on autopilot through high-converting revenue systems." />
+  <meta name="keywords" content="growth agency, appointment generation, patient lead system, performance marketing, B2B sales funnel" />
+
+  <!-- Open Graph / Meta -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://firstoptionagency.in" />
+  <meta property="og:site_name" content="First Option Agency" />
+  <meta property="og:title" content="First Option Agency | Turn Clicks into Real Appointments &amp; Sales" />
+  <meta property="og:description" content="Predictable growth. Serious inquiries. Real revenue for Doctors, Manufacturers, IT Companies &amp; Retailers." />
+  <meta property="og:image" content="https://firstoptionagency.in/firstoption/whatsapp_thumbanil.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="First Option Agency | Turn Clicks into Real Appointments &amp; Sales" />
+  <meta name="twitter:description" content="Predictable growth. Serious inquiries. Real revenue for Doctors, Manufacturers, IT Companies &amp; Retailers." />
+  <meta name="twitter:image" content="https://firstoptionagency.in/firstoption/whatsapp_thumbanil.png" />
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+    body {
+      background-color: #08080a;
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Gold glow shadow & borders matching agency brand */
+    .gold-border-card {
+      border: 2px solid #f5a623;
+      box-shadow: 0 4px 25px rgba(245, 166, 35, 0.2);
+    }
+
+    .dark-gold-card {
+      border: 1px solid rgba(245, 166, 35, 0.4);
+      background: linear-gradient(145deg, #161619 0%, #0f0f12 100%);
+    }
+
+    .hero-border-card {
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: linear-gradient(180deg, #141418 0%, #0b0b0e 100%);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(245, 166, 35, 0.12);
+    }
+
+    /* Gold gradient CTA button */
+    .cta-gold-btn {
+      background: linear-gradient(180deg, #ffce54 0%, #f5a623 100%);
+      box-shadow: 0 4px 20px rgba(245, 166, 35, 0.4);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+    .cta-gold-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(245, 166, 35, 0.5);
+    }
+    .cta-gold-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Yellow callout badge */
+    .yellow-callout-badge {
+      background-color: #ffde59;
+      color: #000000;
+      font-weight: 800;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+
+    /* Shimmer effect for high conversion button */
+    .shimmer {
+      position: relative;
+      overflow: hidden;
+    }
+    .shimmer::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(
+        60deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0.35) 50%,
+        transparent 70%
+      );
+      transform: rotate(30deg);
+      animation: shimmer-anim 3.5s infinite;
+    }
+
+    @keyframes shimmer-anim {
+      0% { transform: translate(-100%, -100%) rotate(30deg); }
+      100% { transform: translate(100%, 100%) rotate(30deg); }
+    }
+
+    .pulse-subtle {
+      animation: pulse-animation 2s infinite;
+    }
+    @keyframes pulse-animation {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+      100% { transform: scale(1); }
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #08080a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #f5a623;
+    }
+
+    .animate-toast-in {
+      animation: toastIn 0.3s ease-out forwards;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+  </style>
+</head>
+<body class="w-full min-h-full bg-[#08080a] text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950">
+
+  <div class="w-full pb-32 text-slate-100 flex flex-col items-center justify-start min-h-screen antialiased">
+
+    <!-- 1. Top Urgency Ticker Bar -->
+    <div class="w-full bg-gradient-to-r from-red-600 via-amber-600 to-red-600 text-white text-[11px] sm:text-xs md:text-sm font-bold py-1.5 px-2 text-center flex items-center justify-center space-x-2 shadow-md z-40 whitespace-nowrap overflow-hidden">
+      <div class="flex items-center space-x-1.5 whitespace-nowrap">
+        <span class="inline-block w-2 h-2 rounded-full bg-white animate-ping flex-shrink-0"></span>
+        <span class="whitespace-nowrap truncate">
+          ⚡ LIMITED CAPACITY: Only <span id="spotsCount" class="underline text-yellow-200 font-black">3 Client Spots</span> Remaining For This Month
+        </span>
+      </div>
+      <div class="hidden md:flex items-center space-x-1 bg-black/30 px-2 py-0.5 rounded font-mono text-xs flex-shrink-0">
+        <i class="fa-regular fa-clock text-yellow-300"></i>
+        <span id="urgencyTimer">04:42:18</span>
+      </div>
+    </div>
+
+    <!-- 2. Header Announcement Badge -->
+    <header class="w-full max-w-md md:max-w-2xl lg:max-w-3xl xl:max-w-4xl px-3 pt-4 pb-1">
+      <div 
+        onclick="openBookingModal()"
+        class="cta-gold-btn shimmer text-slate-950 font-black text-xs min-[360px]:text-sm sm:text-base md:text-lg lg:text-xl text-center py-3.5 sm:py-4 px-4 rounded-2xl shadow-xl leading-snug tracking-tight cursor-pointer hover:scale-[1.01] transition-transform whitespace-nowrap overflow-hidden text-ellipsis"
+      >
+        Turn Your Business Into a Client-Getting Machine
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-md md:max-w-2xl lg:max-w-3xl xl:max-w-4xl px-3 sm:px-4 space-y-9 sm:space-y-12">
+      
+      <!-- 1. Hero Card -->
+      <section class="hero-border-card rounded-3xl p-3 sm:p-6 md:p-8 lg:p-10 my-1 text-center relative overflow-hidden">
+        <div class="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-amber-400 text-xs sm:text-sm font-bold mb-2.5 sm:mb-5">
+          <i class="fa-solid fa-bolt text-xs sm:text-sm"></i>
+          <span>System That Sell While You Sleep</span>
+        </div>
+
+        <h1 class="text-xl sm:text-3xl lg:text-4xl xl:text-5xl font-black text-white leading-tight tracking-tight mb-2.5 sm:mb-5">
+          Turn Clicks into Real Appointments &amp; Sales — On Autopilot
+        </h1>
+
+        <p class="text-slate-300 text-xs sm:text-base md:text-lg lg:text-xl leading-relaxed mb-3.5 sm:mb-6 font-medium max-w-3xl mx-auto">
+          We help <span class="font-extrabold text-white underline decoration-amber-400">Doctors</span>, <span class="font-extrabold text-white underline decoration-amber-400">Manufacturers</span>, <span class="font-extrabold text-white underline decoration-amber-400">IT Companies &amp; Growing Businesses</span> generate <span class="font-extrabold text-amber-400">real buyers</span>, not just leads.
+        </p>
+
+        <!-- Embedded Video Mockup -->
+        <div
+          class="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-zinc-950 border border-zinc-800 shadow-2xl mb-3.5 sm:mb-6 cursor-pointer group"
+          onclick="openVideoModal('Why We Are Different', 'First Option Agency', 'yC2-mbXI_ZE')"
+        >
+          <div class="relative w-full bg-slate-950 flex items-center justify-center">
+            <img
+              src="https://firstoptionagency.in/hero.png"
+              alt="Why We Are Different - YouTube Video"
+              class="w-full h-auto object-contain block transition-opacity duration-300"
+            />
+
+            <!-- Center Red YouTube Play Button Overlay -->
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <div class="relative flex items-center justify-center">
+                <div class="absolute w-16 h-11 sm:w-24 sm:h-16 md:w-28 md:h-20 bg-red-600/50 rounded-2xl sm:rounded-3xl blur-md group-hover:scale-125 transition-all duration-300 animate-pulse"></div>
+                <div class="relative w-14 h-10 sm:w-20 sm:h-14 md:w-24 md:h-16 bg-red-600 group-hover:bg-red-700 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-2xl shadow-red-600/70 border border-white/20 group-hover:scale-110 transition-all duration-300">
+                  <i class="fa-solid fa-play text-white text-base sm:text-2xl md:text-3xl ml-1 drop-shadow-md"></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- Top YouTube Overlay Header -->
+            <div class="absolute top-0 left-0 right-0 p-2.5 sm:p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center space-x-2.5 sm:space-x-3 text-left">
+              <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-full overflow-hidden border-2 border-amber-400 shadow-md flex-shrink-0">
+                <img
+                  src="https://firstoptionagency.in/founder.png"
+                  alt="Founder - First Option Agency"
+                  class="w-full h-full object-cover"
+                />
+              </div>
+              <div>
+                <p class="text-white font-bold text-xs sm:text-base md:text-lg leading-tight drop-shadow">
+                  Why We Are Different
+                </p>
+                <p class="text-zinc-300 text-[10px] sm:text-sm">
+                  First Option Agency • Official YouTube Strategy
+                </p>
+              </div>
+            </div>
+
+            <!-- Bottom Bar Overlay -->
+            <div class="absolute bottom-0 left-0 right-0 p-2 sm:p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex items-center justify-between text-xs sm:text-sm text-white">
+              <div class="flex items-center space-x-2.5 sm:space-x-3 text-slate-300 text-xs sm:text-sm">
+                <i class="fa-solid fa-share hover:text-white"></i>
+                <i class="fa-regular fa-clock hover:text-white"></i>
+              </div>
+              <a
+                href="https://www.youtube.com/watch?v=yC2-mbXI_ZE"
+                target="_blank"
+                rel="noopener noreferrer"
+                onclick="event.stopPropagation()"
+                class="bg-black/80 hover:bg-black px-2 sm:px-3 py-1 sm:py-1.5 rounded-md flex items-center space-x-1 sm:space-x-1.5 text-[10px] sm:text-sm font-semibold backdrop-blur-sm border border-white/20 transition-colors"
+              >
+                <span>Watch on</span>
+                <span class="text-white font-black tracking-tighter flex items-center">
+                  <i class="fa-brands fa-youtube text-red-500 mr-1 text-xs sm:text-base"></i>
+                  YouTube
+                </span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 Pillars Feature Grid -->
+        <div class="grid grid-cols-3 divide-x divide-zinc-800/80 my-3 sm:my-6 py-1.5 max-w-2xl mx-auto">
+          <!-- Pillar 1 -->
+          <div class="flex flex-col items-center justify-center px-1 sm:px-3 text-center space-y-0.5 sm:space-y-1">
+            <svg class="w-6 h-6 sm:w-9 sm:h-9 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" stroke="#FACC15"></circle>
+              <circle cx="12" cy="12" r="5" stroke="#FACC15"></circle>
+              <circle cx="12" cy="12" r="2" fill="#FACC15" stroke="#FACC15"></circle>
+              <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="#FACC15"></path>
+            </svg>
+            <div class="leading-tight">
+              <div class="text-white font-extrabold text-[11px] sm:text-base md:text-lg tracking-tight">Predictable</div>
+              <div class="text-amber-400 font-black text-[11px] sm:text-base md:text-lg tracking-tight">Growth</div>
+            </div>
+          </div>
+
+          <!-- Pillar 2 -->
+          <div class="flex flex-col items-center justify-center px-1 sm:px-3 text-center space-y-0.5 sm:space-y-1">
+            <svg class="w-6 h-6 sm:w-9 sm:h-9 mx-auto" viewBox="0 0 24 24" fill="none" stroke="#FACC15" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 17L9 11L13 15L21 7"></path>
+              <path d="M15 7H21V13"></path>
+            </svg>
+            <div class="leading-tight">
+              <div class="text-white font-extrabold text-[11px] sm:text-base md:text-lg tracking-tight">Serious</div>
+              <div class="text-amber-400 font-black text-[11px] sm:text-base md:text-lg tracking-tight">Inquiries</div>
+            </div>
+          </div>
+
+          <!-- Pillar 3 -->
+          <div class="flex flex-col items-center justify-center px-1 sm:px-3 text-center space-y-0.5 sm:space-y-1">
+            <svg class="w-6 h-6 sm:w-9 sm:h-9 mx-auto" viewBox="0 0 24 24">
+              <path d="M12 2C10.8954 2 10 2.89543 10 4C10 4.38 10.11 4.73 10.3 5.03L6.8 6.55C5.7 7.04 5 8.14 5 9.35V18C5 19.6569 6.34315 21 8 21H16C17.6569 21 19 19.6569 19 18V9.35C19 8.14 18.3 7.04 17.2 6.55L13.7 5.03C13.89 4.73 14 4.38 14 4C14 2.89543 13.1046 2 12 2Z" fill="#FACC15"></path>
+              <path d="M9.5 5.5H14.5" stroke="#713F12" stroke-width="1.2" stroke-linecap="round"></path>
+              <text x="12" y="15" text-anchor="middle" font-size="6.5" font-weight="900" fill="#18181B" font-family="sans-serif">₹</text>
+            </svg>
+            <div class="leading-tight">
+              <div class="text-white font-extrabold text-[11px] sm:text-base md:text-lg tracking-tight">Real</div>
+              <div class="text-amber-400 font-black text-[11px] sm:text-base md:text-lg tracking-tight">Revenue</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trusted Pill Badge -->
+        <div class="bg-zinc-950/80 border border-zinc-800/80 rounded-2xl sm:rounded-full py-1.5 sm:py-2 px-3 sm:px-5 flex items-center justify-center space-x-2.5 sm:space-x-3.5 max-w-[320px] sm:max-w-md mx-auto mb-3.5 sm:mb-6 shadow-inner">
+          <div class="flex -space-x-2 overflow-hidden flex-shrink-0">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Client" class="inline-block h-6 w-6 sm:h-8 sm:w-8 rounded-full ring-2 ring-zinc-900 object-cover" />
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80" alt="Client" class="inline-block h-6 w-6 sm:h-8 sm:w-8 rounded-full ring-2 ring-zinc-900 object-cover" />
+            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80" alt="Client" class="inline-block h-6 w-6 sm:h-8 sm:w-8 rounded-full ring-2 ring-zinc-900 object-cover" />
+            <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80" alt="Client" class="inline-block h-6 w-6 sm:h-8 sm:w-8 rounded-full ring-2 ring-zinc-900 object-cover" />
+          </div>
+
+          <div class="text-left leading-tight">
+            <div class="text-slate-200 text-[11px] sm:text-xs font-semibold tracking-tight">
+              Trusted by 100+ Businesses
+            </div>
+            <div class="flex items-center space-x-1 mt-0.5">
+              <div class="flex text-amber-400 text-[9px] sm:text-[11px]">
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+              </div>
+              <span class="text-slate-400 text-[9px] sm:text-[11px] font-normal">
+                4.9/5 Average Rating
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CTA Gold Button Block -->
+        <button
+          onclick="openBookingModal()"
+          class="w-full cta-gold-btn shimmer rounded-2xl p-2.5 sm:p-4 md:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all overflow-hidden"
+        >
+          <div class="text-xs min-[360px]:text-sm sm:text-xl md:text-2xl lg:text-3xl font-black uppercase tracking-tight sm:tracking-wide flex items-center justify-center space-x-1.5 sm:space-x-2 whitespace-nowrap overflow-hidden text-ellipsis">
+            <span>BOOK YOUR GROWTH SESSION</span>
+            <i class="fa-solid fa-arrow-right text-[10px] sm:text-lg md:text-xl flex-shrink-0"></i>
+          </div>
+          <div class="text-[10px] sm:text-xs md:text-sm font-extrabold text-slate-900 mt-0.5 sm:mt-1">
+            No sales pitch. Just a real roadmap for your business.
+          </div>
+        </button>
+      </section>
+
+      <!-- 2. Client Results & Proof -->
+      <section class="space-y-4 pt-1">
+        <div class="text-center space-y-1">
+          <span class="text-[10px] sm:text-xs font-extrabold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-3 py-0.5 rounded-full border border-amber-500/30">
+            Real Proof • Verified Case Studies
+          </span>
+          <h2 class="text-xl sm:text-3xl md:text-4xl font-black text-center text-white tracking-tight pt-0.5">
+            Our Client Results
+          </h2>
+        </div>
+
+        <!-- Video Case Study Cards Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
+          
+          <!-- Card 1: Dr Sajid -->
+          <div class="bg-zinc-950/90 border border-zinc-800/80 hover:border-amber-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-[65%]">
+                  Healthcare
+                </span>
+                <div class="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5 flex-shrink-0">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-amber-400 transition-colors">
+                  Dr-Sajid-Firdousi
+                </h3>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                  Unani and Herbal Consultant
+                </p>
+              </div>
+              <div class="bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-emerald-400 leading-tight flex items-center space-x-1 truncate">
+                <i class="fa-solid fa-circle-check text-[9px] text-emerald-400 flex-shrink-0"></i>
+                <span class="truncate">100+ patient consults in 1 month for skin problem.</span>
+              </div>
+            </div>
+
+            <div
+              class="relative rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/90 mt-1 cursor-pointer group/vid"
+              onclick="openVideoModal('Dr-Sajid-Sir-Results', 'First Option Agency', 'n1qrvNAMOp4')"
+            >
+              <div class="relative aspect-video w-full bg-zinc-950 flex items-center justify-center">
+                <img
+                  src="https://img.youtube.com/vi/n1qrvNAMOp4/hqdefault.jpg"
+                  alt="Dr-Sajid-Firdousi"
+                  class="w-full h-full object-cover opacity-80 group-hover/vid:opacity-100 group-hover/vid:scale-105 transition-all duration-300"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg group-hover/vid:scale-110 transition-transform">
+                    <i class="fa-solid fa-play text-[10px] sm:text-xs ml-0.5"></i>
+                  </div>
+                </div>
+                <div class="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-300 font-medium">
+                  <span class="truncate max-w-[75%] drop-shadow">Dr-Sajid-Sir-Results</span>
+                  <span class="text-amber-400 font-bold drop-shadow">Watch</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Wao Mobile -->
+          <div class="bg-zinc-950/90 border border-zinc-800/80 hover:border-amber-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-[65%]">
+                  Retail
+                </span>
+                <div class="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5 flex-shrink-0">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-amber-400 transition-colors">
+                  Wao Mobile
+                </h3>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                  Mobile and computer shop
+                </p>
+              </div>
+              <div class="bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-emerald-400 leading-tight flex items-center space-x-1 truncate">
+                <i class="fa-solid fa-circle-check text-[9px] text-emerald-400 flex-shrink-0"></i>
+                <span class="truncate">45+ daily store walk-ins &amp; mobile inquiries.</span>
+              </div>
+            </div>
+
+            <div
+              class="relative rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/90 mt-1 cursor-pointer group/vid"
+              onclick="openVideoModal('Wao Mobile Results', 'First Option Agency', 'NI1QXg4GuvM')"
+            >
+              <div class="relative aspect-video w-full bg-zinc-950 flex items-center justify-center">
+                <img
+                  src="https://img.youtube.com/vi/NI1QXg4GuvM/hqdefault.jpg"
+                  alt="Wao Mobile"
+                  class="w-full h-full object-cover opacity-80 group-hover/vid:opacity-100 group-hover/vid:scale-105 transition-all duration-300"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg group-hover/vid:scale-110 transition-transform">
+                    <i class="fa-solid fa-play text-[10px] sm:text-xs ml-0.5"></i>
+                  </div>
+                </div>
+                <div class="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-300 font-medium">
+                  <span class="truncate max-w-[75%] drop-shadow">Wao Mobile Results</span>
+                  <span class="text-amber-400 font-bold drop-shadow">Watch</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Aman Samosa -->
+          <div class="bg-zinc-950/90 border border-zinc-800/80 hover:border-amber-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-[65%]">
+                  Food Brand
+                </span>
+                <div class="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5 flex-shrink-0">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-amber-400 transition-colors">
+                  Aman Samosa
+                </h3>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                  Food Brand
+                </p>
+              </div>
+              <div class="bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-emerald-400 leading-tight flex items-center space-x-1 truncate">
+                <i class="fa-solid fa-circle-check text-[9px] text-emerald-400 flex-shrink-0"></i>
+                <span class="truncate">Scaled local outlet into regional food brand.</span>
+              </div>
+            </div>
+
+            <div
+              class="relative rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/90 mt-1 cursor-pointer group/vid"
+              onclick="openVideoModal('Aman Samosa Case Study', 'First Option Agency', '0U8D8ahfZe0')"
+            >
+              <div class="relative aspect-video w-full bg-zinc-950 flex items-center justify-center">
+                <img
+                  src="https://img.youtube.com/vi/0U8D8ahfZe0/hqdefault.jpg"
+                  alt="Aman Samosa"
+                  class="w-full h-full object-cover opacity-80 group-hover/vid:opacity-100 group-hover/vid:scale-105 transition-all duration-300"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg group-hover/vid:scale-110 transition-transform">
+                    <i class="fa-solid fa-play text-[10px] sm:text-xs ml-0.5"></i>
+                  </div>
+                </div>
+                <div class="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-300 font-medium">
+                  <span class="truncate max-w-[75%] drop-shadow">Aman Samosa Case Study</span>
+                  <span class="text-amber-400 font-bold drop-shadow">Watch</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 4: Prince Ceramic -->
+          <div class="bg-zinc-950/90 border border-zinc-800/80 hover:border-amber-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-[65%]">
+                  Industrial B2B
+                </span>
+                <div class="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5 flex-shrink-0">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-amber-400 transition-colors">
+                  Prince ceramic &amp; Building Material
+                </h3>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                  (Owner)
+                </p>
+              </div>
+              <div class="bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-emerald-400 leading-tight flex items-center space-x-1 truncate">
+                <i class="fa-solid fa-circle-check text-[9px] text-emerald-400 flex-shrink-0"></i>
+                <span class="truncate">Consistent high-ticket B2B building material orders.</span>
+              </div>
+            </div>
+
+            <div
+              class="relative rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/90 mt-1 cursor-pointer group/vid"
+              onclick="openVideoModal('Prince Ceramic Case Study', 'First Option Agency', 'keW6PQ5CzCY')"
+            >
+              <div class="relative aspect-video w-full bg-zinc-950 flex items-center justify-center">
+                <img
+                  src="https://img.youtube.com/vi/keW6PQ5CzCY/hqdefault.jpg"
+                  alt="Prince Ceramic"
+                  class="w-full h-full object-cover opacity-80 group-hover/vid:opacity-100 group-hover/vid:scale-105 transition-all duration-300"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg group-hover/vid:scale-110 transition-transform">
+                    <i class="fa-solid fa-play text-[10px] sm:text-xs ml-0.5"></i>
+                  </div>
+                </div>
+                <div class="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-300 font-medium">
+                  <span class="truncate max-w-[75%] drop-shadow">Prince Ceramic Case Study</span>
+                  <span class="text-amber-400 font-bold drop-shadow">Watch</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 5: Model Town -->
+          <div class="bg-zinc-950/90 border border-zinc-800/80 hover:border-amber-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-[65%]">
+                  Fashion Retail
+                </span>
+                <div class="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5 flex-shrink-0">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-amber-400 transition-colors">
+                  Model Town
+                </h3>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                  (Clothing Brand)
+                </p>
+              </div>
+              <div class="bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-emerald-400 leading-tight flex items-center space-x-1 truncate">
+                <i class="fa-solid fa-circle-check text-[9px] text-emerald-400 flex-shrink-0"></i>
+                <span class="truncate">High-converting sales pipeline for apparel line.</span>
+              </div>
+            </div>
+
+            <div
+              class="relative rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/90 mt-1 cursor-pointer group/vid"
+              onclick="openVideoModal('Model Town Case Study', 'First Option Agency', 'gEGqh-N1IK0')"
+            >
+              <div class="relative aspect-video w-full bg-zinc-950 flex items-center justify-center">
+                <img
+                  src="https://img.youtube.com/vi/gEGqh-N1IK0/hqdefault.jpg"
+                  alt="Model Town"
+                  class="w-full h-full object-cover opacity-80 group-hover/vid:opacity-100 group-hover/vid:scale-105 transition-all duration-300"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg group-hover/vid:scale-110 transition-transform">
+                    <i class="fa-solid fa-play text-[10px] sm:text-xs ml-0.5"></i>
+                  </div>
+                </div>
+                <div class="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-300 font-medium">
+                  <span class="truncate max-w-[75%] drop-shadow">Model Town Case Study</span>
+                  <span class="text-amber-400 font-bold drop-shadow">Watch</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 6: 12-Month Scaled Campaign & CRM Overview -->
+          <div class="bg-zinc-950/90 border border-zinc-800/80 hover:border-blue-500/50 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  10k+ Leads
+                </span>
+                <div class="flex text-amber-400 text-[8px] sm:text-[10px] space-x-0.5">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+
+              <div>
+                <h3 class="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate leading-tight group-hover:text-blue-400 transition-colors">
+                  1-Year Scaled Campaign
+                </h3>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate leading-tight">
+                  Unani Consultant
+                </p>
+              </div>
+
+              <div class="bg-blue-500/10 border border-blue-500/25 px-2 py-1 rounded-lg text-[9.5px] sm:text-xs font-bold text-blue-400 leading-tight flex items-center space-x-1 truncate">
+                <i class="fa-solid fa-chart-line text-[9px] text-blue-400 flex-shrink-0"></i>
+                <span class="truncate">10,482+ patient appointments</span>
+              </div>
+            </div>
+
+            <div 
+              class="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2 text-left cursor-pointer group/crm"
+              onclick="openVideoModal('10k Patient Leads Campaign', 'First Option Agency', 'n1qrvNAMOp4')"
+            >
+              <div class="flex items-center justify-between text-[8px] sm:text-[9px] text-emerald-400 font-mono font-bold mb-1">
+                <span class="flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  LIVE CRM
+                </span>
+                <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[7px] sm:text-[8px] px-1.5 py-0.5 rounded font-black">10,482</span>
+              </div>
+              <div class="text-[8px] sm:text-[9px] text-slate-300 font-mono space-y-0.5">
+                <div class="flex justify-between text-slate-200">
+                  <span class="truncate">Shari Shukla</span>
+                  <span class="text-emerald-400 font-bold">Booked</span>
+                </div>
+                <div class="flex justify-between text-slate-200">
+                  <span class="truncate">Moi Kukreja</span>
+                  <span class="text-emerald-400 font-bold">Booked</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Fanned Card Deck Results Presentation -->
+        <div class="pt-2 space-y-2">
+          <div class="text-center space-y-0.5">
+            <div class="inline-flex items-center space-x-1.5 text-amber-400 font-extrabold text-[10px] sm:text-xs tracking-widest uppercase bg-amber-500/10 px-3 py-0.5 rounded-full border border-amber-500/30">
+              <i class="fa-solid fa-layer-group text-[10px]"></i>
+              <span>Verified Live Campaign Proof</span>
+            </div>
+            <h3 class="text-lg sm:text-xl md:text-2xl font-black text-white tracking-tight">
+              Real Client Campaign Results
+            </h3>
+            <p class="text-[11px] sm:text-xs text-slate-400 font-medium">
+              Click the card stack to view all 12 verified campaign result screenshots
+            </p>
+          </div>
+
+          <!-- Fanned Deck Interactive Trigger -->
+          <div 
+            onclick="openResultsModal(0)"
+            class="relative max-w-lg mx-auto h-44 sm:h-56 my-2 cursor-pointer group flex items-center justify-center"
+          >
+            <div class="relative w-36 sm:w-56 h-36 sm:h-52 flex items-center justify-center">
+              
+              <!-- 13.jpg.jpeg -->
+              <div class="absolute inset-0 rounded-xl overflow-hidden border-2 shadow-[0_8px_20px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 border-amber-500/60 -rotate-12 -translate-x-8 sm:-translate-x-14 translate-y-1 z-0">
+                <img src="https://firstoptionagency.in/firstoption/result/13.jpg.jpeg" alt="High-Ticket Lead Pipeline" class="w-full h-full object-contain p-1 bg-zinc-950" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
+              </div>
+
+              <!-- 12.jpg.jpeg -->
+              <div class="absolute inset-0 rounded-xl overflow-hidden border-2 shadow-[0_8px_20px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 border-amber-500/60 -rotate-6 -translate-x-4 sm:-translate-x-7 translate-y-0.5 z-10">
+                <img src="https://firstoptionagency.in/firstoption/result/12.jpg.jpeg" alt="Verified Ad Account ROI" class="w-full h-full object-contain p-1 bg-zinc-950" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
+              </div>
+
+              <!-- 11.jpg.jpeg (Center Front) -->
+              <div class="absolute inset-0 rounded-xl overflow-hidden border-2 shadow-[0_8px_20px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 border-amber-400 shadow-[0_0_25px_rgba(245,166,35,0.5)] rotate-0 translate-y-0 z-30 scale-105">
+                <img src="https://firstoptionagency.in/firstoption/result/11.jpg.jpeg" alt="Live OPD Patient Bookings" class="w-full h-full object-contain p-1 bg-zinc-950" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
+              </div>
+
+              <!-- 14.jpg.jpeg -->
+              <div class="absolute inset-0 rounded-xl overflow-hidden border-2 shadow-[0_8px_20px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 border-amber-500/60 rotate-6 translate-x-4 sm:translate-x-7 translate-y-0.5 z-20">
+                <img src="https://firstoptionagency.in/firstoption/result/14.jpg.jpeg" alt="WhatsApp Direct Inquiries" class="w-full h-full object-contain p-1 bg-zinc-950" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
+              </div>
+
+              <!-- 15.jpg.jpeg -->
+              <div class="absolute inset-0 rounded-xl overflow-hidden border-2 shadow-[0_8px_20px_rgba(0,0,0,0.9)] bg-zinc-950 transition-all duration-300 group-hover:scale-105 border-amber-500/60 rotate-12 translate-x-8 sm:translate-x-14 translate-y-1 z-0">
+                <img src="https://firstoptionagency.in/firstoption/result/15.jpg.jpeg" alt="Daily Appointment Calendar" class="w-full h-full object-contain p-1 bg-zinc-950" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
+              </div>
+
+              <!-- Glowing Callout Badge -->
+              <div class="absolute z-40 -bottom-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 text-[10px] sm:text-xs font-black px-3 py-1.5 rounded-full shadow-[0_0_20px_rgba(245,166,35,0.6)] border border-amber-200 flex items-center space-x-1.5 group-hover:scale-105 transition-transform">
+                <i class="fa-solid fa-images"></i>
+                <span>Click to View 12 Live Results</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. The Broken Trap / Cycle Section -->
+      <section class="relative rounded-3xl p-4 sm:p-7 text-center space-y-4 shadow-[0_0_50px_rgba(239,68,68,0.12)] border border-red-500/30 bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 overflow-hidden my-3">
+        <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-80 bg-red-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+
+        <div class="inline-flex items-center space-x-1.5 bg-red-500/10 border border-red-500/30 px-3.5 py-1 rounded-full text-red-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+          <i class="fa-solid fa-arrows-spin text-[10px]"></i>
+          <span>The Broken Trap</span>
+        </div>
+
+        <h2 class="text-xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+          Most Businesses Are Stuck In This Cycle:
+        </h2>
+
+        <div class="bg-red-950/20 border border-red-500/30 rounded-2xl p-3 sm:p-4 text-left space-y-2.5 shadow-inner max-w-2xl mx-auto">
+          <div class="flex items-start space-x-2.5">
+            <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center text-[10px] sm:text-xs font-black flex-shrink-0 mt-0.5">✕</div>
+            <p class="text-slate-200 font-semibold text-xs sm:text-sm md:text-base leading-snug">
+              Spending money on ads but getting <span class="font-extrabold text-red-400 underline decoration-red-500/50">fake or low-quality leads</span>
+            </p>
+          </div>
+
+          <div class="flex items-start space-x-2.5">
+            <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center text-[10px] sm:text-xs font-black flex-shrink-0 mt-0.5">✕</div>
+            <p class="text-slate-200 font-semibold text-xs sm:text-sm md:text-base leading-snug">
+              Posting on Instagram but getting <span class="font-extrabold text-red-400 underline decoration-red-500/50">likes instead of clients</span>
+            </p>
+          </div>
+
+          <div class="flex items-start space-x-2.5">
+            <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center text-[10px] sm:text-xs font-black flex-shrink-0 mt-0.5">✕</div>
+            <p class="text-slate-200 font-semibold text-xs sm:text-sm md:text-base leading-snug">
+              Hiring agencies who show <span class="font-extrabold text-red-400 underline decoration-red-500/50">reach &amp; impressions, not revenue</span>
+            </p>
+          </div>
+
+          <div class="flex items-start space-x-2.5">
+            <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center text-[10px] sm:text-xs font-black flex-shrink-0 mt-0.5">✕</div>
+            <p class="text-slate-200 font-semibold text-xs sm:text-sm md:text-base leading-snug">
+              Depending on <span class="font-extrabold text-slate-100">referrals and luck</span> to survive
+            </p>
+          </div>
+
+          <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 sm:p-3 text-center text-amber-300 font-extrabold text-xs sm:text-sm leading-snug flex items-center justify-center space-x-2 mt-2">
+            <span>👉</span>
+            <span>Without appointments, you don’t have a business. You have stress.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Problem Diagnosis Section -->
+      <section class="space-y-6 pt-2">
+        <h2 class="text-2xl sm:text-3xl font-black text-center text-white leading-tight">
+          Why Most Businesses Are Not Growing Even After Spending on Marketing
+        </h2>
+
+        <div class="space-y-3">
+          <div class="dark-gold-card rounded-2xl p-4 flex items-center space-x-3.5 hover:border-amber-500/60 transition-colors">
+            <div class="text-red-500 text-2xl font-black flex-shrink-0"><i class="fa-solid fa-xmark"></i></div>
+            <p class="text-slate-200 text-sm sm:text-base font-semibold">Wrong hiring (no real growth &amp; sales expertise)</p>
+          </div>
+          <div class="dark-gold-card rounded-2xl p-4 flex items-center space-x-3.5 hover:border-amber-500/60 transition-colors">
+            <div class="text-red-500 text-2xl font-black flex-shrink-0"><i class="fa-solid fa-xmark"></i></div>
+            <p class="text-slate-200 text-sm sm:text-base font-semibold">Wrong agency (leads come, but clients don’t close)</p>
+          </div>
+          <div class="dark-gold-card rounded-2xl p-4 flex items-center space-x-3.5 hover:border-amber-500/60 transition-colors">
+            <div class="text-red-500 text-2xl font-black flex-shrink-0"><i class="fa-solid fa-xmark"></i></div>
+            <p class="text-slate-200 text-sm sm:text-base font-semibold">No proper qualification system</p>
+          </div>
+          <div class="dark-gold-card rounded-2xl p-4 flex items-center space-x-3.5 hover:border-amber-500/60 transition-colors">
+            <div class="text-red-500 text-2xl font-black flex-shrink-0"><i class="fa-solid fa-xmark"></i></div>
+            <p class="text-slate-200 text-sm sm:text-base font-semibold">No sales funnel strategy</p>
+          </div>
+          <div class="dark-gold-card rounded-2xl p-4 flex items-center space-x-3.5 hover:border-amber-500/60 transition-colors">
+            <div class="text-red-500 text-2xl font-black flex-shrink-0"><i class="fa-solid fa-xmark"></i></div>
+            <p class="text-slate-200 text-sm sm:text-base font-semibold">No automated appointment booking</p>
+          </div>
+          <div class="dark-gold-card rounded-2xl p-4 flex items-center space-x-3.5 hover:border-amber-500/60 transition-colors">
+            <div class="text-red-500 text-2xl font-black flex-shrink-0"><i class="fa-solid fa-xmark"></i></div>
+            <p class="text-slate-200 text-sm sm:text-base font-semibold">No CRM &amp; follow-up discipline</p>
+          </div>
+        </div>
+
+        <div class="text-center space-y-4 pt-3 px-2">
+          <p class="text-xl sm:text-2xl font-bold text-white">
+            The real <span class="text-red-500 font-black">problem</span> is not your product or service.
+          </p>
+          <p class="text-xl sm:text-2xl font-bold text-white">
+            The <span class="text-red-500 font-black">problem</span> is you don’t have a <span class="font-extrabold text-white underline decoration-amber-400">revenue system</span>.
+          </p>
+
+          <div class="py-3.5 px-4 bg-zinc-900/90 rounded-2xl border border-zinc-800 text-base sm:text-lg text-slate-300 font-medium space-y-2">
+            <p class="text-slate-300 font-bold">Right now your business is running on:</p>
+            <div class="flex flex-wrap items-center justify-center gap-1.5 text-amber-400 font-extrabold tracking-wide text-xs sm:text-sm md:text-base">
+              <span>Ads</span>
+              <span class="text-slate-500 font-normal">→</span>
+              <span>Random leads</span>
+              <span class="text-slate-500 font-normal">→</span>
+              <span>Missed follow-ups</span>
+              <span class="text-slate-500 font-normal">→</span>
+              <span class="text-red-500 font-bold">Lost sales</span>
+            </div>
+          </div>
+
+          <p class="text-base text-slate-300 font-medium">That’s why...</p>
+          <p class="text-xl sm:text-2xl font-extrabold text-white">
+            You get inquiries... but <span class="text-red-500 font-black">not</span> predictable revenue.
+          </p>
+        </div>
+      </section>
+
+      <!-- 5. Solution Section ("We Don’t Run Ads. We Build Revenue Systems.") -->
+      <section class="relative rounded-3xl p-4 sm:p-7 md:p-8 text-center space-y-4 shadow-[0_0_50px_rgba(245,166,35,0.15)] border border-amber-500/30 bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 overflow-hidden my-3">
+        <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/10 blur-[90px] rounded-full pointer-events-none"></div>
+
+        <div class="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-3.5 py-1 rounded-full text-amber-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+          <span>The Growth Architecture</span>
+        </div>
+
+        <div class="space-y-1">
+          <h2 class="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white leading-tight">
+            We Don’t Run Ads.
+          </h2>
+          <p class="text-xl sm:text-2xl md:text-3xl font-black bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 bg-clip-text text-transparent">
+            We Build Revenue Systems.
+          </p>
+        </div>
+
+        <div class="space-y-2.5 max-w-2xl mx-auto">
+          <p class="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center justify-center space-x-2">
+            <span class="w-8 h-[1px] bg-zinc-800"></span>
+            <span>WE COMBINE INTO ONE SYSTEM</span>
+            <span class="w-8 h-[1px] bg-zinc-800"></span>
+          </p>
+
+          <div class="grid grid-cols-2 gap-2.5 text-left">
+            <div class="p-3 sm:p-4 bg-zinc-900/90 rounded-2xl border border-amber-500/40 hover:border-amber-400 transition-all shadow-lg flex flex-col items-center text-center space-y-2 group">
+              <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-[0_0_15px_rgba(245,166,35,0.2)] group-hover:scale-110 transition-transform">
+                <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+              </div>
+              <div>
+                <div class="text-xs sm:text-sm font-extrabold text-white leading-tight">Performance Marketing</div>
+                <div class="text-[10px] sm:text-xs font-semibold text-amber-400 mt-0.5">(Paid Ads Engine)</div>
+              </div>
+            </div>
+
+            <div class="p-3 sm:p-4 bg-zinc-900/90 rounded-2xl border border-blue-500/40 hover:border-blue-400 transition-all shadow-lg flex flex-col items-center text-center space-y-2 group">
+              <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-500/15 border border-blue-500/40 text-blue-400 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.2)] group-hover:scale-110 transition-transform">
+                <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  <path d="M12 8v8"></path>
+                  <path d="M8 12h8"></path>
+                </svg>
+              </div>
+              <div>
+                <div class="text-xs sm:text-sm font-extrabold text-white leading-tight">Organic Content</div>
+                <div class="text-[10px] sm:text-xs font-semibold text-blue-400 mt-0.5">(Trust &amp; Authority)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950/80 border border-zinc-800/90 rounded-2xl p-3.5 sm:p-4 text-left shadow-inner max-w-2xl mx-auto">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 font-bold text-slate-200 text-xs sm:text-sm">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
+                <i class="fa-solid fa-check text-[10px] sm:text-xs"></i>
+              </div>
+              <span>Attracts the right people</span>
+            </div>
+
+            <div class="flex items-center space-x-2.5">
+              <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
+                <i class="fa-solid fa-check text-[10px] sm:text-xs"></i>
+              </div>
+              <span>Builds trust automatically</span>
+            </div>
+
+            <div class="flex items-center space-x-2.5">
+              <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
+                <i class="fa-solid fa-check text-[10px] sm:text-xs"></i>
+              </div>
+              <span>Filters out time-wasters</span>
+            </div>
+
+            <div class="flex items-center space-x-2.5">
+              <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
+                <i class="fa-solid fa-check text-[10px] sm:text-xs"></i>
+              </div>
+              <span>Sends you <span class="font-black text-amber-400 underline decoration-amber-400">ready-to-buy clients</span></span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onclick="openBookingModal()"
+          class="w-full max-w-2xl mx-auto cta-gold-btn shimmer rounded-2xl p-3 sm:p-4 text-center text-slate-950 font-black hover:opacity-95 transition-all overflow-hidden block"
+        >
+          <div class="text-xs min-[360px]:text-sm sm:text-xl md:text-2xl font-black uppercase tracking-tight sm:tracking-wide whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center space-x-2">
+            <span>BOOK YOUR GROWTH SESSION</span>
+            <i class="fa-solid fa-arrow-right text-xs sm:text-lg"></i>
+          </div>
+          <div class="text-[10px] sm:text-xs font-extrabold text-slate-900 mt-0.5">
+            No sales pitch. Just a real roadmap for your business.
+          </div>
+        </button>
+      </section>
+
+      <!-- 6. How It Works Section -->
+      <section class="space-y-6 pt-4">
+        <h2 class="text-2xl sm:text-3xl font-black text-center text-white tracking-wider uppercase">
+          HOW IT WORKS
+        </h2>
+
+        <div class="space-y-4">
+          <div class="dark-gold-card rounded-2xl p-5 space-y-2 relative overflow-hidden transition-all hover:border-amber-400">
+            <div class="absolute top-2 right-4 text-4xl font-black text-amber-500/10 select-none">01</div>
+            <div class="text-amber-400 text-3xl font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <h3 class="text-xl sm:text-2xl font-extrabold text-white">Step 1 – We Find Your Buyer</h3>
+            <p class="text-slate-300 text-sm sm:text-base font-medium">We identify who actually pays you, not just who clicks.</p>
+          </div>
+
+          <div class="dark-gold-card rounded-2xl p-5 space-y-2 relative overflow-hidden transition-all hover:border-amber-400">
+            <div class="absolute top-2 right-4 text-4xl font-black text-amber-500/10 select-none">02</div>
+            <div class="text-amber-400 text-3xl font-bold mb-1"><i class="fa-solid fa-turn-up"></i></div>
+            <h3 class="text-xl sm:text-2xl font-extrabold text-white">Step 2 – We Create High-Converting Ads</h3>
+            <p class="text-slate-300 text-sm sm:text-base font-medium">Ads designed to attract buyers, not browsers.</p>
+          </div>
+
+          <div class="dark-gold-card rounded-2xl p-5 space-y-2 relative overflow-hidden transition-all hover:border-amber-400">
+            <div class="absolute top-2 right-4 text-4xl font-black text-amber-500/10 select-none">03</div>
+            <div class="text-amber-400 text-3xl font-bold mb-1"><i class="fa-solid fa-layer-group"></i></div>
+            <h3 class="text-xl sm:text-2xl font-extrabold text-white">Step 3 – We Build Trust With Content</h3>
+            <p class="text-slate-300 text-sm sm:text-base font-medium">Reels, posts, and videos that make people feel “I trust this brand”.</p>
+          </div>
+
+          <div class="dark-gold-card rounded-2xl p-5 space-y-2 relative overflow-hidden transition-all hover:border-amber-400">
+            <div class="absolute top-2 right-4 text-4xl font-black text-amber-500/10 select-none">04</div>
+            <div class="text-amber-400 text-3xl font-bold mb-1"><i class="fa-solid fa-filter"></i></div>
+            <h3 class="text-xl sm:text-2xl font-extrabold text-white">Step 4 – We Send Them to a Funnel</h3>
+            <p class="text-slate-300 text-sm sm:text-base font-medium">Landing pages that convert traffic into booked calls.</p>
+          </div>
+
+          <div class="dark-gold-card rounded-2xl p-5 space-y-2 relative overflow-hidden transition-all hover:border-amber-400">
+            <div class="absolute top-2 right-4 text-4xl font-black text-amber-500/10 select-none">05</div>
+            <div class="text-amber-400 text-3xl font-bold mb-1"><i class="fa-solid fa-calendar-check"></i></div>
+            <h3 class="text-xl sm:text-2xl font-extrabold text-white">Step 5 – You Get Appointments</h3>
+            <p class="text-slate-300 text-sm sm:text-base font-medium">You only talk to people who are ready.</p>
+          </div>
+        </div>
+
+        <button
+          onclick="openBookingModal()"
+          class="w-full cta-gold-btn shimmer rounded-2xl p-4 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all"
+        >
+          <div class="text-xl sm:text-2xl font-black uppercase tracking-wide">BOOK YOUR GROWTH SESSION</div>
+          <div class="text-xs sm:text-sm font-semibold text-slate-900 mt-1">No sales pitch. Just a real roadmap for your business.</div>
+        </button>
+      </section>
+
+      <!-- 7. Why We Are Different Section -->
+      <section class="relative rounded-3xl p-4 sm:p-7 text-center space-y-4 shadow-[0_0_50px_rgba(245,166,35,0.15)] border border-amber-500/30 bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 overflow-hidden my-3">
+        <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-80 bg-amber-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+
+        <div class="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-3.5 py-1 rounded-full text-amber-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+          <i class="fa-solid fa-layer-group text-[10px]"></i>
+          <span>Proven Methodology</span>
+        </div>
+
+        <div class="flex items-center justify-center space-x-2 text-xl sm:text-3xl font-black text-white text-center tracking-tight">
+          <i class="fa-solid fa-chart-line text-amber-400 text-lg sm:text-2xl"></i>
+          <h2>WHY WE ARE DIFFERENT</h2>
+        </div>
+
+        <div class="space-y-3.5 text-center max-w-2xl mx-auto">
+          <!-- Most Agencies Broken Model -->
+          <div class="bg-red-950/30 border border-red-500/30 rounded-2xl p-3 sm:p-4 space-y-2 shadow-inner">
+            <p class="text-[10px] sm:text-xs uppercase tracking-wider font-extrabold text-red-400 flex items-center justify-center space-x-1.5">
+              <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
+              <span>Most agencies focus on:</span>
+            </p>
+            <div class="flex items-center justify-center flex-wrap gap-1.5 sm:gap-2">
+              <span class="bg-red-500/10 text-red-200 border border-red-500/20 px-2.5 py-1 rounded-lg text-xs sm:text-sm font-extrabold">Ads</span>
+              <i class="fa-solid fa-arrow-right text-[10px] text-red-400/60"></i>
+              <span class="bg-red-500/10 text-red-200 border border-red-500/20 px-2.5 py-1 rounded-lg text-xs sm:text-sm font-extrabold">Leads</span>
+              <i class="fa-solid fa-arrow-right text-[10px] text-red-400/60"></i>
+              <span class="bg-red-500/10 text-red-200 border border-red-500/20 px-2.5 py-1 rounded-lg text-xs sm:text-sm font-extrabold">Done</span>
+              <span class="bg-red-500/20 text-red-400 border border-red-500/40 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-black ml-1">✕</span>
+            </div>
+          </div>
+
+          <!-- Winning Model -->
+          <div class="bg-emerald-950/40 border-2 border-emerald-500/50 rounded-2xl p-3.5 sm:p-4 space-y-2.5 shadow-[0_0_25px_rgba(16,185,129,0.15)] relative">
+            <p class="text-[10px] sm:text-xs uppercase tracking-widest font-black text-emerald-400 flex items-center justify-center space-x-1.5">
+              <i class="fa-solid fa-bullseye text-emerald-400"></i>
+              <span>WE FOCUS ON (THE WINNING REVENUE SYSTEM):</span>
+            </p>
+            <div class="flex items-center justify-center flex-wrap gap-1.5 sm:gap-2">
+              <span class="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 sm:px-3 py-1 rounded-xl text-xs sm:text-sm font-extrabold shadow-sm">Ads</span>
+              <i class="fa-solid fa-arrow-right text-[10px] text-emerald-400/70"></i>
+              <span class="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 sm:px-3 py-1 rounded-xl text-xs sm:text-sm font-extrabold shadow-sm">Content</span>
+              <i class="fa-solid fa-arrow-right text-[10px] text-emerald-400/70"></i>
+              <span class="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 sm:px-3 py-1 rounded-xl text-xs sm:text-sm font-extrabold shadow-sm">Trust</span>
+              <i class="fa-solid fa-arrow-right text-[10px] text-emerald-400/70"></i>
+              <span class="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 sm:px-3 py-1 rounded-xl text-xs sm:text-sm font-extrabold shadow-sm">Funnel</span>
+              <i class="fa-solid fa-arrow-right text-[10px] text-emerald-400/70"></i>
+              <span class="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 sm:px-3 py-1 rounded-xl text-xs sm:text-sm font-extrabold shadow-sm">Appointment</span>
+              <i class="fa-solid fa-arrow-right text-[10px] text-emerald-400/70"></i>
+              <span class="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 sm:px-3 py-1 rounded-xl text-xs sm:text-sm font-extrabold shadow-sm">Sale</span>
+              <span class="bg-emerald-500 text-slate-950 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-black ml-1 shadow-md">✓</span>
+            </div>
+          </div>
+
+          <!-- Client Outcomes -->
+          <div class="border border-zinc-800/90 rounded-2xl p-3.5 sm:p-4 text-left bg-zinc-950/80 space-y-2.5 shadow-inner">
+            <p class="text-center font-black text-white text-sm sm:text-base">That’s why our clients get:</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+              <div class="flex items-center space-x-2.5 text-slate-200 font-extrabold text-xs sm:text-sm bg-zinc-900/60 p-2 rounded-xl border border-zinc-800">
+                <div class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0">
+                  <i class="fa-solid fa-check-double"></i>
+                </div>
+                <span>Better quality leads</span>
+              </div>
+              <div class="flex items-center space-x-2.5 text-slate-200 font-extrabold text-xs sm:text-sm bg-zinc-900/60 p-2 rounded-xl border border-zinc-800">
+                <div class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0">
+                  <i class="fa-solid fa-check-double"></i>
+                </div>
+                <span>Higher closing rate</span>
+              </div>
+              <div class="flex items-center space-x-2.5 text-slate-200 font-extrabold text-xs sm:text-sm bg-zinc-900/60 p-2 rounded-xl border border-zinc-800">
+                <div class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0">
+                  <i class="fa-solid fa-check-double"></i>
+                </div>
+                <span>Predictable revenue &amp; ROI</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. Meet The Founder Section -->
+      <section class="gold-border-card bg-gradient-to-b from-[#131316] to-[#0a0a0c] text-white rounded-3xl p-5 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+        <div class="flex items-center space-x-2 text-amber-400 font-extrabold text-xs tracking-widest uppercase bg-amber-500/10 px-3.5 py-1 rounded-full border border-amber-500/30 w-fit mx-auto">
+          <i class="fa-solid fa-user-shield text-xs"></i>
+          <span>Meet The Founder</span>
+        </div>
+
+        <div class="flex flex-col md:flex-row items-center gap-6 md:gap-8 text-center md:text-left">
+          <div class="relative flex-shrink-0">
+            <div class="w-36 h-36 sm:w-44 sm:h-44 md:w-52 md:h-52 rounded-3xl overflow-hidden border-2 border-amber-500/60 shadow-[0_0_30px_rgba(245,166,35,0.25)] relative group">
+              <img
+                src="https://firstoptionagency.in/founder.png"
+                alt="Founder - First Option Agency"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+            <div class="absolute -bottom-2 -right-2 bg-emerald-500 text-slate-950 text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-full shadow-lg border border-emerald-300 flex items-center space-x-1">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>Faiz Ansari</span>
+            </div>
+          </div>
+
+          <div class="space-y-3 flex-1">
+            <div>
+              <h3 class="text-2xl sm:text-3xl font-black text-white leading-tight">Behind First Option Agency</h3>
+              <p class="text-amber-400 font-bold text-xs sm:text-sm mt-0.5">Founder &amp; Senior Revenue Strategist</p>
+            </div>
+
+            <p class="text-slate-300 text-xs sm:text-sm md:text-base leading-relaxed font-medium">
+              &quot;We created First Option Agency after watching hundreds of business owners burn lakhs of rupees on traditional agencies that only delivered impressions, vanity metrics, and fake leads. Our mission is simple: build a predictable, automated revenue engine that turns clicks into real buyers.&quot;
+            </p>
+
+            <div class="pt-2 flex flex-wrap gap-2 justify-center md:justify-start text-xs font-bold text-slate-200">
+              <span class="bg-zinc-800/90 border border-zinc-700 px-3 py-1 rounded-xl">🎯 Direct Response Ads</span>
+              <span class="bg-zinc-800/90 border border-zinc-700 px-3 py-1 rounded-xl">📈 Revenue Systems</span>
+              <span class="bg-zinc-800/90 border border-zinc-700 px-3 py-1 rounded-xl">🚀 10k+ Lead Pipeline</span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onclick="openBookingModal()"
+          class="w-full cta-gold-btn shimmer rounded-2xl p-3.5 sm:p-4 text-center text-slate-950 font-black hover:opacity-95 transition-all overflow-hidden mt-2"
+        >
+          <div class="text-sm sm:text-base md:text-lg font-black uppercase tracking-wide flex items-center justify-center space-x-2">
+            <span>Book a 1-on-1 Strategy Session With Me</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </div>
+        </button>
+      </section>
+
+      <!-- 9. Interactive Revenue Calculator Widget -->
+      <section class="relative rounded-3xl p-4 sm:p-7 text-center space-y-4 shadow-[0_0_50px_rgba(245,166,35,0.12)] border border-amber-500/30 bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 overflow-hidden my-3">
+        <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-80 bg-amber-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+
+        <div class="inline-flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-amber-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+          <i class="fa-solid fa-calculator text-[10px]"></i>
+          <span>Interactive Revenue Calculator</span>
+        </div>
+
+        <div class="space-y-1 max-w-xl mx-auto">
+          <h3 class="text-lg sm:text-2xl font-black text-white tracking-tight">Estimate Your Monthly Appointment Potential</h3>
+          <p class="text-[11px] sm:text-xs text-slate-400 font-medium leading-relaxed">Select your industry &amp; budget to calculate expected output:</p>
+        </div>
+
+        <div class="space-y-4 max-w-2xl mx-auto text-left">
+          <!-- Industry Select Buttons -->
+          <div>
+            <label class="block text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Select Your Business Category:</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-semibold" id="calcIndustryGrid">
+              <button onclick="setCalcIndustry('clinic')" id="btnIndClinic" class="calc-ind-btn px-2.5 py-2 rounded-xl text-center border font-bold transition-all text-[11px] sm:text-xs flex items-center justify-center space-x-1.5 bg-amber-500 text-slate-950 border-amber-400 shadow-md scale-[1.02]">
+                <span>👨‍⚕️</span><span class="truncate">Clinic / Doctor</span>
+              </button>
+              <button onclick="setCalcIndustry('manufacturing')" id="btnIndMfg" class="calc-ind-btn px-2.5 py-2 rounded-xl text-center border font-bold transition-all text-[11px] sm:text-xs flex items-center justify-center space-x-1.5 bg-zinc-900/90 text-slate-300 border-zinc-800 hover:bg-zinc-800">
+                <span>🏭</span><span class="truncate">Manufacturer</span>
+              </button>
+              <button onclick="setCalcIndustry('it')" id="btnIndIT" class="calc-ind-btn px-2.5 py-2 rounded-xl text-center border font-bold transition-all text-[11px] sm:text-xs flex items-center justify-center space-x-1.5 bg-zinc-900/90 text-slate-300 border-zinc-800 hover:bg-zinc-800">
+                <span>💻</span><span class="truncate">IT / B2B Agency</span>
+              </button>
+              <button onclick="setCalcIndustry('retail')" id="btnIndRetail" class="calc-ind-btn px-2.5 py-2 rounded-xl text-center border font-bold transition-all text-[11px] sm:text-xs flex items-center justify-center space-x-1.5 bg-zinc-900/90 text-slate-300 border-zinc-800 hover:bg-zinc-800">
+                <span>🏪</span><span class="truncate">Retail / Store</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Budget Range Slider -->
+          <div class="bg-zinc-900/80 border border-zinc-800/90 rounded-2xl p-3 sm:p-4 space-y-2">
+            <div class="flex justify-between items-center text-xs sm:text-sm font-extrabold text-slate-300">
+              <span class="text-[11px] sm:text-xs">Monthly Marketing Budget:</span>
+              <span id="budgetDisplay" class="text-amber-400 font-black text-xs sm:text-sm bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">₹30,000 / mo</span>
+            </div>
+            <input
+              type="range"
+              id="budgetSlider"
+              min="15000"
+              max="150000"
+              step="5000"
+              value="30000"
+              oninput="onBudgetChange(this.value)"
+              class="w-full accent-amber-500 h-2 bg-zinc-800 rounded-lg cursor-pointer"
+            />
+            <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>₹15k/mo</span>
+              <span>₹75k/mo</span>
+              <span>₹1.5L/mo</span>
+            </div>
+          </div>
+
+          <!-- Calculator Output Box -->
+          <div class="bg-zinc-950 border border-amber-500/30 rounded-2xl p-3 sm:p-4 text-center grid grid-cols-2 gap-2 sm:gap-3 shadow-inner">
+            <div class="border-r border-zinc-800/90 pr-1.5 sm:pr-3 flex flex-col justify-center">
+              <div id="calcApptLabel" class="text-[10px] sm:text-xs text-slate-400 font-medium truncate mb-0.5">Est. Patients / Consults</div>
+              <div id="calcApptRange" class="text-lg min-[360px]:text-xl sm:text-3xl font-black text-amber-400 tracking-tight leading-none my-1">84 – 126</div>
+              <div class="text-[9px] sm:text-xs text-emerald-400 font-extrabold truncate">High-Intent Ready Buyers</div>
+            </div>
+
+            <div class="pl-1.5 sm:pl-3 flex flex-col justify-center">
+              <div class="text-[10px] sm:text-xs text-slate-400 font-medium truncate mb-0.5">Est. Sales Pipeline</div>
+              <div id="calcRevRange" class="text-lg min-[360px]:text-xl sm:text-3xl font-black text-white tracking-tight leading-none my-1">₹2.9L – ₹4.3L</div>
+              <div class="text-[9px] sm:text-xs text-amber-400 font-extrabold truncate">Predictable Revenue</div>
+            </div>
+          </div>
+
+          <!-- CTA Button -->
+          <button
+            onclick="openBookingModal()"
+            class="w-full cta-gold-btn shimmer rounded-2xl p-3 sm:p-4 text-center text-slate-950 font-black hover:opacity-95 transition-all overflow-hidden flex items-center justify-center space-x-2"
+          >
+            <span class="text-xs sm:text-sm uppercase tracking-wide font-black">Lock In These Numbers For Your Business</span>
+            <i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- 10. Industries We Have Worked With Grid -->
+      <section class="space-y-4 pt-2">
+        <div class="text-center space-y-1">
+          <div class="inline-flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-0.5 rounded-full text-amber-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+            <i class="fa-solid fa-briefcase text-[10px]"></i>
+            <span>Proven Track Record</span>
+          </div>
+          <h2 class="text-xl sm:text-3xl md:text-4xl font-black text-center text-white tracking-tight">Industries We Scale</h2>
+        </div>
+
+        <!-- Mobile Tabs -->
+        <div class="flex md:hidden items-center justify-center gap-1.5 p-1 bg-zinc-950/90 border border-zinc-800 rounded-2xl max-w-sm mx-auto shadow-inner">
+          <button onclick="setIndustryTab(0)" id="indTab0" class="flex-1 py-1.5 px-2 rounded-xl text-[10px] min-[360px]:text-xs font-extrabold transition-all flex items-center justify-center space-x-1 bg-amber-500 text-slate-950 shadow-md border border-amber-400">
+            <i class="fa-solid fa-user-doctor text-[9px]"></i><span class="truncate">Doctors</span>
+          </button>
+          <button onclick="setIndustryTab(1)" id="indTab1" class="flex-1 py-1.5 px-2 rounded-xl text-[10px] min-[360px]:text-xs font-extrabold transition-all flex items-center justify-center space-x-1 text-slate-400 hover:text-white">
+            <i class="fa-solid fa-laptop-code text-[9px]"></i><span class="truncate">IT &amp; B2B</span>
+          </button>
+          <button onclick="setIndustryTab(2)" id="indTab2" class="flex-1 py-1.5 px-2 rounded-xl text-[10px] min-[360px]:text-xs font-extrabold transition-all flex items-center justify-center space-x-1 text-slate-400 hover:text-white">
+            <i class="fa-solid fa-industry text-[9px]"></i><span class="truncate">Manufacturers</span>
+          </button>
+        </div>
+
+        <!-- Mobile Card Container -->
+        <div class="block md:hidden" id="mobileIndustryCard">
+          <div class="bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 border border-amber-500/30 rounded-3xl p-3.5 space-y-3 shadow-[0_0_30px_rgba(245,166,35,0.1)] relative overflow-hidden">
+            <div class="relative rounded-2xl overflow-hidden aspect-[16/9] w-full bg-zinc-900 border border-zinc-800 shadow-md">
+              <img id="mobileIndImg" src="https://firstoptionagency.in/firstoption/Doctors%20&%20Clinics.png" alt="Doctors &amp; Clinics" class="w-full h-full object-cover" />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+              <div id="mobileIndBadgeTag" class="absolute top-2 left-2 bg-amber-500/20 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">Healthcare</div>
+              <div id="mobileIndTitle" class="absolute bottom-2 left-3 right-3 text-white font-extrabold text-sm sm:text-base drop-shadow">Doctors &amp; Clinics</div>
+            </div>
+
+            <div id="mobileIndPoints" class="space-y-1.5 text-left bg-zinc-950/80 p-2.5 rounded-2xl border border-zinc-800">
+              <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                <span class="truncate">Real patients seeking specialized treatment</span>
+              </div>
+              <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                <span class="truncate">High-ticket procedure inquiries &amp; OPD leads</span>
+              </div>
+              <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                <span class="truncate">Automated booking &amp; instant SMS reminders</span>
+              </div>
+            </div>
+
+            <div id="mobileIndBadge" class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-2xl text-amber-300 text-[10px] sm:text-xs font-extrabold leading-snug text-left flex items-start space-x-2">
+              <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5 flex-shrink-0"></i>
+              <span>⭐ 100+ to 10,000+ consults delivered for dermatologists, dental &amp; specialty clinics.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop Grid -->
+        <div class="hidden md:grid md:grid-cols-3 gap-4">
+          <!-- Card 1 -->
+          <div class="bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 border border-amber-500/30 hover:border-amber-400/60 rounded-3xl p-4 text-left space-y-3 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-3">
+              <div class="relative rounded-2xl overflow-hidden aspect-[16/10] w-full bg-zinc-900 border border-zinc-800 shadow-md">
+                <img src="https://firstoptionagency.in/firstoption/Doctors%20&%20Clinics.png" alt="Doctors &amp; Clinics" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                <div class="absolute top-2.5 left-2.5 bg-amber-500/20 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">Healthcare</div>
+              </div>
+              <h3 class="text-lg font-extrabold text-white tracking-tight group-hover:text-amber-400 transition-colors">Doctors &amp; Clinics</h3>
+              <div class="space-y-1.5 bg-zinc-950/80 p-3 rounded-2xl border border-zinc-800">
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>Real patients seeking specialized treatment</span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>High-ticket procedure inquiries &amp; OPD leads</span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>Automated booking &amp; instant SMS reminders</span>
+                </div>
+              </div>
+            </div>
+            <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-2xl text-amber-300 text-xs font-extrabold leading-snug flex items-start space-x-2">
+              <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5 flex-shrink-0"></i>
+              <span>⭐ 100+ to 10,000+ consults delivered for dermatologists, dental &amp; specialty clinics.</span>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 border border-amber-500/30 hover:border-amber-400/60 rounded-3xl p-4 text-left space-y-3 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-3">
+              <div class="relative rounded-2xl overflow-hidden aspect-[16/10] w-full bg-zinc-900 border border-zinc-800 shadow-md">
+                <img src="https://firstoptionagency.in/firstoption/IT%20&%20Service%20Companies.png" alt="IT &amp; Service Companies" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                <div class="absolute top-2.5 left-2.5 bg-amber-500/20 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">Tech &amp; B2B</div>
+              </div>
+              <h3 class="text-lg font-extrabold text-white tracking-tight group-hover:text-amber-400 transition-colors">IT &amp; Service Companies</h3>
+              <div class="space-y-1.5 bg-zinc-950/80 p-3 rounded-2xl border border-zinc-800">
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>Decision-maker demo calls (CTOs, CEOs)</span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>Pre-qualified software &amp; agency inquiries</span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>Predictable recurring retainer client pipeline</span>
+                </div>
+              </div>
+            </div>
+            <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-2xl text-amber-300 text-xs font-extrabold leading-snug flex items-start space-x-2">
+              <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5 flex-shrink-0"></i>
+              <span>💻 Zero time-wasting leads. 100% pre-qualified decision maker meetings.</span>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 border border-amber-500/30 hover:border-amber-400/60 rounded-3xl p-4 text-left space-y-3 shadow-lg flex flex-col justify-between transition-all duration-300 group">
+            <div class="space-y-3">
+              <div class="relative rounded-2xl overflow-hidden aspect-[16/10] w-full bg-zinc-900 border border-zinc-800 shadow-md">
+                <img src="https://firstoptionagency.in/firstoption/Manufacturers%20&%20Wholesalers.png" alt="Manufacturers &amp; Wholesalers" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                <div class="absolute top-2.5 left-2.5 bg-amber-500/20 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">Industrial B2B</div>
+              </div>
+              <h3 class="text-lg font-extrabold text-white tracking-tight group-hover:text-amber-400 transition-colors">Manufacturers &amp; Wholesalers</h3>
+              <div class="space-y-1.5 bg-zinc-950/80 p-3 rounded-2xl border border-zinc-800">
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>Verified bulk buyers &amp; nationwide distributors</span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>Direct RFQ (Request for Quotation) leads</span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+                  <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+                  <span>High-ticket B2B contract revenue pipeline</span>
+                </div>
+              </div>
+            </div>
+            <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-2xl text-amber-300 text-xs font-extrabold leading-snug flex items-start space-x-2">
+              <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5 flex-shrink-0"></i>
+              <span>🏭 High-value industrial orders for ceramics, machinery, textiles &amp; building materials.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 11. Frequently Asked Questions -->
+      <section class="space-y-5 pt-4">
+        <div class="text-center space-y-1">
+          <span class="text-amber-400 font-extrabold text-xs tracking-widest uppercase bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
+            Got Questions?
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight pt-2">
+            Frequently Asked Questions
+          </h2>
+        </div>
+
+        <div class="space-y-3">
+          <!-- FAQ 1 -->
+          <div class="dark-gold-card rounded-2xl overflow-hidden transition-colors">
+            <button onclick="toggleFAQ(0)" class="w-full p-4.5 text-left flex items-center justify-between font-extrabold text-white text-sm sm:text-base focus:outline-none p-4">
+              <span class="pr-2">How fast can we expect results?</span>
+              <span id="faqIcon0" class="text-amber-400 text-lg transition-transform rotate-180"><i class="fa-solid fa-chevron-down"></i></span>
+            </button>
+            <div id="faqContent0" class="px-4.5 pb-4 px-4 text-slate-300 text-xs sm:text-sm font-medium leading-relaxed border-t border-zinc-800/80 pt-3">
+              Our revenue system starts generating qualified inquiries within 7 to 14 days of launch. Unlike traditional agencies that waste months on &#39;brand awareness&#39;, our focus is immediate appointments.
+            </div>
+          </div>
+
+          <!-- FAQ 2 -->
+          <div class="dark-gold-card rounded-2xl overflow-hidden transition-colors">
+            <button onclick="toggleFAQ(1)" class="w-full p-4.5 text-left flex items-center justify-between font-extrabold text-white text-sm sm:text-base focus:outline-none p-4">
+              <span class="pr-2">How are you different from a typical digital marketing agency?</span>
+              <span id="faqIcon1" class="text-amber-400 text-lg transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
+            </button>
+            <div id="faqContent1" class="hidden px-4.5 pb-4 px-4 text-slate-300 text-xs sm:text-sm font-medium leading-relaxed border-t border-zinc-800/80 pt-3">
+              Typical agencies deliver impressions, clicks, and unverified leads that never pick up the phone. First Option Agency builds an end-to-end Revenue System combining performance ads, trust content, qualification funnels, and automated CRM booking.
+            </div>
+          </div>
+
+          <!-- FAQ 3 -->
+          <div class="dark-gold-card rounded-2xl overflow-hidden transition-colors">
+            <button onclick="toggleFAQ(2)" class="w-full p-4.5 text-left flex items-center justify-between font-extrabold text-white text-sm sm:text-base focus:outline-none p-4">
+              <span class="pr-2">What ad budget do I need to get started?</span>
+              <span id="faqIcon2" class="text-amber-400 text-lg transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
+            </button>
+            <div id="faqContent2" class="hidden px-4.5 pb-4 px-4 text-slate-300 text-xs sm:text-sm font-medium leading-relaxed border-t border-zinc-800/80 pt-3">
+              We work with businesses starting at a minimum ad spend of ₹20,000 to ₹30,000 / month up to multi-lakh monthly scale. We optimize every single rupee spent to maximize ROI.
+            </div>
+          </div>
+
+          <!-- FAQ 4 -->
+          <div class="dark-gold-card rounded-2xl overflow-hidden transition-colors">
+            <button onclick="toggleFAQ(3)" class="w-full p-4.5 text-left flex items-center justify-between font-extrabold text-white text-sm sm:text-base focus:outline-none p-4">
+              <span class="pr-2">Do you provide money-back or performance guarantees?</span>
+              <span id="faqIcon3" class="text-amber-400 text-lg transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
+            </button>
+            <div id="faqContent3" class="hidden px-4.5 pb-4 px-4 text-slate-300 text-xs sm:text-sm font-medium leading-relaxed border-t border-zinc-800/80 pt-3">
+              Yes! During your 1-on-1 Growth Session, we set clear KPI milestones. If we don&#39;t hit the agreed appointment benchmark in month 1, we work for free until we do.
+            </div>
+          </div>
+
+          <!-- FAQ 5 -->
+          <div class="dark-gold-card rounded-2xl overflow-hidden transition-colors">
+            <button onclick="toggleFAQ(4)" class="w-full p-4.5 text-left flex items-center justify-between font-extrabold text-white text-sm sm:text-base focus:outline-none p-4">
+              <span class="pr-2">Will this work for my specific industry?</span>
+              <span id="faqIcon4" class="text-amber-400 text-lg transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
+            </button>
+            <div id="faqContent4" class="hidden px-4.5 pb-4 px-4 text-slate-300 text-xs sm:text-sm font-medium leading-relaxed border-t border-zinc-800/80 pt-3">
+              We have proven case studies across Healthcare (Doctors &amp; Clinics), Industrial Manufacturing, B2B IT/Software, Retail Mobile Shops, Real Estate, and FMCG Food Brands.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Final Bottom High-Conversion CTA Banner -->
+      <section class="hero-border-card rounded-3xl p-6 sm:p-10 text-center space-y-4 my-8">
+        <div class="inline-flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3.5 py-1 rounded-full text-amber-400 text-xs sm:text-sm font-bold">
+          <i class="fa-solid fa-lock text-xs"></i>
+          <span>100% Risk-Free Growth Consultation</span>
+        </div>
+
+        <h2 class="text-2xl sm:text-3xl md:text-4xl font-black text-white leading-tight">
+          Ready to Stop Chasing Leads &amp; Start Booking Real Buyers?
+        </h2>
+
+        <p class="text-slate-300 text-sm sm:text-base md:text-lg font-medium max-w-2xl mx-auto">
+          Book your 1-on-1 Growth Session now. We will map out your exact customer acquisition pipeline step-by-step.
+        </p>
+
+        <button
+          onclick="openBookingModal()"
+          class="w-full cta-gold-btn shimmer rounded-2xl p-3 sm:p-5 text-center text-slate-950 font-black hover:opacity-95 transition-all shadow-2xl overflow-hidden"
+        >
+          <div class="text-xs min-[360px]:text-sm sm:text-xl md:text-2xl lg:text-3xl font-black uppercase tracking-tight sm:tracking-wide flex items-center justify-center space-x-1.5 whitespace-nowrap overflow-hidden text-ellipsis">
+            <span>CLAIM YOUR GROWTH SESSION</span>
+            <i class="fa-solid fa-arrow-right text-xs sm:text-lg flex-shrink-0"></i>
+          </div>
+          <div class="text-[10px] sm:text-xs md:text-sm font-extrabold text-slate-900 mt-0.5 sm:mt-1">
+            Only 3 spots left for this month. 100% Free Strategy Blueprint.
+          </div>
+        </button>
+      </section>
+
+      <!-- Footer -->
+      <footer class="text-center text-slate-500 text-xs sm:text-sm py-6 space-y-2 border-t border-zinc-900">
+        <p class="font-bold text-slate-400">First Option Agency • Performance Marketing &amp; Revenue Systems</p>
+        <p>© <span id="currentYearSpan">2026</span> First Option Agency. All Rights Reserved.</p>
+        <p class="text-[11px] sm:text-xs text-slate-600">Results may vary based on business category, market offer, and fulfillment capabilities.</p>
+      </footer>
+    </main>
+
+    <!-- Floating Video Modal -->
+    <div id="videoModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+      <div class="bg-zinc-950 border border-amber-500/40 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative flex flex-col">
+        <button onclick="closeVideoModal()" class="absolute top-3 right-3 z-30 w-9 h-9 rounded-full bg-black/80 hover:bg-black text-white flex items-center justify-center border border-white/20 transition-colors shadow-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+        <div class="relative aspect-video w-full bg-black flex items-center justify-center">
+          <iframe id="videoIframe" src="" class="w-full h-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+        <div class="p-5 space-y-4 text-center">
+          <p class="text-slate-300 text-xs sm:text-sm">Learn how First Option Agency built an automated appointment engine for this campaign.</p>
+          <button onclick="closeVideoModal(); openBookingModal();" class="w-full cta-gold-btn shimmer py-3.5 px-4 rounded-xl text-slate-950 font-black text-sm uppercase tracking-wide flex items-center justify-center space-x-2">
+            <span>Get Similar Results For Your Business</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Lightbox Gallery Modal -->
+    <div id="resultsModal" class="hidden fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col justify-between p-3 sm:p-6">
+      <div class="flex items-center justify-between z-10">
+        <div class="flex items-center space-x-3">
+          <div id="resultsModalCounter" class="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-extrabold px-3 py-1 rounded-full">1 / 12</div>
+          <h4 id="resultsModalTitle" class="text-white font-extrabold text-xs sm:text-base truncate max-w-[200px] sm:max-w-md">Live OPD Patient Bookings</h4>
+        </div>
+        <button onclick="closeResultsModal()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-zinc-800 text-white hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center text-lg font-bold transition-all shadow-lg border border-zinc-700">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="relative flex-1 flex items-center justify-center my-2 sm:my-4">
+        <button onclick="prevResultImage()" class="absolute left-1 sm:left-4 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-zinc-900/90 text-amber-400 border border-amber-500/50 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center text-lg font-black transition-all shadow-xl backdrop-blur">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+
+        <div class="max-h-[65vh] sm:max-h-[75vh] max-w-full rounded-2xl overflow-hidden border-2 border-amber-500/60 shadow-[0_0_35px_rgba(245,166,35,0.3)] bg-zinc-950 p-1 flex items-center justify-center">
+          <img id="resultsModalImg" src="https://firstoptionagency.in/firstoption/result/11.jpg.jpeg" alt="Campaign Result" class="max-h-[63vh] sm:max-h-[73vh] w-auto max-w-full object-contain rounded-xl" />
+        </div>
+
+        <button onclick="nextResultImage()" class="absolute right-1 sm:right-4 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-zinc-900/90 text-amber-400 border border-amber-500/50 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center text-lg font-black transition-all shadow-xl backdrop-blur">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <!-- Thumbnail Strip -->
+      <div id="resultsThumbnails" class="flex items-center space-x-2 overflow-x-auto py-2 px-1 max-w-4xl mx-auto custom-scrollbar"></div>
+    </div>
+
+    <!-- Booking Modal (Full Interactive Flow: Step 1 -> Step 2 -> Step 3 -> Step 4) -->
+    <div id="bookingModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+      
+      <!-- Step 1: Contact Info -->
+      <div id="bookingStep1" class="bg-gradient-to-b from-zinc-950 via-[#0d0e14] to-zinc-950 text-white border border-amber-500/40 w-full max-w-md sm:max-w-lg rounded-3xl p-4 sm:p-7 shadow-[0_0_50px_rgba(245,166,35,0.2)] relative max-h-[92vh] overflow-y-auto font-sans my-auto">
+        <div class="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full">Step 1 of 3</span>
+            <span class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">Fast 30-Sec Booking</span>
+          </div>
+          <button onclick="closeBookingModal()" class="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm transition-colors">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <form id="contactForm" onsubmit="handleStep1Submit(event)" class="space-y-3.5 text-left">
+          <div class="text-center space-y-1">
+            <h3 class="text-base sm:text-xl font-black text-white leading-snug">Claim Your 1-on-1 Growth Consultation</h3>
+            <p class="text-[11px] sm:text-xs text-slate-400 font-medium">Enter your details to reserve your custom revenue strategy session</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-300 mb-1">Full Name <span class="text-amber-400">*</span></label>
+            <input type="text" id="inputFullName" required placeholder="Enter your full name" class="w-full bg-zinc-900/90 border border-zinc-800 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm text-white placeholder-zinc-500 shadow-inner outline-none transition-colors" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-300 mb-1">WhatsApp Phone Number <span class="text-amber-400">*</span></label>
+            <div class="flex items-center bg-zinc-900/90 border border-zinc-800 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400 rounded-xl overflow-hidden shadow-inner">
+              <div class="flex items-center space-x-1 px-3 py-2.5 sm:py-3 bg-zinc-950 border-r border-zinc-800 text-xs sm:text-sm font-bold text-slate-300">
+                <span>🇮🇳</span><span>+91</span>
+              </div>
+              <input type="tel" id="inputPhone" inputmode="numeric" pattern="[0-9]*" maxlength="10" required placeholder="9876543210" class="w-full px-3 py-2.5 sm:py-3 text-sm text-white bg-transparent placeholder-zinc-500 focus:outline-none font-mono tracking-wider" />
+            </div>
+          </div>
+
+          <button type="submit" class="w-full cta-gold-btn shimmer rounded-2xl p-3.5 sm:p-4 text-center cursor-pointer shadow-xl hover:opacity-95 active:scale-[0.99] transition-all mt-4">
+            <div class="text-sm sm:text-base font-black text-slate-950 flex items-center justify-center space-x-2 uppercase tracking-wide">
+              <span>CONTINUE TO SELECT SLOT</span>
+              <i class="fa-solid fa-arrow-right text-xs sm:text-sm"></i>
+            </div>
+            <div class="text-[10px] sm:text-xs font-extrabold text-slate-900 mt-0.5">⚡ 100% Free Strategy Session • No Sales Pitch</div>
+          </button>
+        </form>
+      </div>
+
+      <!-- Step 2: Questionnaire -->
+      <div id="bookingStep2" class="hidden bg-[#0f0f13] text-white border border-zinc-800 w-full max-w-xl rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans flex flex-col justify-between my-auto">
+        <div>
+          <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5 mb-3">
+            <h3 class="text-xs sm:text-base font-bold text-white tracking-wide truncate">Let's Understand Your Business Before We Grow It</h3>
+            <button onclick="closeBookingModal()" class="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm flex-shrink-0">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <div id="questionContainer" class="space-y-4 pt-1">
+            <!-- Dynamic Question Content -->
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-zinc-800/80 flex items-center justify-between mt-5">
+          <div class="flex items-center space-x-3">
+            <button id="btnSurveyAction" onclick="nextQuestion()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-1.5 sm:py-2 rounded-full text-xs flex items-center space-x-1.5 shadow">
+              <span>OK</span>
+              <i class="fa-solid fa-chevron-right text-xs"></i>
+            </button>
+            <span class="text-[11px] text-zinc-400 font-mono hidden sm:inline">press <span class="text-white font-bold">Enter ↵</span></span>
+          </div>
+
+          <div class="flex items-center space-x-1.5">
+            <button id="btnPrevQ" onclick="prevQuestion()" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center transition-colors">
+              <i class="fa-solid fa-chevron-up text-xs"></i>
+            </button>
+            <button id="btnNextQ" onclick="nextQuestion()" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center transition-colors">
+              <i class="fa-solid fa-chevron-down text-xs"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Interactive Calendar Appointment Booking -->
+      <div id="bookingStep3" class="hidden bg-[#0b0b0e] text-white border border-zinc-800 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans space-y-3 my-auto">
+        <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+          <p class="text-xs sm:text-sm font-bold text-slate-300">Select date &amp; time for your Growth Strategy Call</p>
+          <button onclick="closeBookingModal()" class="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="bg-[#121217] border border-zinc-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-3.5 shadow-xl">
+          <div class="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 shadow">
+                <img src="https://firstoptionagency.in/founder.png" alt="Faiz Ansari" class="w-full h-full object-cover" />
+              </div>
+              <div>
+                <h4 class="text-xs sm:text-base font-bold text-white leading-tight">Your Business Growth Call</h4>
+                <p class="text-[11px] text-amber-400 font-semibold">Faiz Ansari • Senior Strategist</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] sm:text-xs text-amber-400 font-mono font-bold">
+              <i class="fa-regular fa-clock"></i>
+              <span>60 min</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+            <div class="flex items-center space-x-1.5 font-mono">
+              <i class="fa-solid fa-globe text-amber-400"></i>
+              <span>Asia/Calcutta (GMT+5:30)</span>
+            </div>
+          </div>
+
+          <!-- Calendar Controls -->
+          <div class="border border-zinc-800 rounded-xl sm:rounded-2xl p-3 bg-zinc-950 space-y-3">
+            <div class="flex items-center justify-between text-xs font-extrabold text-white px-1">
+              <button onclick="prevMonth()" class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors">
+                <i class="fa-solid fa-chevron-left text-[10px]"></i><span>Prev</span>
+              </button>
+              <span id="calendarMonthTitle" class="text-sm font-black text-white tracking-wide bg-zinc-900/90 px-3 py-1 rounded-lg border border-zinc-800">August 2026</span>
+              <button onclick="nextMonth()" class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors">
+                <span>Next</span><i class="fa-solid fa-chevron-right text-[10px]"></i>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-7 text-center text-[9px] sm:text-[10px] font-bold text-slate-500 border-b border-zinc-800/80 pb-1">
+              <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+            </div>
+
+            <div id="calendarDaysGrid" class="grid grid-cols-7 gap-1 text-center text-xs font-mono font-bold"></div>
+          </div>
+
+          <!-- Time Slots -->
+          <div class="space-y-2 pt-1">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-200">
+              <span id="selectedDateFormatted">📅 Selected Date</span>
+              <span class="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
+            </div>
+            <div id="timeSlotsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Confirmation & WhatsApp Direct Link -->
+      <div id="bookingStep4" class="hidden bg-[#0c0c0f] text-white border border-emerald-500/40 w-full max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative text-center space-y-4 font-sans my-auto animate-toast-in">
+        <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center text-2xl sm:text-3xl mx-auto shadow-lg">✓</div>
+        <div>
+          <h4 class="text-lg sm:text-xl font-black text-white">Appointment Slot Booked Successfully! 🎉</h4>
+          <p id="successSlotDetails" class="text-xs text-amber-400 font-bold mt-1">Confirmed Growth Call</p>
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-3.5 text-left text-xs text-slate-300 space-y-1 font-mono">
+          <div><span class="text-slate-500">Name:</span> <span id="summaryName">User</span></div>
+          <div><span class="text-slate-500">Phone:</span> <span id="summaryPhone">+91</span></div>
+          <div><span class="text-slate-500">Campaign:</span> First Option Agency</div>
+          <div><span class="text-slate-500">Booked Slot:</span> <span id="summarySlot">Confirmed</span></div>
+        </div>
+
+        <a id="whatsappConfirmLink" href="https://wa.me/918329494445" target="_blank" rel="noopener noreferrer" onclick="closeBookingModal()" class="block w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm uppercase tracking-wide shadow-xl transition-transform active:scale-98">
+          <i class="fa-brands fa-whatsapp mr-2 text-base"></i>
+          Confirm Slot On WhatsApp &amp; Go Home
+        </a>
+
+        <div class="flex items-center space-x-2 pt-1">
+          <button onclick="goToStep(3)" class="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-calendar-days text-xs"></i>
+            <span>Change Slot</span>
+          </button>
+          <button onclick="closeBookingModal()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors">
+            Back to Home
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Sticky Mobile CTA Floating Bar -->
+    <div id="stickyMobileCta" class="fixed bottom-3 left-3 right-3 sm:bottom-5 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-xl z-50 transition-all duration-500 ease-out translate-y-16 opacity-0 pointer-events-none">
+      <div class="bg-zinc-950/95 border-2 border-amber-400/80 rounded-2xl sm:rounded-full p-2.5 sm:p-2 sm:px-4 shadow-[0_10px_40px_rgba(245,166,35,0.4)] backdrop-blur-xl flex items-center justify-between gap-2.5">
+        <div class="flex items-center space-x-2.5 overflow-hidden pl-1">
+          <div class="relative flex-shrink-0 flex items-center justify-center">
+            <span class="animate-ping absolute inline-flex h-3.5 w-3.5 rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </div>
+          <div class="text-left leading-tight overflow-hidden">
+            <div class="flex items-center space-x-1.5">
+              <span class="text-[10px] sm:text-xs font-black text-amber-400 uppercase tracking-widest truncate">🔥 3 Spots Left This Month</span>
+            </div>
+            <p class="text-xs sm:text-sm font-extrabold text-white truncate">Ready to Scale Revenue?</p>
+          </div>
+        </div>
+
+        <button onclick="openBookingModal()" class="cta-gold-btn shimmer py-2.5 px-3.5 sm:px-5 rounded-xl sm:rounded-full text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wide flex items-center space-x-1.5 shadow-xl hover:scale-105 active:scale-95 transition-all flex-shrink-0">
+          <span>BOOK APPOINTMENT</span>
+          <i class="fa-solid fa-arrow-right text-xs"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Social Proof Toast -->
+    <div id="socialProofToast" class="hidden fixed bottom-14 sm:bottom-6 left-2.5 sm:left-6 z-40 max-w-[210px] min-[360px]:max-w-[230px] sm:max-w-[250px] transition-all duration-300 animate-toast-in pointer-events-none">
+      <div class="bg-[#0f0f12]/95 border border-amber-500/40 text-white rounded-xl p-2 sm:p-2.5 shadow-[0_6px_20px_rgba(0,0,0,0.8)] backdrop-blur-md flex items-center space-x-2">
+        <div class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 flex items-center justify-center flex-shrink-0 text-[10px] sm:text-xs font-black shadow border border-amber-300/40">
+          <i class="fa-solid fa-check"></i>
+        </div>
+        <div class="text-[10px] sm:text-[11px] overflow-hidden leading-tight space-y-0.5">
+          <div class="flex items-center space-x-1">
+            <span id="toastName" class="font-extrabold text-white truncate max-w-[120px] sm:max-w-[140px]">Dr. Rajiv Sharma</span>
+            <span class="text-[9px] text-emerald-400 font-bold bg-emerald-950/80 px-1 py-0.2 rounded border border-emerald-500/30 flex-shrink-0">✓</span>
+          </div>
+          <p id="toastAction" class="text-amber-400 font-bold truncate max-w-[150px] sm:max-w-[170px]">Booked Strategy Call</p>
+          <div class="flex items-center space-x-1 text-[9px] text-slate-400 font-mono truncate">
+            <span id="toastLocation" class="truncate max-w-[90px]">Delhi, India</span>
+            <span>•</span>
+            <span id="toastTime">2 mins ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    // Set footer year
+    document.getElementById("currentYearSpan").innerText = new Date().getFullYear();
+
+    // 1. Urgency Countdown Timer
+    let urgencyTime = { hours: 4, minutes: 42, seconds: 18 };
+    setInterval(() => {
+      if (urgencyTime.seconds > 0) {
+        urgencyTime.seconds--;
+      } else if (urgencyTime.minutes > 0) {
+        urgencyTime.minutes = 59;
+        urgencyTime.seconds = 59;
+      } else if (urgencyTime.hours > 0) {
+        urgencyTime.hours--;
+        urgencyTime.minutes = 59;
+        urgencyTime.seconds = 59;
+      } else {
+        urgencyTime = { hours: 2, minutes: 30, seconds: 0 };
+      }
+      const pad = (n) => String(n).padStart(2, '0');
+      const timerEl = document.getElementById("urgencyTimer");
+      if (timerEl) timerEl.innerText = `${pad(urgencyTime.hours)}:${pad(urgencyTime.minutes)}:${pad(urgencyTime.seconds)}`;
+    }, 1000);
+
+    // 2. Video Modal Logic
+    function openVideoModal(title, author, embedId) {
+      const modal = document.getElementById("videoModal");
+      const iframe = document.getElementById("videoIframe");
+      if (embedId) {
+        iframe.src = `https://www.youtube.com/embed/${embedId}?autoplay=1`;
+      }
+      modal.classList.remove("hidden");
+    }
+
+    function closeVideoModal() {
+      const modal = document.getElementById("videoModal");
+      const iframe = document.getElementById("videoIframe");
+      iframe.src = "";
+      modal.classList.add("hidden");
+    }
+
+    // 3. Campaign Results Lightbox Modal Logic
+    const resultImages = [
+      { src: "https://firstoptionagency.in/firstoption/result/11.jpg.jpeg", title: "Live OPD Patient Bookings" },
+      { src: "https://firstoptionagency.in/firstoption/result/12.jpg.jpeg", title: "Verified Ad Account ROI" },
+      { src: "https://firstoptionagency.in/firstoption/result/13.jpg.jpeg", title: "High-Ticket Lead Pipeline" },
+      { src: "https://firstoptionagency.in/firstoption/result/14.jpg.jpeg", title: "WhatsApp Direct Inquiries" },
+      { src: "https://firstoptionagency.in/firstoption/result/15.jpg.jpeg", title: "Daily Appointment Calendar" },
+      { src: "https://firstoptionagency.in/firstoption/result/16.jpg.jpeg", title: "Retail Store Walk-in Logs" },
+      { src: "https://firstoptionagency.in/firstoption/result/17.jpg.jpeg", title: "Qualified Leads Dashboard" },
+      { src: "https://firstoptionagency.in/firstoption/result/18.jpg.jpeg", title: "Strategy Call Registrations" },
+      { src: "https://firstoptionagency.in/firstoption/result/19.jpg.jpeg", title: "Campaign Conversion Analytics" },
+      { src: "https://firstoptionagency.in/firstoption/result/110.jpg.jpeg", title: "Monthly Growth Metrics" },
+      { src: "https://firstoptionagency.in/firstoption/result/111.jpg.jpeg", title: "B2B Contract Inquiries" },
+      { src: "https://firstoptionagency.in/firstoption/result/112.jpg.jpeg", title: "Verified Client Testimonial Proof" }
+    ];
+
+    let currentResultIndex = 0;
+
+    function renderResultThumbnails() {
+      const strip = document.getElementById("resultsThumbnails");
+      strip.innerHTML = "";
+      resultImages.forEach((img, idx) => {
+        const btn = document.createElement("button");
+        btn.onclick = () => openResultsModal(idx);
+        btn.className = `relative flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all ${
+          currentResultIndex === idx
+            ? "border-amber-400 scale-105 shadow-[0_0_15px_rgba(245,166,35,0.6)] bg-zinc-900 opacity-100"
+            : "border-zinc-800 opacity-60 hover:opacity-100 bg-zinc-950"
+        }`;
+        btn.innerHTML = `<img src="${img.src}" alt="${img.title}" class="w-full h-full object-contain p-0.5" />`;
+        strip.appendChild(btn);
+      });
+    }
+
+    function openResultsModal(index) {
+      currentResultIndex = index;
+      const modal = document.getElementById("resultsModal");
+      document.getElementById("resultsModalCounter").innerText = `${index + 1} / ${resultImages.length}`;
+      document.getElementById("resultsModalTitle").innerText = resultImages[index].title;
+      document.getElementById("resultsModalImg").src = resultImages[index].src;
+      renderResultThumbnails();
+      modal.classList.remove("hidden");
+    }
+
+    function closeResultsModal() {
+      document.getElementById("resultsModal").classList.add("hidden");
+    }
+
+    function prevResultImage() {
+      const newIdx = (currentResultIndex === 0) ? resultImages.length - 1 : currentResultIndex - 1;
+      openResultsModal(newIdx);
+    }
+
+    function nextResultImage() {
+      const newIdx = (currentResultIndex === resultImages.length - 1) ? 0 : currentResultIndex + 1;
+      openResultsModal(newIdx);
+    }
+
+    // 4. Interactive Growth Calculator Logic
+    let currentCalcIndustry = "clinic";
+    let currentCalcBudget = 30000;
+
+    const calcMultipliers = {
+      clinic: { apptRatio: 0.0035, revMultiplier: 12, label: "Patients / Consults" },
+      manufacturing: { apptRatio: 0.0012, revMultiplier: 25, label: "B2B Buyer Meetings" },
+      it: { apptRatio: 0.0015, revMultiplier: 18, label: "Qualified Demos" },
+      retail: { apptRatio: 0.005, revMultiplier: 8, label: "Store Visits & Orders" },
+    };
+
+    function updateCalculator() {
+      const mult = calcMultipliers[currentCalcIndustry];
+      const minAppts = Math.round((currentCalcBudget * mult.apptRatio) * 0.8);
+      const maxAppts = Math.round((currentCalcBudget * mult.apptRatio) * 1.2);
+
+      const minRev = ((currentCalcBudget * mult.revMultiplier * 0.8) / 100000).toFixed(1);
+      const maxRev = ((currentCalcBudget * mult.revMultiplier * 1.2) / 100000).toFixed(1);
+
+      document.getElementById("budgetDisplay").innerText = `₹${currentCalcBudget.toLocaleString('en-IN')} / mo`;
+      document.getElementById("calcApptLabel").innerText = `Est. ${mult.label}`;
+      document.getElementById("calcApptRange").innerText = `${minAppts} – ${maxAppts}`;
+      document.getElementById("calcRevRange").innerText = `₹${minRev}L – ₹${maxRev}L`;
+    }
+
+    function setCalcIndustry(ind) {
+      currentCalcIndustry = ind;
+      const ids = { clinic: "btnIndClinic", manufacturing: "btnIndMfg", it: "btnIndIT", retail: "btnIndRetail" };
+      Object.keys(ids).forEach((key) => {
+        const btn = document.getElementById(ids[key]);
+        if (key === ind) {
+          btn.className = "calc-ind-btn px-2.5 py-2 rounded-xl text-center border font-bold transition-all text-[11px] sm:text-xs flex items-center justify-center space-x-1.5 bg-amber-500 text-slate-950 border-amber-400 shadow-md scale-[1.02]";
+        } else {
+          btn.className = "calc-ind-btn px-2.5 py-2 rounded-xl text-center border font-bold transition-all text-[11px] sm:text-xs flex items-center justify-center space-x-1.5 bg-zinc-900/90 text-slate-300 border-zinc-800 hover:bg-zinc-800";
+        }
+      });
+      updateCalculator();
+    }
+
+    function onBudgetChange(val) {
+      currentCalcBudget = Number(val);
+      updateCalculator();
+    }
+
+    // 5. Industries Tab Switcher (Mobile)
+    const industryData = [
+      {
+        title: "Doctors & Clinics",
+        badgeTag: "Healthcare",
+        img: "https://firstoptionagency.in/firstoption/Doctors%20&%20Clinics.png",
+        points: [
+          "Real patients seeking specialized treatment",
+          "High-ticket procedure inquiries & OPD leads",
+          "Automated booking & instant SMS reminders"
+        ],
+        badge: "⭐ 100+ to 10,000+ consults delivered for dermatologists, dental & specialty clinics."
+      },
+      {
+        title: "IT & Service Companies",
+        badgeTag: "Tech & B2B",
+        img: "https://firstoptionagency.in/firstoption/IT%20&%20Service%20Companies.png",
+        points: [
+          "Decision-maker demo calls (CTOs, CEOs)",
+          "Pre-qualified software & agency inquiries",
+          "Predictable recurring retainer client pipeline"
+        ],
+        badge: "💻 Zero time-wasting leads. 100% pre-qualified decision maker meetings."
+      },
+      {
+        title: "Manufacturers & Wholesalers",
+        badgeTag: "Industrial B2B",
+        img: "https://firstoptionagency.in/firstoption/Manufacturers%20&%20Wholesalers.png",
+        points: [
+          "Verified bulk buyers & nationwide distributors",
+          "Direct RFQ (Request for Quotation) leads",
+          "High-ticket B2B contract revenue pipeline"
+        ],
+        badge: "🏭 High-value industrial orders for ceramics, machinery, textiles & building materials."
+      }
+    ];
+
+    function setIndustryTab(index) {
+      [0, 1, 2].forEach((i) => {
+        const tab = document.getElementById(`indTab${i}`);
+        if (i === index) {
+          tab.className = "flex-1 py-1.5 px-2 rounded-xl text-[10px] min-[360px]:text-xs font-extrabold transition-all flex items-center justify-center space-x-1 bg-amber-500 text-slate-950 shadow-md border border-amber-400";
+        } else {
+          tab.className = "flex-1 py-1.5 px-2 rounded-xl text-[10px] min-[360px]:text-xs font-extrabold transition-all flex items-center justify-center space-x-1 text-slate-400 hover:text-white";
+        }
+      });
+
+      const item = industryData[index];
+      document.getElementById("mobileIndImg").src = item.img;
+      document.getElementById("mobileIndImg").alt = item.title;
+      document.getElementById("mobileIndBadgeTag").innerText = item.badgeTag;
+      document.getElementById("mobileIndTitle").innerText = item.title;
+      document.getElementById("mobileIndBadge").innerHTML = `<i class="fa-solid fa-star text-amber-400 text-xs mt-0.5 flex-shrink-0"></i><span>${item.badge}</span>`;
+
+      const ptsContainer = document.getElementById("mobileIndPoints");
+      ptsContainer.innerHTML = item.points.map(p => `
+        <div class="flex items-center space-x-2 text-xs font-semibold text-slate-200">
+          <div class="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-[9px] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+          <span class="truncate">${p}</span>
+        </div>
+      `).join("");
+    }
+
+    // 6. FAQ Accordion Logic
+    function toggleFAQ(idx) {
+      [0, 1, 2, 3, 4].forEach((i) => {
+        const content = document.getElementById(`faqContent${i}`);
+        const icon = document.getElementById(`faqIcon${i}`);
+        if (i === idx) {
+          const isCurrentlyHidden = content.classList.contains("hidden");
+          if (isCurrentlyHidden) {
+            content.classList.remove("hidden");
+            icon.classList.add("rotate-180");
+          } else {
+            content.classList.add("hidden");
+            icon.classList.remove("rotate-180");
+          }
+        } else {
+          content.classList.add("hidden");
+          icon.classList.remove("rotate-180");
+        }
+      });
+    }
+
+    // 7. Sticky Mobile CTA on Scroll
+    window.addEventListener("scroll", () => {
+      const stickyCta = document.getElementById("stickyMobileCta");
+      if (window.scrollY > 280) {
+        stickyCta.classList.remove("translate-y-16", "opacity-0", "pointer-events-none");
+        stickyCta.classList.add("translate-y-0", "opacity-100", "pointer-events-auto");
+      } else {
+        stickyCta.classList.add("translate-y-16", "opacity-0", "pointer-events-none");
+        stickyCta.classList.remove("translate-y-0", "opacity-100", "pointer-events-auto");
+      }
+    }, { passive: true });
+
+    // 8. Social Proof Toast Simulation
+    const sampleSocialUsers = [
+      { name: "Dr. Sajid Firdousi", location: "Mumbai", action: "Booked Strategy Call", time: "2 mins ago" },
+      { name: "Wao Mobile Hub", location: "Delhi", action: "Claimed Growth Session", time: "5 mins ago" },
+      { name: "Prince Ceramic", location: "Morbi, Gujarat", action: "Scheduled Meeting", time: "8 mins ago" },
+      { name: "Model Town Apparel", location: "Ludhiana", action: "Booked Consultation", time: "12 mins ago" },
+      { name: "Dr. Ananya Sharma", location: "Pune", action: "Reserved Growth Slot", time: "15 mins ago" },
+    ];
+
+    function showRandomSocialToast() {
+      const toast = document.getElementById("socialProofToast");
+      const user = sampleSocialUsers[Math.floor(Math.random() * sampleSocialUsers.length)];
+      document.getElementById("toastName").innerText = user.name;
+      document.getElementById("toastLocation").innerText = user.location;
+      document.getElementById("toastAction").innerText = user.action;
+      document.getElementById("toastTime").innerText = user.time;
+      toast.classList.remove("hidden");
+
+      setTimeout(() => {
+        toast.classList.add("hidden");
+      }, 3000);
+    }
+
+    setTimeout(() => {
+      showRandomSocialToast();
+      setInterval(showRandomSocialToast, 11000);
+    }, 2000);
+
+    // 9. Booking Modal Flow (Step 1 -> Step 2 -> Step 3 -> Step 4)
+    let bookingState = {
+      step: 1,
+      fullName: "",
+      phone: "",
+      surveyAnswers: {},
+      selectedDate: null,
+      selectedTime: null,
+    };
+
+    const qualificationQuestions = [
+      {
+        num: 1,
+        question: "What industry are you in? *",
+        field: "industry",
+        options: [
+          { label: "Doctor / Clinic", key: "A" },
+          { label: "Manufacturer / Distributor", key: "B" },
+          { label: "IT / Tech / SaaS", key: "C" },
+          { label: "Service Business", key: "D" },
+          { label: "Other", key: "E" },
+        ],
+      },
+      {
+        num: 2,
+        question: "What is your role in the business? *",
+        field: "role",
+        options: [
+          { label: "Founder / Owner", key: "A" },
+          { label: "Partner", key: "B" },
+          { label: "Marketing Head", key: "C" },
+          { label: "Team Member", key: "D" },
+        ],
+      },
+      {
+        num: 3,
+        question: "What is your current monthly revenue? *",
+        field: "revenue",
+        options: [
+          { label: "Below ₹5L", key: "A" },
+          { label: "₹5L – ₹10L", key: "B" },
+          { label: "₹10L – ₹25L", key: "C" },
+          { label: "₹25L – ₹50L", key: "D" },
+          { label: "₹50L+", key: "E" },
+        ],
+      },
+      {
+        num: 4,
+        question: "Are you ready to invest in a proper marketing system if it makes financial sense? *",
+        field: "investmentReady",
+        options: [
+          { label: "Yes", key: "A" },
+          { label: "Maybe", key: "B" },
+          { label: "Just exploring", key: "C" },
+        ],
+      },
+    ];
+
+    let currentQIndex = 0;
+
+    function openBookingModal() {
+      document.getElementById("bookingModal").classList.remove("hidden");
+      goToStep(bookingState.step || 1);
+    }
+
+    function closeBookingModal() {
+      document.getElementById("bookingModal").classList.add("hidden");
+    }
+
+    function goToStep(s) {
+      bookingState.step = s;
+      document.getElementById("bookingStep1").classList.add("hidden");
+      document.getElementById("bookingStep2").classList.add("hidden");
+      document.getElementById("bookingStep3").classList.add("hidden");
+      document.getElementById("bookingStep4").classList.add("hidden");
+
+      if (s === 1) {
+        document.getElementById("bookingStep1").classList.remove("hidden");
+      } else if (s === 2) {
+        document.getElementById("bookingStep2").classList.remove("hidden");
+        renderCurrentQuestion();
+      } else if (s === 3) {
+        document.getElementById("bookingStep3").classList.remove("hidden");
+        renderCalendar();
+      } else if (s === 4) {
+        document.getElementById("bookingStep4").classList.remove("hidden");
+        document.getElementById("summaryName").innerText = bookingState.fullName || "User";
+        document.getElementById("summaryPhone").innerText = "+91 " + (bookingState.phone || "");
+        document.getElementById("summarySlot").innerText = `${bookingState.selectedDate} (${bookingState.selectedTime})`;
+        document.getElementById("successSlotDetails").innerText = `${bookingState.selectedDate} at ${bookingState.selectedTime}`;
+
+        const waMsg = encodeURIComponent(`Hi First Option Agency, I have booked a 1-on-1 Growth Consultation.\nName: ${bookingState.fullName}\nPhone: ${bookingState.phone}\nSlot: ${bookingState.selectedDate} (${bookingState.selectedTime})`);
+        document.getElementById("whatsappConfirmLink").href = `https://wa.me/918329494445?text=${waMsg}`;
+      }
+    }
+
+    function handleStep1Submit(e) {
+      e.preventDefault();
+      const name = document.getElementById("inputFullName").value.trim();
+      const phone = document.getElementById("inputPhone").value.trim();
+      if (phone.length < 10) {
+        alert("Please enter a valid 10-digit WhatsApp phone number.");
+        return;
+      }
+      bookingState.fullName = name;
+      bookingState.phone = phone;
+      goToStep(2);
+    }
+
+    function renderCurrentQuestion() {
+      const q = qualificationQuestions[currentQIndex];
+      const container = document.getElementById("questionContainer");
+      const selectedVal = bookingState.surveyAnswers[q.field] || "";
+
+      container.innerHTML = `
+        <div class="text-sm sm:text-lg md:text-xl font-medium text-slate-100 flex items-start space-x-2">
+          <span class="text-amber-400 font-bold flex-shrink-0">${q.num} ➔</span>
+          <span>${q.question}</span>
+        </div>
+        <div class="space-y-2 pt-1 max-w-md">
+          ${q.options.map(opt => `
+            <button
+              type="button"
+              onclick="selectQuestionOption('${q.field}', '${opt.label}')"
+              class="w-full text-left p-2.5 sm:p-3.5 rounded-xl border flex items-center justify-between transition-all duration-200 ${
+                selectedVal === opt.label
+                  ? 'bg-amber-500/20 border-amber-400 text-white shadow-[0_0_15px_rgba(245,166,35,0.2)]'
+                  : 'bg-[#18181f] border-zinc-800 text-slate-200 hover:border-zinc-700 hover:bg-[#20202a]'
+              }"
+            >
+              <span class="text-xs sm:text-sm font-semibold">${opt.label}</span>
+              <span class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-zinc-700 text-zinc-400 text-[10px] sm:text-xs font-mono flex items-center justify-center bg-zinc-900 flex-shrink-0">${opt.key}</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+
+      const isLast = currentQIndex === qualificationQuestions.length - 1;
+      document.getElementById("btnSurveyAction").innerHTML = isLast ? `<span>Submit</span><i class="fa-solid fa-chevron-right text-xs"></i>` : `<span>OK</span><i class="fa-solid fa-chevron-right text-xs"></i>`;
+    }
+
+    function selectQuestionOption(field, label) {
+      bookingState.surveyAnswers[field] = label;
+      renderCurrentQuestion();
+      setTimeout(() => {
+        nextQuestion();
+      }, 250);
+    }
+
+    function nextQuestion() {
+      if (currentQIndex < qualificationQuestions.length - 1) {
+        currentQIndex++;
+        renderCurrentQuestion();
+      } else {
+        goToStep(3);
+      }
+    }
+
+    function prevQuestion() {
+      if (currentQIndex > 0) {
+        currentQIndex--;
+        renderCurrentQuestion();
+      }
+    }
+
+    // Calendar & Slots
+    const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const DAILY_SLOTS = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "07:00 PM", "09:00 PM"];
+
+    let calendarYear = new Date().getFullYear();
+    let calendarMonth = new Date().getMonth();
+    let selectedDay = new Date().getDate();
+
+    function prevMonth() {
+      if (calendarMonth > new Date().getMonth() || calendarYear > new Date().getFullYear()) {
+        calendarMonth--;
+        if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+        renderCalendar();
+      }
+    }
+
+    function nextMonth() {
+      calendarMonth++;
+      if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      document.getElementById("calendarMonthTitle").innerText = `${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
+      const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+      const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+      const grid = document.getElementById("calendarDaysGrid");
+      grid.innerHTML = "";
+
+      const today = new Date();
+
+      for (let e = 0; e < firstDay; e++) {
+        grid.innerHTML += `<div class="p-1 sm:p-1.5"></div>`;
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const isPast = new Date(calendarYear, calendarMonth, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const isSelected = selectedDay === d;
+
+        const btn = document.createElement("button");
+        btn.disabled = isPast;
+        btn.innerText = d;
+        btn.onclick = () => { selectedDay = d; renderCalendar(); };
+        btn.className = `p-1.5 sm:p-2 rounded-xl transition-all text-xs font-bold ${
+          isPast
+            ? "text-zinc-700 bg-zinc-900/30 cursor-not-allowed opacity-30 pointer-events-none line-through"
+            : isSelected
+            ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_15px_rgba(245,166,35,0.4)] scale-105"
+            : "text-slate-200 hover:bg-zinc-800 hover:text-amber-400"
+        }`;
+        grid.appendChild(btn);
+      }
+
+      const formattedDate = `${selectedDay} ${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
+      bookingState.selectedDate = formattedDate;
+      document.getElementById("selectedDateFormatted").innerText = `📅 ${formattedDate}`;
+
+      // Time slots
+      const slotsContainer = document.getElementById("timeSlotsGrid");
+      slotsContainer.innerHTML = DAILY_SLOTS.map(time => `
+        <button
+          type="button"
+          onclick="selectSlot('${time}')"
+          class="w-full p-2.5 rounded-xl text-xs font-bold transition-all shadow bg-amber-500 hover:bg-amber-400 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1"
+        >
+          <i class="fa-regular fa-clock text-[11px]"></i>
+          <span>${time}</span>
+        </button>
+      `).join("");
+    }
+
+    function selectSlot(time) {
+      bookingState.selectedTime = time;
+      goToStep(4);
+    }
+  </script>
+</body>
+</html>

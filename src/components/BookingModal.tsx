@@ -504,12 +504,11 @@ export function BookingModal({
 
       setStep(2);
 
-      // Track Meta Pixel Lead, ViewContent & FormSubmit events when user completes Step 1 Form
-      fbEvent("Lead", {
-        content_name: activeCampaign.title || "Growth Consultation Lead Form",
-        currency: "INR",
-        value: 0,
-      });
+      // Generate shared unique event ID for Meta Deduplication (Browser Pixel + Server CAPI)
+      const leadEventId = `lead_${emailPrefixId}_${Date.now()}`;
+
+      // Meta Event Setup Tool automatically tracks Lead on URL equals /survey
+      // Track ViewContent & FormSubmit custom event for analytics
       fbEvent("ViewContent", {
         content_name: "Survey Questionnaire Page",
       });
@@ -530,12 +529,13 @@ export function BookingModal({
         }),
       }).catch((err) => console.error("Async WhatsApp Auto-Welcome Trigger Error:", err));
 
-      // Asynchronously trigger Node.js Server Meta Conversions API (CAPI) for Lead
+      // Asynchronously trigger Node.js Server Meta Conversions API (CAPI) for Lead (Deduplicated with same eventId)
       fetch(`${serverUrl}/api/whatsapp/capi-event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventName: "Lead",
+          eventId: leadEventId,
           eventSourceUrl: "https://firstoptionagency.in/survey",
           email: contactInfo.email,
           phone: `${contactInfo.countryCode}${cleanPhone}`,
@@ -672,24 +672,32 @@ export function BookingModal({
     setIsReselectingSlot(false);
     setStep(4);
 
-    // Track Meta Pixel Schedule event for Consultation Call booking
-    fbEvent("Schedule", {
-      content_name: "Growth Consultation Booking",
-      campaign: activeCampaign.id,
-    });
-
     const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
     const formattedMonth = (currentMonthIndex + 1).toString().padStart(2, "0");
     const formattedDay = selectedDay.toString().padStart(2, "0");
     const appointmentDateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
-    // Asynchronously trigger Node.js Server Meta Conversions API (CAPI) for Schedule (Meeting Booked)
+    // Generate shared unique event ID for Meta Deduplication (Browser Pixel + Server CAPI)
+    const scheduleEventId = `schedule_${emailPrefixId}_${Date.now()}`;
+
+    // Track Meta Pixel Schedule event for Consultation Call booking with eventID
+    fbEvent(
+      "Schedule",
+      {
+        content_name: "Growth Consultation Booking",
+        campaign: activeCampaign.id,
+      },
+      { eventID: scheduleEventId }
+    );
+
+    // Asynchronously trigger Node.js Server Meta Conversions API (CAPI) for Schedule (Meeting Booked - Deduplicated with same eventId)
     const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
     fetch(`${serverUrl}/api/whatsapp/capi-event`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         eventName: "Schedule",
+        eventId: scheduleEventId,
         eventSourceUrl: "https://firstoptionagency.in/success",
         email: contactInfo.email,
         phone: `${contactInfo.countryCode}${contactInfo.phone.replace(/\D/g, "")}`,

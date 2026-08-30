@@ -41,10 +41,11 @@ async function sendMetaCapiEvent({
   clientIp = "",
   userAgent = "",
   testEventCode = "",
+  eventId = "",
 }) {
   try {
     const timestamp = Math.floor(Date.now() / 1000);
-    const eventId = `capi_${eventName.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const finalEventId = eventId || `capi_${eventName.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     const hashedEmail = hashMetaUserData(email);
     const hashedPhone = hashMetaPhone(phone);
@@ -67,7 +68,7 @@ async function sendMetaCapiEvent({
     const eventPayload = {
       event_name: eventName,
       event_time: timestamp,
-      event_id: eventId,
+      event_id: finalEventId,
       action_source: "website",
       event_source_url: eventSourceUrl || "https://firstoptionagency.in/",
       user_data: userDataNode,
@@ -95,12 +96,12 @@ async function sendMetaCapiEvent({
 
     const responseData = await res.json();
     if (responseData && responseData.events_received) {
-      console.log(`✅ [Node.js Meta CAPI Success] Fired ${eventName} to Meta! (Events Received: ${responseData.events_received})`);
+      console.log(`✅ [Node.js Meta CAPI Success] Fired ${eventName} to Meta! (EventID: ${finalEventId}, Events Received: ${responseData.events_received})`);
     } else {
       console.warn(`⚠️ [Node.js Meta CAPI Response]:`, JSON.stringify(responseData));
     }
 
-    return { success: true, response: responseData, eventId };
+    return { success: true, response: responseData, eventId: finalEventId };
   } catch (err) {
     console.error("🔥 [Node.js Meta CAPI Exception]:", err.message || err);
     return { success: false, error: err.message };
@@ -115,6 +116,7 @@ router.post("/capi-event", async (req, res) => {
   try {
     const {
       eventName,
+      eventId,
       eventSourceUrl,
       email,
       phone,
@@ -128,6 +130,7 @@ router.post("/capi-event", async (req, res) => {
 
     const result = await sendMetaCapiEvent({
       eventName: eventName || "PageView",
+      eventId,
       eventSourceUrl: eventSourceUrl || "https://firstoptionagency.in/",
       email,
       phone,

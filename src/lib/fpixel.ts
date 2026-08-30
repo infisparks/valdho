@@ -16,9 +16,17 @@ export const pageview = () => {
 };
 
 // Track standard Meta Pixel events (e.g. 'Lead', 'CompleteRegistration', 'Schedule', 'Contact')
-export const event = (name: string, options: Record<string, any> = {}) => {
+export const event = (
+  name: string,
+  options: Record<string, any> = {},
+  extra?: { eventID?: string }
+) => {
   if (typeof window !== "undefined" && window.fbq) {
-    window.fbq("track", name, options);
+    if (extra && extra.eventID) {
+      window.fbq("track", name, options, { eventID: extra.eventID });
+    } else {
+      window.fbq("track", name, options);
+    }
   }
 };
 

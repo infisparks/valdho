@@ -1922,6 +1922,204 @@ export async function deleteClientFlowInstance(clientFlowId: string): Promise<{ 
   }
 }
 
+/**
+ * Update task configuration details (title, role, type) in an assigned Client Flow Instance.
+ * If updateMainFlow is true, also synchronizes changes into the parent /flows template.
+ */
+export async function updateClientFlowTaskDetails(
+  clientFlowId: string,
+  taskId: string,
+  updates: {
+    title: string;
+    roleId: string;
+    roleName: string;
+    type: "checkbox" | "text" | "both";
+  },
+  updateMainFlow: boolean,
+  userEmail: string
+): Promise<{ success: boolean; message?: string; updatedTask?: ClientFlowTask }> {
+  try {
+    const snap = await get(ref(db, `clientFlows/${clientFlowId}`));
+    if (!snap.exists()) return { success: false, message: "Client flow not found." };
+
+    const flow = snap.val() as ClientFlowInstance;
+    let targetOriginalTask: ClientFlowTask | undefined;
+
+    const updatedTasks = flow.tasks.map((t) => {
+      if (t.id === taskId) {
+        targetOriginalTask = t;
+        return {
+          ...t,
+          title: updates.title.trim(),
+          roleId: updates.roleId,
+          roleName: updates.roleName,
+          type: updates.type,
+        };
+      }
+      return t;
+    });
+
+    await update(ref(db, `clientFlows/${clientFlowId}`), {
+      tasks: updatedTasks,
+    });
+
+    // If updateMainFlow is selected and flow has flowTemplateId, update template in /flows
+    if (updateMainFlow && flow.flowTemplateId) {
+      const templateSnap = await get(ref(db, `flows/${flow.flowTemplateId}`));
+      if (templateSnap.exists()) {
+        const template = templateSnap.val() as FlowTemplate;
+        const taskIdxInClient = flow.tasks.findIndex((t) => t.id === taskId);
+
+        let templateTasksUpdated = false;
+        const updatedTemplateTasks = (template.tasks || []).map((t, idx) => {
+          if (
+            (targetOriginalTask && t.title === targetOriginalTask.title && t.roleId === targetOriginalTask.roleId) ||
+            idx === taskIdxInClient
+          ) {
+            templateTasksUpdated = true;
+            return {
+              ...t,
+              title: updates.title.trim(),
+              roleId: updates.roleId,
+              roleName: updates.roleName,
+              type: updates.type,
+            };
+          }
+          return t;
+        });
+
+        if (templateTasksUpdated) {
+          await update(ref(db, `flows/${flow.flowTemplateId}`), {
+            tasks: updatedTemplateTasks,
+            updatedAt: new Date().toISOString(),
+            updatedBy: userEmail,
+          });
+        }
+      }
+    }
+
+    const updatedTaskObj = updatedTasks.find((t) => t.id === taskId);
+    return { success: true, updatedTask: updatedTaskObj };
+  } catch (err: any) {
+    console.error("Firebase updateClientFlowTaskDetails Error:", err);
+    return { success: false, message: err?.message || "Failed to update task details." };
+  }
+}
+
+/**
+ * Add a new task step into an assigned Client Flow Instance.
+ * If addToMainFlow is true, also adds this step to the parent /flows template.
+ */
+export async function addClientFlowTask(
+  clientFlowId: string,
+  taskData: {
+    title: string;
+    roleId: string;
+    roleName: string;
+    type: "checkbox" | "text" | "both";
+  },
+  addToMainFlow: boolean,
+  userEmail: string
+): Promise<{ success: boolean; message?: string; newTask?: ClientFlowTask }> {
+  try {
+    const snap = await get(ref(db, `clientFlows/${clientFlowId}`));
+    if (!snap.exists()) return { success: false, message: "Client flow not found." };
+
+    const flow = snap.val() as ClientFlowInstance;
+    const newTaskId = "ctask_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+
+    const newTask: ClientFlowTask = {
+      id: newTaskId,
+      title: taskData.title.trim(),
+      roleId: taskData.roleId,
+      roleName: taskData.roleName,
+      type: taskData.type,
+      isCompleted: false,
+      textValue: "",
+    };
+
+    const updatedTasks = [...(flow.tasks || []), newTask];
+
+    await update(ref(db, `clientFlows/${clientFlowId}`), {
+      tasks: updatedTasks,
+    });
+
+    if (addToMainFlow && flow.flowTemplateId) {
+      const templateSnap = await get(ref(db, `flows/${flow.flowTemplateId}`));
+      if (templateSnap.exists()) {
+        const template = templateSnap.val() as FlowTemplate;
+        const newTemplateTask: FlowTaskTemplate = {
+          id: "ftask_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+          title: taskData.title.trim(),
+          roleId: taskData.roleId,
+          roleName: taskData.roleName,
+          type: taskData.type,
+        };
+        const updatedTemplateTasks = [...(template.tasks || []), newTemplateTask];
+        await update(ref(db, `flows/${flow.flowTemplateId}`), {
+          tasks: updatedTemplateTasks,
+          updatedAt: new Date().toISOString(),
+          updatedBy: userEmail,
+        });
+      }
+    }
+
+    return { success: true, newTask };
+  } catch (err: any) {
+    console.error("Firebase addClientFlowTask Error:", err);
+    return { success: false, message: err?.message || "Failed to add task step." };
+  }
+}
+
+/**
+ * Delete a task step from an assigned Client Flow Instance.
+ * If deleteFromMainFlow is true, also removes this step from the parent /flows template.
+ */
+export async function deleteClientFlowTask(
+  clientFlowId: string,
+  taskId: string,
+  deleteFromMainFlow: boolean,
+  userEmail: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const snap = await get(ref(db, `clientFlows/${clientFlowId}`));
+    if (!snap.exists()) return { success: false, message: "Client flow not found." };
+
+    const flow = snap.val() as ClientFlowInstance;
+    const taskToDelete = flow.tasks.find((t) => t.id === taskId);
+    const taskIdx = flow.tasks.findIndex((t) => t.id === taskId);
+    const updatedTasks = flow.tasks.filter((t) => t.id !== taskId);
+
+    await update(ref(db, `clientFlows/${clientFlowId}`), {
+      tasks: updatedTasks,
+    });
+
+    if (deleteFromMainFlow && flow.flowTemplateId && taskToDelete) {
+      const templateSnap = await get(ref(db, `flows/${flow.flowTemplateId}`));
+      if (templateSnap.exists()) {
+        const template = templateSnap.val() as FlowTemplate;
+        const updatedTemplateTasks = (template.tasks || []).filter(
+          (t, idx) =>
+            !(
+              (t.title === taskToDelete.title && t.roleId === taskToDelete.roleId) ||
+              idx === taskIdx
+            )
+        );
+        await update(ref(db, `flows/${flow.flowTemplateId}`), {
+          tasks: updatedTemplateTasks,
+          updatedAt: new Date().toISOString(),
+          updatedBy: userEmail,
+        });
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Firebase deleteClientFlowTask Error:", err);
+    return { success: false, message: err?.message || "Failed to delete task step." };
+  }
+}
+
 /* ==========================================================================
    SUPPORT TICKET SYSTEM HELPERS
    ========================================================================== */

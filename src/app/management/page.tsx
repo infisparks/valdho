@@ -10,6 +10,9 @@ import {
   getAllClientFlows,
   updateClientFlowTaskStatus,
   markClientFlowCompleted,
+  updateClientFlowTaskDetails,
+  addClientFlowTask,
+  deleteClientFlowTask,
   createSupportTicket,
   getAllSupportTickets,
   SupportTicket,
@@ -95,7 +98,39 @@ export default function ManagementPage() {
     newText: string;
   } | null>(null);
 
+  // EDIT TASK CONFIGURATION MODAL STATE
+  const [editTaskModalData, setEditTaskModalData] = useState<{
+    clientFlowId: string;
+    flowName: string;
+    flowTemplateId?: string;
+    task: ClientFlowTask;
+    title: string;
+    roleId: string;
+    roleName: string;
+    type: "checkbox" | "text" | "both";
+  } | null>(null);
+
+  // ADD TASK STEP MODAL STATE
+  const [addTaskModalData, setAddTaskModalData] = useState<{
+    clientFlowId: string;
+    flowName: string;
+    flowTemplateId?: string;
+    roleId: string;
+    roleName: string;
+    title: string;
+    type: "checkbox" | "text" | "both";
+  } | null>(null);
+
+  // DELETE TASK MODAL STATE
+  const [deleteTaskModalData, setDeleteTaskModalData] = useState<{
+    clientFlowId: string;
+    flowName: string;
+    flowTemplateId?: string;
+    task: ClientFlowTask;
+  } | null>(null);
+
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+  const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
   // Authenticate & Fetch User Role
   useEffect(() => {
@@ -470,6 +505,142 @@ export default function ManagementPage() {
       );
     }
     setIsUpdatingTask(false);
+  };
+
+  // Save Edited Task Details (with option to update main template)
+  const handleSaveEditTaskDetails = async (updateMainFlow: boolean) => {
+    if (!editTaskModalData || !editTaskModalData.title.trim()) return;
+    setIsUpdatingTask(true);
+    const userEmail = currentUser?.email || "Staff";
+    const targetRole =
+      rolesList.find((r) => r.id === editTaskModalData.roleId) || {
+        id: editTaskModalData.roleId,
+        name: editTaskModalData.roleName,
+      };
+
+    const res = await updateClientFlowTaskDetails(
+      editTaskModalData.clientFlowId,
+      editTaskModalData.task.id,
+      {
+        title: editTaskModalData.title.trim(),
+        roleId: targetRole.id,
+        roleName: targetRole.name,
+        type: editTaskModalData.type,
+      },
+      updateMainFlow,
+      userEmail
+    );
+
+    if (res.success) {
+      setClientFlows((prev) =>
+        prev.map((cf) => {
+          if (cf.id === editTaskModalData.clientFlowId) {
+            return {
+              ...cf,
+              tasks: cf.tasks.map((t) =>
+                t.id === editTaskModalData.task.id
+                  ? {
+                      ...t,
+                      title: editTaskModalData.title.trim(),
+                      roleId: targetRole.id,
+                      roleName: targetRole.name,
+                      type: editTaskModalData.type,
+                    }
+                  : t
+              ),
+            };
+          }
+          return cf;
+        })
+      );
+      setActionSuccessMessage(
+        updateMainFlow
+          ? `Task updated for ${editTaskModalData.flowName} and synced to Main Flow Template!`
+          : `Task updated for ${editTaskModalData.flowName} (Client Only).`
+      );
+    }
+    setIsUpdatingTask(false);
+    setEditTaskModalData(null);
+  };
+
+  // Save New Task Step (with option to add to main template)
+  const handleSaveNewTaskDetails = async (updateMainFlow: boolean) => {
+    if (!addTaskModalData || !addTaskModalData.title.trim()) return;
+    setIsUpdatingTask(true);
+    const userEmail = currentUser?.email || "Staff";
+    const targetRole =
+      rolesList.find((r) => r.id === addTaskModalData.roleId) || {
+        id: addTaskModalData.roleId,
+        name: addTaskModalData.roleName,
+      };
+
+    const res = await addClientFlowTask(
+      addTaskModalData.clientFlowId,
+      {
+        title: addTaskModalData.title.trim(),
+        roleId: targetRole.id,
+        roleName: targetRole.name,
+        type: addTaskModalData.type,
+      },
+      updateMainFlow,
+      userEmail
+    );
+
+    if (res.success && res.newTask) {
+      setClientFlows((prev) =>
+        prev.map((cf) => {
+          if (cf.id === addTaskModalData.clientFlowId) {
+            return {
+              ...cf,
+              tasks: [...cf.tasks, res.newTask!],
+            };
+          }
+          return cf;
+        })
+      );
+      setActionSuccessMessage(
+        updateMainFlow
+          ? `New task step added to ${addTaskModalData.flowName} and synced to Main Flow Template!`
+          : `New task step added to ${addTaskModalData.flowName} (Client Only).`
+      );
+    }
+    setIsUpdatingTask(false);
+    setAddTaskModalData(null);
+  };
+
+  // Confirm Delete Task (with option to delete from main template)
+  const handleConfirmDeleteTask = async (deleteFromMainFlow: boolean) => {
+    if (!deleteTaskModalData) return;
+    setIsUpdatingTask(true);
+    const userEmail = currentUser?.email || "Staff";
+
+    const res = await deleteClientFlowTask(
+      deleteTaskModalData.clientFlowId,
+      deleteTaskModalData.task.id,
+      deleteFromMainFlow,
+      userEmail
+    );
+
+    if (res.success) {
+      setClientFlows((prev) =>
+        prev.map((cf) => {
+          if (cf.id === deleteTaskModalData.clientFlowId) {
+            return {
+              ...cf,
+              tasks: cf.tasks.filter((t) => t.id !== deleteTaskModalData.task.id),
+            };
+          }
+          return cf;
+        })
+      );
+      setActionSuccessMessage(
+        deleteFromMainFlow
+          ? `Task deleted from ${deleteTaskModalData.flowName} and removed from Main Flow Template!`
+          : `Task removed from ${deleteTaskModalData.flowName} (Client Only).`
+      );
+    }
+    setIsUpdatingTask(false);
+    setDeleteTaskModalData(null);
   };
 
   // Toggle Accordion Role Collapse state
@@ -1368,7 +1539,28 @@ export default function ManagementPage() {
                                   </div>
                                 </div>
 
-                                <div className="flex items-center space-x-3 flex-shrink-0">
+                                <div className="flex items-center space-x-2 flex-shrink-0">
+                                  {(isAdmin || isMyRoleColumn) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAddTaskModalData({
+                                          clientFlowId: activeFlow.id,
+                                          flowName: activeFlow.flowName,
+                                          flowTemplateId: activeFlow.flowTemplateId,
+                                          roleId: role.id,
+                                          roleName: role.name,
+                                          title: "",
+                                          type: "both",
+                                        });
+                                      }}
+                                      className="text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      + Add Step
+                                    </button>
+                                  )}
+
                                   <span className="text-xs font-mono font-bold bg-white text-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
                                     {completedCount}/{roleTasks.length} Done
                                   </span>
@@ -1405,13 +1597,55 @@ export default function ManagementPage() {
                                                 : "border-slate-200 opacity-90"
                                             }`}
                                           >
-                                            <div className="flex items-start space-x-2">
-                                              <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
-                                                #{originalStepIdx}
-                                              </span>
-                                              <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                                                {task.title}
-                                              </h4>
+                                            {/* Task Title & Action Controls */}
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div className="flex items-start space-x-2 min-w-0">
+                                                <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
+                                                  #{originalStepIdx}
+                                                </span>
+                                                <h4 className="text-xs font-bold text-slate-900 leading-snug break-words">
+                                                  {task.title}
+                                                </h4>
+                                              </div>
+
+                                              {(isAdmin || isMyRoleColumn) && (
+                                                <div className="flex items-center space-x-1 flex-shrink-0">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      setEditTaskModalData({
+                                                        clientFlowId: activeFlow.id,
+                                                        flowName: activeFlow.flowName,
+                                                        flowTemplateId: activeFlow.flowTemplateId,
+                                                        task,
+                                                        title: task.title,
+                                                        roleId: task.roleId,
+                                                        roleName: task.roleName,
+                                                        type: task.type,
+                                                      })
+                                                    }
+                                                    className="text-[10px] font-bold bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-300 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer"
+                                                    title="Edit Task & Sync with Main Flow"
+                                                  >
+                                                    ✏️
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      setDeleteTaskModalData({
+                                                        clientFlowId: activeFlow.id,
+                                                        flowName: activeFlow.flowName,
+                                                        flowTemplateId: activeFlow.flowTemplateId,
+                                                        task,
+                                                      })
+                                                    }
+                                                    className="text-[10px] font-bold bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer"
+                                                    title="Delete Task"
+                                                  >
+                                                    <i className="fa-solid fa-trash-can text-[10px]"></i>
+                                                  </button>
+                                                </div>
+                                              )}
                                             </div>
 
                                             {(task.type === "checkbox" || task.type === "both") && (
@@ -1550,7 +1784,7 @@ export default function ManagementPage() {
                                 : "bg-slate-50/70 border-slate-200"
                             }`}
                           >
-                            <div className="border-b border-slate-200 pb-3 space-y-1.5">
+                            <div className="border-b border-slate-200 pb-3 space-y-2">
                               <div className="flex items-center justify-between">
                                 <h3 className="text-sm font-extrabold text-slate-900 flex items-center space-x-1.5">
                                   <span>{role.name}</span>
@@ -1574,6 +1808,27 @@ export default function ManagementPage() {
                                 <div className="text-[10px] font-mono text-slate-400 italic">
                                   👤 Unassigned Email
                                 </div>
+                              )}
+
+                              {(isAdmin || isMyRoleColumn) && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAddTaskModalData({
+                                      clientFlowId: activeFlow.id,
+                                      flowName: activeFlow.flowName,
+                                      flowTemplateId: activeFlow.flowTemplateId,
+                                      roleId: role.id,
+                                      roleName: role.name,
+                                      title: "",
+                                      type: "both",
+                                    })
+                                  }
+                                  className="w-full text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 py-1 px-2 rounded-lg transition-colors flex items-center justify-center space-x-1 cursor-pointer"
+                                >
+                                  <i className="fa-solid fa-plus text-[10px]"></i>
+                                  <span>+ Add Step for {role.name}</span>
+                                </button>
                               )}
                             </div>
 
@@ -1600,13 +1855,55 @@ export default function ManagementPage() {
                                           : "border-slate-200 opacity-90"
                                       }`}
                                     >
-                                      <div className="flex items-start space-x-2">
-                                        <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
-                                          #{originalStepIdx}
-                                        </span>
-                                        <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                                          {task.title}
-                                        </h4>
+                                      {/* Task Title & Action Controls */}
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start space-x-2 min-w-0">
+                                          <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-extrabold flex items-center justify-center text-[10px] shadow-2xs flex-shrink-0 mt-0.5">
+                                            #{originalStepIdx}
+                                          </span>
+                                          <h4 className="text-xs font-bold text-slate-900 leading-snug break-words">
+                                            {task.title}
+                                          </h4>
+                                        </div>
+
+                                        {(isAdmin || isMyRoleColumn) && (
+                                          <div className="flex items-center space-x-1 flex-shrink-0">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setEditTaskModalData({
+                                                  clientFlowId: activeFlow.id,
+                                                  flowName: activeFlow.flowName,
+                                                  flowTemplateId: activeFlow.flowTemplateId,
+                                                  task,
+                                                  title: task.title,
+                                                  roleId: task.roleId,
+                                                  roleName: task.roleName,
+                                                  type: task.type,
+                                                })
+                                              }
+                                              className="text-[10px] font-bold bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-300 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer"
+                                              title="Edit Task & Sync with Main Flow"
+                                            >
+                                              ✏️
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setDeleteTaskModalData({
+                                                  clientFlowId: activeFlow.id,
+                                                  flowName: activeFlow.flowName,
+                                                  flowTemplateId: activeFlow.flowTemplateId,
+                                                  task,
+                                                })
+                                              }
+                                              className="text-[10px] font-bold bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer"
+                                              title="Delete Task"
+                                            >
+                                              <i className="fa-solid fa-trash-can text-[10px]"></i>
+                                            </button>
+                                          </div>
+                                        )}
                                       </div>
 
                                       {(task.type === "checkbox" || task.type === "both") && (
@@ -1814,6 +2111,359 @@ export default function ManagementPage() {
           </div>
         )}
       </main>
+
+      {/* ACTION SUCCESS BANNER TOAST */}
+      {actionSuccessMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 border border-emerald-500 text-emerald-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 text-xs font-bold backdrop-blur-md animate-in fade-in slide-in-from-bottom-4">
+          <i className="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+          <span>{actionSuccessMessage}</span>
+          <button
+            onClick={() => setActionSuccessMessage(null)}
+            className="text-emerald-300 hover:text-white font-bold ml-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* EDIT TASK MODAL WITH MAIN FLOW SYNC PROMPT */}
+      {editTaskModalData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0" onClick={() => setEditTaskModalData(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-slate-200 z-10 font-sans">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
+                  ✏️
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Edit Task Step Definition
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Workflow: <strong className="text-indigo-600">{editTaskModalData.flowName}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditTaskModalData(null)}
+                className="text-slate-400 hover:text-slate-700 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Task Title / Instructions *
+                </label>
+                <textarea
+                  rows={3}
+                  value={editTaskModalData.title}
+                  onChange={(e) =>
+                    setEditTaskModalData((prev) =>
+                      prev ? { ...prev, title: e.target.value } : null
+                    )
+                  }
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-indigo-600 focus:bg-white rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none leading-relaxed"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Assign Role *</label>
+                  <select
+                    value={editTaskModalData.roleId}
+                    onChange={(e) => {
+                      const r = rolesList.find((role) => role.id === e.target.value);
+                      setEditTaskModalData((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              roleId: e.target.value,
+                              roleName: r?.name || prev.roleName,
+                            }
+                          : null
+                      );
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 text-xs font-bold text-slate-900 rounded-xl px-2.5 py-2 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    {rolesList.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        👤 {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Input Type *</label>
+                  <select
+                    value={editTaskModalData.type}
+                    onChange={(e) =>
+                      setEditTaskModalData((prev) =>
+                        prev ? { ...prev, type: e.target.value as any } : null
+                      )
+                    }
+                    className="w-full bg-slate-50 border border-slate-300 text-xs font-bold text-slate-900 rounded-xl px-2.5 py-2 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="both">Checkbox + Notes</option>
+                    <option value="checkbox">Checkbox Only</option>
+                    <option value="text">Notes Only</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Main Flow Sync Prompt Box */}
+              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 space-y-1.5 text-xs">
+                <div className="flex items-center space-x-2 text-indigo-900 font-bold">
+                  <i className="fa-solid fa-arrows-rotate text-indigo-600"></i>
+                  <span>Sync to Main Flow Template?</span>
+                </div>
+                <p className="text-slate-700 text-[11px] leading-relaxed">
+                  Would you like to update this task in the <strong>Main Flow Template</strong> ({editTaskModalData.flowName}) as well? Updating both ensures all future client flow assignments get this updated version.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditTaskModalData(null)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isUpdatingTask || !editTaskModalData.title.trim()}
+                onClick={() => handleSaveEditTaskDetails(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Update for this Client Only
+              </button>
+
+              <button
+                type="button"
+                disabled={isUpdatingTask || !editTaskModalData.title.trim()}
+                onClick={() => handleSaveEditTaskDetails(true)}
+                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {isUpdatingTask ? (
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                ) : (
+                  <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
+                )}
+                <span>Update Both (Client + Main Flow 🚀)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD TASK MODAL WITH MAIN FLOW SYNC PROMPT */}
+      {addTaskModalData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0" onClick={() => setAddTaskModalData(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-slate-200 z-10 font-sans">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
+                  ➕
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Add New Task Step to Workflow
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Workflow: <strong className="text-indigo-600">{addTaskModalData.flowName}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAddTaskModalData(null)}
+                className="text-slate-400 hover:text-slate-700 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Task Step Title / Work Description *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Verify thumbnail colors and export final MP4 render..."
+                  value={addTaskModalData.title}
+                  onChange={(e) =>
+                    setAddTaskModalData((prev) =>
+                      prev ? { ...prev, title: e.target.value } : null
+                    )
+                  }
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-indigo-600 focus:bg-white rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none leading-relaxed placeholder:text-slate-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Assign Role *</label>
+                  <select
+                    value={addTaskModalData.roleId}
+                    onChange={(e) => {
+                      const r = rolesList.find((role) => role.id === e.target.value);
+                      setAddTaskModalData((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              roleId: e.target.value,
+                              roleName: r?.name || prev.roleName,
+                            }
+                          : null
+                      );
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 text-xs font-bold text-slate-900 rounded-xl px-2.5 py-2 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    {rolesList.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        👤 {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Input Type *</label>
+                  <select
+                    value={addTaskModalData.type}
+                    onChange={(e) =>
+                      setAddTaskModalData((prev) =>
+                        prev ? { ...prev, type: e.target.value as any } : null
+                      )
+                    }
+                    className="w-full bg-slate-50 border border-slate-300 text-xs font-bold text-slate-900 rounded-xl px-2.5 py-2 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="both">Checkbox + Notes</option>
+                    <option value="checkbox">Checkbox Only</option>
+                    <option value="text">Notes Only</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Main Flow Sync Prompt Box */}
+              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 space-y-1.5 text-xs">
+                <div className="flex items-center space-x-2 text-indigo-900 font-bold">
+                  <i className="fa-solid fa-arrows-rotate text-indigo-600"></i>
+                  <span>Add to Main Flow Template as well?</span>
+                </div>
+                <p className="text-slate-700 text-[11px] leading-relaxed">
+                  Choose whether this task step is only for this specific client or should permanently become part of the master template <strong>"{addTaskModalData.flowName}"</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAddTaskModalData(null)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isUpdatingTask || !addTaskModalData.title.trim()}
+                onClick={() => handleSaveNewTaskDetails(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Add for this Client Only
+              </button>
+
+              <button
+                type="button"
+                disabled={isUpdatingTask || !addTaskModalData.title.trim()}
+                onClick={() => handleSaveNewTaskDetails(true)}
+                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {isUpdatingTask ? (
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                ) : (
+                  <i className="fa-solid fa-plus text-xs"></i>
+                )}
+                <span>Add Both (Client + Main Flow 🚀)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE TASK MODAL WITH MAIN FLOW SYNC PROMPT */}
+      {deleteTaskModalData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0" onClick={() => setDeleteTaskModalData(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-rose-200 z-10 font-sans">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-lg font-black shadow-2xs">
+                🗑️
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Remove Task Step
+                </h3>
+                <p className="text-xs text-rose-600 font-bold">
+                  {deleteTaskModalData.task.title}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 space-y-2 text-xs">
+              <p className="text-rose-900 font-semibold leading-relaxed">
+                Are you sure you want to remove <strong className="text-slate-900 underline">{deleteTaskModalData.task.title}</strong>?
+              </p>
+              <p className="text-slate-600 text-[11px]">
+                You can remove it just from this client or also delete it from the main flow template <strong>"{deleteTaskModalData.flowName}"</strong>.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTaskModalData(null)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isUpdatingTask}
+                onClick={() => handleConfirmDeleteTask(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-rose-700 border border-slate-300 shadow-2xs transition-all cursor-pointer"
+              >
+                Delete from Client Only
+              </button>
+
+              <button
+                type="button"
+                disabled={isUpdatingTask}
+                onClick={() => handleConfirmDeleteTask(true)}
+                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                {isUpdatingTask ? (
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                ) : (
+                  <i className="fa-solid fa-trash text-xs"></i>
+                )}
+                <span>Delete Everywhere 🗑️</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* UNCHECK WARNING MODAL */}
       {uncheckWarningModalData && (

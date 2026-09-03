@@ -587,8 +587,24 @@ export async function getLeadsForDate(
       const snapshot = await get(leadsRef);
       if (snapshot.exists()) {
         const data = snapshot.val();
-        Object.values(data).forEach((item: any) => {
-          results.push(item as LeadData);
+        Object.entries(data).forEach(([leadKey, item]: [string, any]) => {
+          if (item && typeof item === "object") {
+            const hasValidLeadData = Boolean(
+              (item.fullName && String(item.fullName).trim()) ||
+              (item.phone && String(item.phone).trim()) ||
+              (item.email && String(item.email).trim()) ||
+              (item.survey && Object.keys(item.survey).length > 0) ||
+              item.meeting?.meetingDate
+            );
+            if (!hasValidLeadData) return;
+
+            results.push({
+              id: item.id || leadKey,
+              createdDate: item.createdDate || targetDate,
+              ...item,
+              campaign: item.campaign || cName,
+            } as LeadData);
+          }
         });
       }
     }
@@ -678,8 +694,24 @@ export async function getAllLeadsAcrossDates(
         const datesObj = snapshot.val();
         Object.keys(datesObj).forEach((dKey) => {
           if (datesObj[dKey]) {
-            Object.values(datesObj[dKey]).forEach((item: any) => {
-              results.push({ ...item, campaign: cName });
+            Object.entries(datesObj[dKey]).forEach(([leadKey, item]: [string, any]) => {
+              if (item && typeof item === "object") {
+                const hasValidLeadData = Boolean(
+                  (item.fullName && String(item.fullName).trim()) ||
+                  (item.phone && String(item.phone).trim()) ||
+                  (item.email && String(item.email).trim()) ||
+                  (item.survey && Object.keys(item.survey).length > 0) ||
+                  item.meeting?.meetingDate
+                );
+                if (!hasValidLeadData) return;
+
+                results.push({
+                  id: item.id || leadKey,
+                  createdDate: item.createdDate || dKey,
+                  ...item,
+                  campaign: item.campaign || cName,
+                });
+              }
             });
           }
         });
@@ -1081,8 +1113,12 @@ export async function updateLeadStaffFields(
         if (onboardsSnap.exists()) {
           const obData = onboardsSnap.val();
           Object.keys(obData).forEach((obId) => {
-            if (obData[obId]?.leadId === leadId || obData[obId]?.email === existingLead.email) {
-              const obDate = obData[obId]?.onboardedDate;
+            const obRecord = obData[obId];
+            const obEmail = (obRecord?.email || "").trim().toLowerCase();
+            const existEmail = (existingLead.email || "").trim().toLowerCase();
+            const emailMatch = obEmail && existEmail && obEmail !== "no email" && obEmail === existEmail;
+            if (obRecord?.leadId === leadId || emailMatch) {
+              const obDate = obRecord?.onboardedDate;
               updates[`onboards/${campaignName}/all/${obId}/dealValue`] = staffData.dealValue;
               if (obDate) {
                 updates[`onboards/${campaignName}/${obDate}/${obId}/dealValue`] = staffData.dealValue;
@@ -1261,15 +1297,19 @@ export async function deleteOnboardRecord(
       updates[`onboards/${campaignName}/${onboardedDate}/${onboardId}`] = null;
     }
 
-    if (leadId && createdDate) {
-      const allRecords = await getAllOnboardedRecords(campaignName);
-      const remainingForLead = allRecords.filter((r) => r.leadId === leadId && r.id !== onboardId);
+    if (leadId) {
+      const existingMatch = await findExistingLead(leadId, createdDate, campaignName);
+      const targetDate = existingMatch?.createdDate || createdDate;
+      if (targetDate && existingMatch?.lead) {
+        const allRecords = await getAllOnboardedRecords(campaignName);
+        const remainingForLead = allRecords.filter((r) => r.leadId === leadId && r.id !== onboardId);
 
-      if (remainingForLead.length === 0) {
-        updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}/onboarded`] = false;
-        updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}/onboardCount`] = 0;
-      } else {
-        updates[`campaigns/${campaignName}/leads/${createdDate}/${leadId}/onboardCount`] = remainingForLead.length;
+        if (remainingForLead.length === 0) {
+          updates[`campaigns/${campaignName}/leads/${targetDate}/${leadId}/onboarded`] = false;
+          updates[`campaigns/${campaignName}/leads/${targetDate}/${leadId}/onboardCount`] = 0;
+        } else {
+          updates[`campaigns/${campaignName}/leads/${targetDate}/${leadId}/onboardCount`] = remainingForLead.length;
+        }
       }
     }
 

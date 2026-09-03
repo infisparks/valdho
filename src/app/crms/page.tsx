@@ -234,6 +234,38 @@ function getLeadEffectiveStage(lead: LeadData): string {
   return lead.pipelineStage || (lead.status === "partial" ? "in_progress" : "raw");
 }
 
+function isSameLead(
+  a?: { id?: string; leadId?: string; email?: string; phone?: string } | null,
+  b?: { id?: string; leadId?: string; email?: string; phone?: string } | null
+): boolean {
+  if (!a || !b) return false;
+
+  // 1. Direct ID comparison
+  if (a.id && b.id && a.id === b.id) return true;
+  if (a.leadId && b.id && a.leadId === b.id) return true;
+  if (a.id && b.leadId && a.id === b.leadId) return true;
+  if (a.leadId && b.leadId && a.leadId === b.leadId) return true;
+
+  // 2. Email comparison (STRICT: only if both are non-empty strings and not "no email")
+  const aEmail = (a.email || "").trim().toLowerCase();
+  const bEmail = (b.email || "").trim().toLowerCase();
+  if (aEmail && bEmail && aEmail !== "no email" && aEmail === bEmail) {
+    return true;
+  }
+
+  // 3. Phone comparison (STRICT: only if both have at least 7 digits)
+  const aPhone = (a.phone || "").replace(/\D/g, "");
+  const bPhone = (b.phone || "").replace(/\D/g, "");
+  if (aPhone.length >= 7 && bPhone.length >= 7) {
+    if (aPhone === bPhone) return true;
+    if (aPhone.length >= 10 && bPhone.length >= 10 && aPhone.slice(-10) === bPhone.slice(-10)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export default function CRMPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -408,6 +440,7 @@ export default function CRMPage() {
   // DELETE ASSIGNED CLIENT FLOW MODAL STATE
   const [deleteClientFlowModal, setDeleteClientFlowModal] = useState<ClientFlowInstance | null>(null);
   const [isDeletingClientFlow, setIsDeletingClientFlow] = useState(false);
+  const [deleteClientFlowInput, setDeleteClientFlowInput] = useState<string>("");
 
   // VIEW LIVE FLOW AUDIT MODAL STATE FOR ADMIN
   const [viewFlowAuditModal, setViewFlowAuditModal] = useState<ClientFlowInstance | null>(null);
@@ -1227,10 +1260,7 @@ export default function CRMPage() {
     if (!item) return;
 
     // Look up full master lead from allLeadsList to ensure survey, notes, and status are preserved
-    const masterLead = allLeadsList.find((l) =>
-      (item.id && l.id === item.id) ||
-      (item.email && l.email && l.email.toLowerCase() === item.email.toLowerCase())
-    );
+    const masterLead = allLeadsList.find((l) => isSameLead(l, item));
 
     // Normalize meeting object whether clicked from Lead record or Meeting index record
     const rawMeetingUrl = item.meeting?.meetingUrl || item.meetingUrl || item.links?.meetingUrl || masterLead?.meeting?.meetingUrl || masterLead?.links?.meetingUrl || null;
@@ -1248,7 +1278,7 @@ export default function CRMPage() {
     const fullLeadData: LeadData = {
       ...(masterLead || {}),
       ...item,
-      id: item.id || masterLead?.id || (item.email ? sanitizeEmailToId(item.email) : "lead_" + Date.now()),
+      id: item.id || masterLead?.id || (item.email ? sanitizeEmailToId(item.email) : (item.phone ? "lead_" + item.phone.replace(/\D/g, "") : "lead_" + Date.now())),
       fullName: item.fullName || masterLead?.fullName || "Client",
       email: item.email || masterLead?.email || "",
       phone: item.phone || masterLead?.phone || "",
@@ -1597,6 +1627,10 @@ export default function CRMPage() {
   // Delete Assigned Client Flow Instance
   const handleConfirmDeleteClientFlow = async () => {
     if (!deleteClientFlowModal) return;
+    if (deleteClientFlowInput.trim().toLowerCase() !== "delete") {
+      alert("Please type 'delete' to confirm deletion.");
+      return;
+    }
     setIsDeletingClientFlow(true);
 
     const res = await deleteClientFlowInstance(deleteClientFlowModal.id);
@@ -1607,22 +1641,23 @@ export default function CRMPage() {
 
     setIsDeletingClientFlow(false);
     setDeleteClientFlowModal(null);
+    setDeleteClientFlowInput("");
   };
 
   // Staff Action: Update Lead Stage
   const handleUpdateStage = async (lead: LeadData, newStage: string) => {
-    const targetLeadId = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : "lead_" + Date.now());
+    const targetLeadId = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : (lead.phone ? "lead_" + lead.phone.replace(/\D/g, "") : "lead_" + Date.now()));
     const targetCreatedDate = lead.createdDate || selectedDate;
     const targetCampaign = lead.campaign || "firstoptionagency";
 
-    const updatedLead = { ...lead, pipelineStage: newStage, stageMovedAt: new Date().toISOString() };
+    const updatedLead = { ...lead, id: targetLeadId, pipelineStage: newStage, stageMovedAt: new Date().toISOString() };
     setAllLeadsList((prev) =>
-      prev.map((l) => (l.id === targetLeadId || l.email === lead.email ? updatedLead : l))
+      prev.map((l) => (isSameLead(l, lead) ? updatedLead : l))
     );
     setLeadsList((prev) =>
-      prev.map((l) => (l.id === targetLeadId || l.email === lead.email ? updatedLead : l))
+      prev.map((l) => (isSameLead(l, lead) ? updatedLead : l))
     );
-    if (selectedLead && (selectedLead.id === targetLeadId || selectedLead.email === lead.email)) {
+    if (selectedLead && isSameLead(selectedLead, lead)) {
       setSelectedLead(updatedLead);
     }
 
@@ -1646,16 +1681,17 @@ export default function CRMPage() {
   const handleConfirmExecuteOnboard = async () => {
     if (!onboardConfirmModalLead) return;
     const lead = onboardConfirmModalLead;
-    const targetLeadId = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : "lead_" + Date.now());
+    const targetLeadId = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : (lead.phone ? "lead_" + lead.phone.replace(/\D/g, "") : "lead_" + Date.now()));
+    const targetCreatedDate = lead.createdDate || todayStr;
     const staffEmail = currentUser?.email || "Staff";
     const campaignName = lead.campaign || "firstoptionagency";
 
     setIsOnboarding(true);
 
     if (onboardMode === "replace" && lead.onboarded) {
-      const existingRecords = allOnboardedList.filter((r) => r.leadId === targetLeadId || r.email === lead.email);
+      const existingRecords = allOnboardedList.filter((r) => isSameLead(r, lead));
       for (const rec of existingRecords) {
-        await deleteOnboardRecord(rec.id, campaignName, rec.onboardedDate, targetLeadId, lead.createdDate);
+        await deleteOnboardRecord(rec.id, campaignName, rec.onboardedDate, targetLeadId, targetCreatedDate);
       }
     }
 
@@ -1664,6 +1700,8 @@ export default function CRMPage() {
 
     const updatedLead: LeadData = {
       ...lead,
+      id: targetLeadId,
+      createdDate: targetCreatedDate,
       onboarded: true,
       onboardedAt: timestamp,
       onboardCount: newCount,
@@ -1671,16 +1709,16 @@ export default function CRMPage() {
     };
 
     setAllLeadsList((prev) =>
-      prev.map((l) => (l.id === targetLeadId || l.email === lead.email ? updatedLead : l))
+      prev.map((l) => (isSameLead(l, lead) ? updatedLead : l))
     );
     setLeadsList((prev) =>
-      prev.map((l) => (l.id === targetLeadId || l.email === lead.email ? updatedLead : l))
+      prev.map((l) => (isSameLead(l, lead) ? updatedLead : l))
     );
-    if (selectedLead && (selectedLead.id === targetLeadId || selectedLead.email === lead.email)) {
+    if (selectedLead && isSameLead(selectedLead, lead)) {
       setSelectedLead(updatedLead);
     }
 
-    await onboardLeadClient(lead, staffEmail, campaignName);
+    await onboardLeadClient(updatedLead, staffEmail, campaignName);
     const refreshedOnboards = await getAllOnboardedRecords(selectedCampaign);
     setAllOnboardedList(refreshedOnboards);
 
@@ -1728,17 +1766,19 @@ export default function CRMPage() {
         leadToDelete.email
       );
       if (res.success) {
-        setAllLeadsList((prev) => prev.filter((l) => l.id !== targetLeadId && l.id !== leadToDelete.id));
-        setLeadsList((prev) => prev.filter((l) => l.id !== targetLeadId && l.id !== leadToDelete.id));
+        setAllLeadsList((prev) => prev.filter((l) => !isSameLead(l, leadToDelete)));
+        setLeadsList((prev) => prev.filter((l) => !isSameLead(l, leadToDelete)));
         setClientFlowInstancesList((prev) =>
-          prev.filter(
-            (cf) =>
-              cf.clientOnboardId !== targetLeadId &&
-              cf.clientOnboardId !== leadToDelete.id &&
-              (!leadToDelete.email || cf.clientEmail.toLowerCase() !== leadToDelete.email.toLowerCase())
-          )
+          prev.filter((cf) => {
+            if (targetLeadId && cf.clientOnboardId === targetLeadId) return false;
+            if (leadToDelete.id && cf.clientOnboardId === leadToDelete.id) return false;
+            const cfEmail = (cf.clientEmail || "").trim().toLowerCase();
+            const delEmail = (leadToDelete.email || "").trim().toLowerCase();
+            if (cfEmail && delEmail && cfEmail !== "no email" && delEmail !== "no email" && cfEmail === delEmail) return false;
+            return true;
+          })
         );
-        if (selectedLead && (selectedLead.id === targetLeadId || selectedLead.id === leadToDelete.id)) {
+        if (selectedLead && isSameLead(selectedLead, leadToDelete)) {
           setIsDrawerOpen(false);
           setSelectedLead(null);
         }
@@ -1821,8 +1861,8 @@ export default function CRMPage() {
         status: "completed",
       };
 
-      setAllLeadsList((prev) => prev.map((l) => (l.id === targetLeadId || l.email === selectedLead.email ? updatedLeadRecord : l)));
-      setLeadsList((prev) => prev.map((l) => (l.id === targetLeadId || l.email === selectedLead.email ? updatedLeadRecord : l)));
+      setAllLeadsList((prev) => prev.map((l) => (isSameLead(l, selectedLead) ? updatedLeadRecord : l)));
+      setLeadsList((prev) => prev.map((l) => (isSameLead(l, selectedLead) ? updatedLeadRecord : l)));
       setSelectedLead(updatedLeadRecord);
 
       const refreshedMeetings = await getAllMeetings(selectedCampaign);
@@ -1863,7 +1903,7 @@ export default function CRMPage() {
     setIsDeletingOnboard(true);
 
     const targetLead = allLeadsList.find(
-      (l) => l.id === deleteOnboardModalRecord.leadId || l.email === deleteOnboardModalRecord.email
+      (l) => isSameLead(l, deleteOnboardModalRecord)
     );
 
     const success = await deleteOnboardRecord(
@@ -1906,13 +1946,13 @@ export default function CRMPage() {
       const updatedLead = { ...selectedLead, dealValue: valNum };
       setSelectedLead(updatedLead);
       setAllLeadsList((prev) =>
-        prev.map((l) => (l.id === targetLeadId || l.email === selectedLead.email ? updatedLead : l))
+        prev.map((l) => (isSameLead(l, selectedLead) ? updatedLead : l))
       );
       setLeadsList((prev) =>
-        prev.map((l) => (l.id === targetLeadId || l.email === selectedLead.email ? updatedLead : l))
+        prev.map((l) => (isSameLead(l, selectedLead) ? updatedLead : l))
       );
       setAllOnboardedList((prev) =>
-        prev.map((ob) => (ob.leadId === targetLeadId || ob.email === selectedLead.email ? { ...ob, dealValue: valNum } : ob))
+        prev.map((ob) => (isSameLead(ob, selectedLead) ? { ...ob, dealValue: valNum } : ob))
       );
     }
     setIsSavingStaffData(false);
@@ -1921,7 +1961,7 @@ export default function CRMPage() {
   // Update Deal Value directly on Onboard Record
   const handleUpdateOnboardRecordDealValue = async (obRecord: OnboardRecord, newVal: number) => {
     const targetLead = allLeadsList.find(
-      (l) => l.id === obRecord.leadId || l.email === obRecord.email
+      (l) => isSameLead(l, obRecord)
     );
 
     setAllOnboardedList((prev) =>
@@ -1930,7 +1970,7 @@ export default function CRMPage() {
     if (targetLead) {
       const updatedLead = { ...targetLead, dealValue: newVal };
       setAllLeadsList((prev) =>
-        prev.map((l) => (l.id === targetLead.id || l.email === targetLead.email ? updatedLead : l))
+        prev.map((l) => (isSameLead(l, targetLead) ? updatedLead : l))
       );
     }
 
@@ -1979,21 +2019,21 @@ export default function CRMPage() {
       };
       setSelectedLead(updatedLead);
       setLeadsList((prev) =>
-        prev.map((l) => ((l.id === targetLeadId || l.email === selectedLead.email) ? updatedLead : l))
+        prev.map((l) => (isSameLead(l, selectedLead) ? updatedLead : l))
       );
       setAllLeadsList((prev) =>
-        prev.map((l) => ((l.id === targetLeadId || l.email === selectedLead.email) ? updatedLead : l))
+        prev.map((l) => (isSameLead(l, selectedLead) ? updatedLead : l))
       );
       setMeetingsList((prev) =>
         prev.map((m) =>
-          (m.leadId === targetLeadId || m.email === selectedLead.email)
+          isSameLead(m as any, selectedLead)
             ? { ...m, notes: updatedNotes, followUpDate: updatedLead.followUpDate }
             : m
         )
       );
       setAllMeetingsList((prev) =>
         prev.map((m) =>
-          (m.leadId === targetLeadId || m.email === selectedLead.email)
+          isSameLead(m as any, selectedLead)
             ? { ...m, notes: updatedNotes, followUpDate: updatedLead.followUpDate }
             : m
         )
@@ -2024,21 +2064,21 @@ export default function CRMPage() {
       const updatedLead = { ...selectedLead, followUpDate: dateVal };
       setSelectedLead(updatedLead);
       setLeadsList((prev) =>
-        prev.map((l) => ((l.id === targetLeadId || l.email === selectedLead.email) ? updatedLead : l))
+        prev.map((l) => (isSameLead(l, selectedLead) ? updatedLead : l))
       );
       setAllLeadsList((prev) =>
-        prev.map((l) => ((l.id === targetLeadId || l.email === selectedLead.email) ? updatedLead : l))
+        prev.map((l) => (isSameLead(l, selectedLead) ? updatedLead : l))
       );
       setMeetingsList((prev) =>
         prev.map((m) =>
-          (m.leadId === targetLeadId || m.email === selectedLead.email)
+          isSameLead(m as any, selectedLead)
             ? { ...m, followUpDate: dateVal }
             : m
         )
       );
       setAllMeetingsList((prev) =>
         prev.map((m) =>
-          (m.leadId === targetLeadId || m.email === selectedLead.email)
+          isSameLead(m as any, selectedLead)
             ? { ...m, followUpDate: dateVal }
             : m
         )
@@ -2056,6 +2096,15 @@ export default function CRMPage() {
 
   // Filtered Leads
   const filteredLeads = allLeadsList.filter((lead) => {
+    const hasValidLeadData = Boolean(
+      (lead.fullName && String(lead.fullName).trim()) ||
+      (lead.phone && String(lead.phone).trim()) ||
+      (lead.email && String(lead.email).trim()) ||
+      (lead.survey && Object.keys(lead.survey).length > 0) ||
+      lead.meeting?.meetingDate
+    );
+    if (!hasValidLeadData) return false;
+
     if (selectedCampaign !== "all" && lead.campaign !== selectedCampaign) return false;
 
     const createdDateStr = lead.createdDate;
@@ -2136,6 +2185,15 @@ export default function CRMPage() {
 
   // Filtered Pipeline Leads
   const filteredPipelineLeads = allLeadsList.filter((lead) => {
+    const hasValidLeadData = Boolean(
+      (lead.fullName && String(lead.fullName).trim()) ||
+      (lead.phone && String(lead.phone).trim()) ||
+      (lead.email && String(lead.email).trim()) ||
+      (lead.survey && Object.keys(lead.survey).length > 0) ||
+      lead.meeting?.meetingDate
+    );
+    if (!hasValidLeadData) return false;
+
     if (selectedCampaign !== "all" && lead.campaign !== selectedCampaign) return false;
 
     let targetDateStr: string | undefined = undefined;
@@ -3552,7 +3610,22 @@ export default function CRMPage() {
                       </tr>
                     ) : (
                       filteredOnboardedList.map((obRecord) => {
-                        const clientFlows = clientFlowInstancesList.filter((cf) => cf.clientOnboardId === obRecord.id || cf.clientEmail === obRecord.email);
+                        const clientFlows = clientFlowInstancesList.filter((cf) => {
+                          const matchesId = Boolean(
+                            (cf.clientOnboardId && cf.clientOnboardId === obRecord.id) ||
+                            (cf.clientOnboardId && obRecord.leadId && cf.clientOnboardId === obRecord.leadId)
+                          );
+                          const cfEmail = (cf.clientEmail || "").trim().toLowerCase();
+                          const obEmail = (obRecord.email || "").trim().toLowerCase();
+                          const matchesEmail = Boolean(
+                            cfEmail &&
+                            obEmail &&
+                            cfEmail !== "no email" &&
+                            obEmail !== "no email" &&
+                            cfEmail === obEmail
+                          );
+                          return matchesId || matchesEmail;
+                        });
 
                         return (
                           <tr key={obRecord.id} className="hover:bg-slate-50/80 transition-colors">
@@ -3613,7 +3686,10 @@ export default function CRMPage() {
                                           )}
 
                                           <button
-                                            onClick={() => setDeleteClientFlowModal(cf)}
+                                            onClick={() => {
+                                              setDeleteClientFlowModal(cf);
+                                              setDeleteClientFlowInput("");
+                                            }}
                                             className="text-rose-600 hover:text-rose-800 hover:bg-rose-100 p-0.5 rounded transition-colors font-bold"
                                             title="Delete assigned flow to re-assign updated template"
                                           >
@@ -4041,7 +4117,7 @@ export default function CRMPage() {
                               }
                             }
 
-                            const leadIdKey = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : "l_" + Math.random());
+                            const leadIdKey = lead.id || (lead.email ? sanitizeEmailToId(lead.email) : (lead.phone ? `l_${lead.phone.replace(/\D/g, "")}` : `lead_${lead.fullName || "anon"}_${lead.createdDate || ""}`));
 
                             return (
                               <div
@@ -6728,7 +6804,13 @@ export default function CRMPage() {
       {/* DELETE ASSIGNED CLIENT FLOW CONFIRMATION MODAL */}
       {deleteClientFlowModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="fixed inset-0" onClick={() => setDeleteClientFlowModal(null)} />
+          <div
+            className="fixed inset-0"
+            onClick={() => {
+              setDeleteClientFlowModal(null);
+              setDeleteClientFlowInput("");
+            }}
+          />
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-rose-200 z-10 font-sans animate-in fade-in zoom-in duration-150">
             <div className="flex items-center space-x-3 text-rose-600">
               <div className="w-10 h-10 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-lg font-black shadow-2xs">
@@ -6753,20 +6835,43 @@ export default function CRMPage() {
               </p>
             </div>
 
+            {/* User Typing Confirmation Form */}
+            <div className="space-y-2">
+              <label className="block text-xs font-extrabold text-slate-700">
+                To confirm deletion, type <span className="bg-rose-100 text-rose-900 font-mono px-1.5 py-0.5 rounded border border-rose-300 font-black">delete</span> below:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Type 'delete' to confirm"
+                value={deleteClientFlowInput}
+                onChange={(e) => setDeleteClientFlowInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && deleteClientFlowInput.trim().toLowerCase() === "delete" && !isDeletingClientFlow) {
+                    handleConfirmDeleteClientFlow();
+                  }
+                }}
+                className="w-full bg-slate-50 border border-slate-300 focus:border-rose-600 focus:bg-white rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 placeholder:font-sans"
+              />
+            </div>
+
             <div className="flex items-center justify-end space-x-3 pt-2">
               <button
                 type="button"
-                onClick={() => setDeleteClientFlowModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+                onClick={() => {
+                  setDeleteClientFlowModal(null);
+                  setDeleteClientFlowInput("");
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                disabled={isDeletingClientFlow}
+                disabled={isDeletingClientFlow || deleteClientFlowInput.trim().toLowerCase() !== "delete"}
                 onClick={handleConfirmDeleteClientFlow}
-                className="px-5 py-2 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                className="px-5 py-2 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-md transition-all flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >
                 {isDeletingClientFlow ? (
                   <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>

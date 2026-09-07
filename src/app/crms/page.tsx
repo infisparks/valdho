@@ -169,6 +169,38 @@ function parseMeetingDateTime(dateStr?: string, timeStr?: string): Date | null {
   }
 }
 
+function parseTimeToMinutes(timeStr?: string): number {
+  if (!timeStr) return 99999;
+  try {
+    const cleanTime = timeStr.trim().toUpperCase();
+    const firstPart = cleanTime.split(/[-–—]|TO/i)[0].trim();
+    let hour = 0;
+    let minute = 0;
+
+    if (firstPart.includes("AM") || firstPart.includes("PM")) {
+      const isPm = firstPart.includes("PM");
+      const isAm = firstPart.includes("AM");
+      const timeOnly = firstPart.replace("AM", "").replace("PM", "").trim();
+      const parts = timeOnly.split(":");
+      hour = parseInt(parts[0], 10) || 0;
+      if (parts[1]) minute = parseInt(parts[1], 10) || 0;
+      if (isPm && hour < 12) hour += 12;
+      if (isAm && hour === 12) hour = 0;
+    } else if (firstPart.includes(":")) {
+      const parts = firstPart.split(":");
+      hour = parseInt(parts[0], 10) || 0;
+      minute = parseInt(parts[1], 10) || 0;
+    } else {
+      const parsed = parseInt(firstPart, 10);
+      if (!isNaN(parsed)) hour = parsed;
+    }
+
+    return hour * 60 + minute;
+  } catch (err) {
+    return 99999;
+  }
+}
+
 function formatShortTime(timeStr: string): string {
   if (!timeStr) return "";
   const clean = timeStr.trim();
@@ -185,27 +217,13 @@ function isMeetingInPast(meetingDateStr?: string, timeStr?: string): boolean {
   if (!meetingDateStr) return false;
   try {
     const cleanDate = meetingDateStr.split("T")[0];
-    let hour = 12;
-    let minute = 0;
+    const totalMinutes = parseTimeToMinutes(timeStr);
+    const hour = Math.floor(totalMinutes / 60);
+    const minute = totalMinutes % 60;
 
-    if (timeStr) {
-      const cleanTime = timeStr.trim();
-      if (cleanTime.includes("AM") || cleanTime.includes("PM")) {
-        const isPm = cleanTime.includes("PM");
-        const timePart = cleanTime.replace("AM", "").replace("PM", "").trim();
-        const parts = timePart.split(":");
-        hour = parseInt(parts[0], 10);
-        if (isPm && hour < 12) hour += 12;
-        if (!isPm && hour === 12) hour = 0;
-        if (parts[1]) minute = parseInt(parts[1], 10);
-      } else if (cleanTime.includes(":")) {
-        const parts = cleanTime.split(":");
-        hour = parseInt(parts[0], 10);
-        minute = parseInt(parts[1], 10);
-      }
-    }
-
-    const meetingDateTime = new Date(`${cleanDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`);
+    const meetingDateTime = new Date(
+      `${cleanDate}T${(hour >= 0 && hour < 24 ? hour : 12).toString().padStart(2, "0")}:${(minute >= 0 && minute < 60 ? minute : 0).toString().padStart(2, "0")}:00`
+    );
     const now = new Date();
     return meetingDateTime < now;
   } catch (err) {
@@ -2143,45 +2161,54 @@ export default function CRMPage() {
   });
 
   // Filtered Meetings
-  const filteredMeetings = allMeetingsList.filter((m) => {
-    if (selectedCampaign !== "all" && m.campaign !== selectedCampaign) return false;
+  const filteredMeetings = allMeetingsList
+    .filter((m) => {
+      if (selectedCampaign !== "all" && m.campaign !== selectedCampaign) return false;
 
-    const meetingDateStr = m.meetingDate;
-    if (meetingsDatePreset !== "all_time") {
-      if (!meetingDateStr) return false;
-      const cleanDate = meetingDateStr.split("T")[0];
+      const meetingDateStr = m.meetingDate;
+      if (meetingsDatePreset !== "all_time") {
+        if (!meetingDateStr) return false;
+        const cleanDate = meetingDateStr.split("T")[0];
 
-      if (meetingsDatePreset === "specific_date") {
-        if (cleanDate !== meetingsSingleDate) return false;
-      } else if (meetingsDatePreset === "custom_range") {
-        if (meetingsStartDate && cleanDate < meetingsStartDate) return false;
-        if (meetingsEndDate && cleanDate > meetingsEndDate) return false;
-      } else if (meetingsDatePreset === "today") {
-        if (cleanDate !== todayStr) return false;
-      } else if (meetingsDatePreset === "tomorrow") {
-        const tomObj = new Date(today);
-        tomObj.setDate(tomObj.getDate() + 1);
-        const tomStr = tomObj.toISOString().split("T")[0];
-        if (cleanDate !== tomStr) return false;
-      } else if (meetingsDatePreset === "upcoming_7_days") {
-        const d7AheadObj = new Date(today);
-        d7AheadObj.setDate(d7AheadObj.getDate() + 7);
-        const d7AheadStr = d7AheadObj.toISOString().split("T")[0];
-        if (cleanDate < todayStr || cleanDate > d7AheadStr) return false;
+        if (meetingsDatePreset === "specific_date") {
+          if (cleanDate !== meetingsSingleDate) return false;
+        } else if (meetingsDatePreset === "custom_range") {
+          if (meetingsStartDate && cleanDate < meetingsStartDate) return false;
+          if (meetingsEndDate && cleanDate > meetingsEndDate) return false;
+        } else if (meetingsDatePreset === "today") {
+          if (cleanDate !== todayStr) return false;
+        } else if (meetingsDatePreset === "tomorrow") {
+          const tomObj = new Date(today);
+          tomObj.setDate(tomObj.getDate() + 1);
+          const tomStr = tomObj.toISOString().split("T")[0];
+          if (cleanDate !== tomStr) return false;
+        } else if (meetingsDatePreset === "upcoming_7_days") {
+          const d7AheadObj = new Date(today);
+          d7AheadObj.setDate(d7AheadObj.getDate() + 7);
+          const d7AheadStr = d7AheadObj.toISOString().split("T")[0];
+          if (cleanDate < todayStr || cleanDate > d7AheadStr) return false;
+        }
       }
-    }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        (m.fullName || "").toLowerCase().includes(q) ||
-        (m.phone || "").includes(q) ||
-        (m.email || "").toLowerCase().includes(q);
-      if (!matchesSearch) return false;
-    }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesSearch =
+          (m.fullName || "").toLowerCase().includes(q) ||
+          (m.phone || "").includes(q) ||
+          (m.email || "").toLowerCase().includes(q);
+        if (!matchesSearch) return false;
+      }
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => {
+      const dateA = a.meetingDate || "";
+      const dateB = b.meetingDate || "";
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = parseTimeToMinutes(a.meetingTime || a.meeting?.meetingTime);
+      const timeB = parseTimeToMinutes(b.meetingTime || b.meeting?.meetingTime);
+      return timeA - timeB;
+    });
 
   // Filtered Pipeline Leads
   const filteredPipelineLeads = allLeadsList.filter((lead) => {
@@ -2373,6 +2400,15 @@ export default function CRMPage() {
       }
       meetingsByDateMap[m.meetingDate].push(m);
     }
+  });
+
+  // Sort meetings for each date morning to night (ascending by time)
+  Object.keys(meetingsByDateMap).forEach((d) => {
+    meetingsByDateMap[d].sort((a, b) => {
+      const timeA = parseTimeToMinutes(a.meetingTime || a.meeting?.meetingTime);
+      const timeB = parseTimeToMinutes(b.meetingTime || b.meeting?.meetingTime);
+      return timeA - timeB;
+    });
   });
 
   if (authLoading) {
@@ -4596,7 +4632,15 @@ export default function CRMPage() {
                             </td>
                           </tr>
                         ) : (
-                          allMeetingsList.map((m, mIdx) => (
+                          [...allMeetingsList]
+                            .sort((a, b) => {
+                              const dateDiff = (a.meetingDate || "").localeCompare(b.meetingDate || "");
+                              if (dateDiff !== 0) return dateDiff;
+                              const timeA = parseTimeToMinutes(a.meetingTime || a.meeting?.meetingTime);
+                              const timeB = parseTimeToMinutes(b.meetingTime || b.meeting?.meetingTime);
+                              return timeA - timeB;
+                            })
+                            .map((m, mIdx) => (
                             <tr
                               key={mIdx}
                               onClick={() => handleOpenDrawer(m)}
@@ -5727,7 +5771,13 @@ export default function CRMPage() {
             </div>
 
             <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
-              {dayMeetingsModalData.meetings.map((m, idx) => {
+              {[...(dayMeetingsModalData.meetings || [])]
+                .sort((a, b) => {
+                  const timeA = parseTimeToMinutes(a.meetingTime || a.meeting?.meetingTime);
+                  const timeB = parseTimeToMinutes(b.meetingTime || b.meeting?.meetingTime);
+                  return timeA - timeB;
+                })
+                .map((m, idx) => {
                 const isPast = isMeetingInPast(m.meetingDate, m.meetingTime);
 
                 return (

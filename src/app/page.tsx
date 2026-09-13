@@ -307,10 +307,13 @@ export default function Home({
       />
 
       {/* Sticky Mobile CTA */}
-      <StickyMobileCTA onBookClick={handleOpenBooking} />
+      <StickyMobileCTA
+        onBookClick={handleOpenBooking}
+        isHidden={bookingConfig.isOpen || videoModal.isOpen}
+      />
 
       {/* Live Social Proof Toast */}
-      <SocialProofToast />
+      {!bookingConfig.isOpen && !videoModal.isOpen && <SocialProofToast />}
     </div>
   );
 }

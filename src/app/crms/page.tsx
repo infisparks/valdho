@@ -479,7 +479,7 @@ export default function CRMPage() {
 
   // Executive Reschedule Meeting Drawer State
   const [rescheduleDate, setRescheduleDate] = useState<string>(todayStr);
-  const [rescheduleTime, setRescheduleTime] = useState<string>("10:00 AM");
+  const [rescheduleTime, setRescheduleTime] = useState<string>("11:00 AM");
   const [sendRescheduleWhatsapp, setSendRescheduleWhatsapp] = useState<boolean>(true);
   const [isRescheduling, setIsRescheduling] = useState<boolean>(false);
 
@@ -6739,10 +6739,6 @@ export default function CRMPage() {
                       onChange={(e) => setRescheduleTime(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 transition-colors"
                     >
-                      <option value="09:00 AM">09:00 AM</option>
-                      <option value="09:30 AM">09:30 AM</option>
-                      <option value="10:00 AM">10:00 AM</option>
-                      <option value="10:30 AM">10:30 AM</option>
                       <option value="11:00 AM">11:00 AM</option>
                       <option value="11:30 AM">11:30 AM</option>
                       <option value="12:00 PM">12:00 PM</option>
@@ -6762,6 +6758,12 @@ export default function CRMPage() {
                       <option value="07:00 PM">07:00 PM</option>
                       <option value="07:30 PM">07:30 PM</option>
                       <option value="08:00 PM">08:00 PM</option>
+                      <option value="08:30 PM">08:30 PM</option>
+                      <option value="09:00 PM">09:00 PM</option>
+                      <option value="09:30 PM">09:30 PM</option>
+                      <option value="10:00 PM">10:00 PM</option>
+                      <option value="10:30 PM">10:30 PM</option>
+                      <option value="11:00 PM">11:00 PM</option>
                     </select>
                   </div>
                 </div>

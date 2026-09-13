@@ -2,7 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 
-export function StickyMobileCTA({ onBookClick }: { onBookClick: () => void }) {
+export function StickyMobileCTA({
+  onBookClick,
+  isHidden = false,
+}: {
+  onBookClick: () => void;
+  isHidden?: boolean;
+}) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -20,10 +26,12 @@ export function StickyMobileCTA({ onBookClick }: { onBookClick: () => void }) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  if (isHidden) return null;
+
   return (
     <div
       className={`fixed bottom-3 left-3 right-3 sm:bottom-5 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-xl z-50 transition-all duration-500 ease-out ${
-        isVisible
+        isVisible && !isHidden
           ? "translate-y-0 opacity-100 pointer-events-auto"
           : "translate-y-16 opacity-0 pointer-events-none"
       }`}

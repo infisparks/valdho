@@ -1592,39 +1592,52 @@
           </button>
         </div>
 
-        <div class="bg-[#121217] border border-zinc-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-3.5 shadow-xl">
-          <div class="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
-            <div class="flex items-center space-x-2.5">
-              <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 shadow">
+        <div class="bg-[#121217] border border-zinc-800 rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 space-y-2.5 shadow-xl">
+          <div class="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+            <div class="flex items-center space-x-2 min-w-0">
+              <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-amber-400 shadow flex-shrink-0">
                 <img src="https://firstoptionagency.in/founder.png" alt="Faiz Ansari" class="w-full h-full object-cover" />
               </div>
-              <div>
-                <h4 class="text-xs sm:text-base font-bold text-white leading-tight">Your Business Growth Call</h4>
-                <p class="text-[11px] text-amber-400 font-semibold">Faiz Ansari • Senior Strategist</p>
+              <div class="min-w-0">
+                <h4 class="text-xs sm:text-sm font-bold text-white leading-tight truncate">Your Business Growth Call</h4>
+                <p class="text-[10px] sm:text-[11px] text-amber-400 font-semibold truncate">Faiz Ansari • <span class="text-slate-400 font-mono">IST (GMT+5:30)</span></p>
               </div>
             </div>
-            <div class="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] sm:text-xs text-amber-400 font-mono font-bold">
-              <i class="fa-regular fa-clock"></i>
+            <div class="flex-shrink-0 flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full text-[10px] text-amber-400 font-mono font-bold">
+              <i class="fa-regular fa-clock text-[10px]"></i>
               <span>60 min</span>
             </div>
           </div>
 
-          <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
-            <div class="flex items-center space-x-1.5 font-mono">
-              <i class="fa-solid fa-globe text-amber-400"></i>
-              <span>Asia/Calcutta (GMT+5:30)</span>
+          <!-- Mobile Slidable Dates Carousel -->
+          <div class="sm:hidden space-y-1.5">
+            <div class="flex items-center justify-between text-[11px] font-bold text-slate-300 px-0.5">
+              <div class="flex items-center space-x-1">
+                <span class="text-amber-400 font-mono">📅</span>
+                <span>Select Date</span>
+              </div>
+              <button
+                type="button"
+                onclick="toggleFullMonthMobile()"
+                class="text-[10px] text-amber-400 hover:text-amber-300 font-semibold flex items-center space-x-1 underline py-0.5"
+              >
+                <span id="mobileCalendarToggleText">All Dates ▾</span>
+              </button>
             </div>
+
+            <!-- Slidable Horizontal Strip -->
+            <div id="mobileDateStrip" class="flex items-center space-x-1.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none -mx-1 px-1 touch-pan-x snap-x"></div>
           </div>
 
           <!-- Calendar Controls -->
-          <div class="border border-zinc-800 rounded-xl sm:rounded-2xl p-3 bg-zinc-950 space-y-3">
+          <div id="fullMonthCalendarCard" class="hidden sm:block border border-zinc-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 bg-zinc-950 space-y-2.5">
             <div class="flex items-center justify-between text-xs font-extrabold text-white px-1">
-              <button onclick="prevMonth()" class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors">
-                <i class="fa-solid fa-chevron-left text-[10px]"></i><span>Prev</span>
+              <button onclick="prevMonth()" class="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors text-[11px]">
+                <i class="fa-solid fa-chevron-left text-[9px]"></i><span>Prev</span>
               </button>
-              <span id="calendarMonthTitle" class="text-sm font-black text-white tracking-wide bg-zinc-900/90 px-3 py-1 rounded-lg border border-zinc-800">August 2026</span>
-              <button onclick="nextMonth()" class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors">
-                <span>Next</span><i class="fa-solid fa-chevron-right text-[10px]"></i>
+              <span id="calendarMonthTitle" class="text-xs sm:text-sm font-black text-white tracking-wide bg-zinc-900/90 px-2.5 py-0.5 rounded-lg border border-zinc-800">August 2026</span>
+              <button onclick="nextMonth()" class="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors text-[11px]">
+                <span>Next</span><i class="fa-solid fa-chevron-right text-[9px]"></i>
               </button>
             </div>
 
@@ -1636,12 +1649,12 @@
           </div>
 
           <!-- Time Slots -->
-          <div class="space-y-2 pt-1">
+          <div class="space-y-1.5 pt-0.5">
             <div class="flex items-center justify-between text-xs font-bold text-slate-200">
-              <span id="selectedDateFormatted">📅 Selected Date</span>
-              <span class="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
+              <span id="selectedDateFormatted" class="text-[11px] sm:text-xs text-slate-300 font-bold">📅 Selected Date</span>
+              <span class="text-amber-400 text-[9px] sm:text-[10px] uppercase font-mono tracking-wider">Select Slot</span>
             </div>
-            <div id="timeSlotsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1"></div>
+            <div id="timeSlotsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 max-h-56 sm:max-h-64 overflow-y-auto p-0.5 scrollbar-thin scrollbar-thumb-zinc-700"></div>
           </div>
         </div>
       </div>
@@ -1752,6 +1765,10 @@
 
     // 2. Video Modal Logic
     function openVideoModal(title, author, embedId) {
+      const stickyCta = document.getElementById("stickyMobileCta");
+      if (stickyCta) stickyCta.classList.add("!hidden");
+      const toast = document.getElementById("socialProofToast");
+      if (toast) toast.classList.add("!hidden");
       const modal = document.getElementById("videoModal");
       const iframe = document.getElementById("videoIframe");
       if (embedId) {
@@ -1761,6 +1778,10 @@
     }
 
     function closeVideoModal() {
+      const stickyCta = document.getElementById("stickyMobileCta");
+      if (stickyCta) stickyCta.classList.remove("!hidden");
+      const toast = document.getElementById("socialProofToast");
+      if (toast) toast.classList.remove("!hidden");
       const modal = document.getElementById("videoModal");
       const iframe = document.getElementById("videoIframe");
       iframe.src = "";
@@ -2054,11 +2075,19 @@
     let currentQIndex = 0;
 
     function openBookingModal() {
+      const stickyCta = document.getElementById("stickyMobileCta");
+      if (stickyCta) stickyCta.classList.add("!hidden");
+      const toast = document.getElementById("socialProofToast");
+      if (toast) toast.classList.add("!hidden");
       document.getElementById("bookingModal").classList.remove("hidden");
       goToStep(bookingState.step || 1);
     }
 
     function closeBookingModal() {
+      const stickyCta = document.getElementById("stickyMobileCta");
+      if (stickyCta) stickyCta.classList.remove("!hidden");
+      const toast = document.getElementById("socialProofToast");
+      if (toast) toast.classList.remove("!hidden");
       document.getElementById("bookingModal").classList.add("hidden");
     }
 
@@ -2160,11 +2189,66 @@
 
     // Calendar & Slots
     const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const DAILY_SLOTS = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "07:00 PM", "09:00 PM"];
+    const DAILY_SLOTS = ["11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM", "07:00 PM", "08:00 PM", "09:00 PM", "10:00 PM", "11:00 PM"];
 
     let calendarYear = new Date().getFullYear();
     let calendarMonth = new Date().getMonth();
     let selectedDay = new Date().getDate();
+    let showFullMonthMobile = false;
+
+    function toggleFullMonthMobile() {
+      showFullMonthMobile = !showFullMonthMobile;
+      const card = document.getElementById("fullMonthCalendarCard");
+      const text = document.getElementById("mobileCalendarToggleText");
+      if (showFullMonthMobile) {
+        card.classList.remove("hidden");
+        text.innerText = "Hide Full Month ▴";
+      } else {
+        card.classList.add("hidden");
+        text.innerText = "All Dates ▾";
+      }
+    }
+
+    function renderMobileDateStrip() {
+      const strip = document.getElementById("mobileDateStrip");
+      if (!strip) return;
+      strip.innerHTML = "";
+      const today = new Date();
+
+      for (let i = 0; i < 14; i++) {
+        const d = new Date();
+        d.setDate(today.getDate() + i);
+        const dayNum = d.getDate();
+        const mIndex = d.getMonth();
+        const yNum = d.getFullYear();
+
+        const isToday = i === 0;
+        const isTomorrow = i === 1;
+        const dayName = isToday ? "Today" : isTomorrow ? "Tmrw" : d.toLocaleDateString("en-US", { weekday: "short" });
+        const monthShort = d.toLocaleDateString("en-US", { month: "short" });
+        const isSelected = selectedDay === dayNum && calendarMonth === mIndex && calendarYear === yNum;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.onclick = () => {
+          calendarYear = yNum;
+          calendarMonth = mIndex;
+          selectedDay = dayNum;
+          renderCalendar();
+        };
+        btn.className = `flex-shrink-0 w-[64px] py-2 px-1 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 border ${
+          isSelected
+            ? "bg-gradient-to-b from-amber-400 to-amber-500 border-amber-300 text-slate-950 font-black shadow-[0_4px_16px_rgba(245,166,35,0.45)] scale-105"
+            : "bg-zinc-950 border-zinc-800 text-slate-300 hover:border-zinc-700 hover:bg-zinc-900"
+        }`;
+        btn.innerHTML = `
+          <span class="text-[9px] font-black uppercase tracking-wider ${isSelected ? 'text-slate-950' : isToday ? 'text-amber-400 font-bold' : 'text-slate-400'}">${dayName}</span>
+          <span class="text-base font-black leading-tight my-0.5 font-mono">${dayNum}</span>
+          <span class="text-[9px] font-bold uppercase tracking-wider ${isSelected ? 'text-slate-900' : 'text-slate-500'}">${monthShort}</span>
+        `;
+        strip.appendChild(btn);
+      }
+    }
 
     function prevMonth() {
       if (calendarMonth > new Date().getMonth() || calendarYear > new Date().getFullYear()) {
@@ -2181,6 +2265,7 @@
     }
 
     function renderCalendar() {
+      renderMobileDateStrip();
       document.getElementById("calendarMonthTitle").innerText = `${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
       const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
       const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();

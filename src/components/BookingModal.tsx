@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   saveOrUpdateLead,
   getLeadById,
@@ -28,16 +28,21 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-// Exact 8 daily time slots matching user request
+// Daily time slots from 11:00 AM to 11:00 PM
 const DAILY_TIME_SLOTS = [
-  "09:00 AM",
-  "10:00 AM",
   "11:00 AM",
   "12:00 PM",
+  "01:00 PM",
   "02:00 PM",
   "03:00 PM",
+  "04:00 PM",
+  "05:00 PM",
+  "06:00 PM",
   "07:00 PM",
+  "08:00 PM",
   "09:00 PM",
+  "10:00 PM",
+  "11:00 PM",
 ];
 
 /**
@@ -134,6 +139,37 @@ export function BookingModal({
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   const [bookedSlotsMap, setBookedSlotsMap] = useState<Record<string, boolean>>({});
   const [generatedMeetUrl, setGeneratedMeetUrl] = useState<string | null>(null);
+  const [showFullMonthMobile, setShowFullMonthMobile] = useState<boolean>(false);
+
+  // Slidable upcoming 14 days list for ultra-fast mobile booking UX
+  const upcomingDates = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+
+      const isToday = i === 0;
+      const isTomorrow = i === 1;
+      const dayName = isToday
+        ? "Today"
+        : isTomorrow
+        ? "Tmrw"
+        : d.toLocaleDateString("en-US", { weekday: "short" });
+      const monthShort = d.toLocaleDateString("en-US", { month: "short" });
+
+      list.push({
+        day: d.getDate(),
+        monthIndex: d.getMonth(),
+        year: d.getFullYear(),
+        dayName,
+        monthShort,
+      });
+    }
+    return list;
+  }, []);
 
   // Synchronize initialStep when modal opens or URL parameters change
   useEffect(() => {
@@ -1115,9 +1151,9 @@ export function BookingModal({
 
       {/* Step 3: Interactive Calendar Appointment Booking with Month Switcher */}
       {step === 3 && (
-        <div className="bg-[#0b0b0e] text-white border border-zinc-800 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans space-y-3 my-auto">
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
-            <p className="text-xs sm:text-sm font-bold text-slate-300">
+        <div className="bg-[#0b0b0e] text-white border border-zinc-800 w-full max-w-lg rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-2xl relative max-h-[95vh] sm:max-h-[90vh] overflow-y-auto font-sans space-y-2.5 my-auto">
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+            <p className="text-xs sm:text-sm font-bold text-slate-200">
               Select date & time for your Growth Strategy Call
             </p>
             <button
@@ -1128,58 +1164,115 @@ export function BookingModal({
             </button>
           </div>
 
-          <div className="bg-[#121217] border border-zinc-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-3.5 shadow-xl">
-            {/* Host Card Info */}
-            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 shadow">
+          <div className="bg-[#121217] border border-zinc-800 rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 space-y-2.5 shadow-xl">
+            {/* Host Card Info with Integrated Timezone */}
+            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+              <div className="flex items-center space-x-2 min-w-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-amber-400 shadow flex-shrink-0">
                   <img src="/founder.png" alt="Faiz Ansari" className="w-full h-full object-cover" />
                 </div>
-                <div>
-                  <h4 className="text-xs sm:text-base font-bold text-white leading-tight">
+                <div className="min-w-0">
+                  <h4 className="text-xs sm:text-sm font-bold text-white leading-tight truncate">
                     Your Business Growth Call
                   </h4>
-                  <p className="text-[11px] text-amber-400 font-semibold">Faiz Ansari • Senior Strategist</p>
+                  <p className="text-[10px] sm:text-[11px] text-amber-400 font-semibold truncate">
+                    Faiz Ansari • <span className="text-slate-400 font-mono">IST (GMT+5:30)</span>
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] sm:text-xs text-amber-400 font-mono font-bold">
-                <i className="fa-regular fa-clock"></i>
+              <div className="flex-shrink-0 flex items-center space-x-1 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full text-[10px] text-amber-400 font-mono font-bold">
+                <i className="fa-regular fa-clock text-[10px]"></i>
                 <span>60 min</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <div className="flex items-center space-x-1.5 font-mono">
-                <i className="fa-solid fa-globe text-amber-400"></i>
-                <span>Asia/Calcutta (GMT+5:30)</span>
+            {/* Mobile Slidable Upcoming Dates Strip */}
+            <div className="sm:hidden space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 px-0.5">
+                <div className="flex items-center space-x-1">
+                  <span className="text-amber-400 font-mono">📅</span>
+                  <span>Select Date</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFullMonthMobile(!showFullMonthMobile)}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold flex items-center space-x-1 underline py-0.5"
+                >
+                  <span>{showFullMonthMobile ? "Hide Calendar ▴" : "All Dates ▾"}</span>
+                </button>
+              </div>
+
+              {/* Slidable Horizontal Date Strip */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none -mx-1 px-1 touch-pan-x snap-x">
+                {upcomingDates.map((item, idx) => {
+                  const isSelected =
+                    selectedDay === item.day &&
+                    currentMonthIndex === item.monthIndex &&
+                    currentYear === item.year;
+
+                  return (
+                    <button
+                      key={`slidable-${idx}-${item.day}-${item.monthIndex}`}
+                      type="button"
+                      onClick={() => {
+                        setCurrentYear(item.year);
+                        setCurrentMonthIndex(item.monthIndex);
+                        setSelectedDay(item.day);
+                      }}
+                      className={`snap-start flex-shrink-0 w-[56px] py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all duration-150 border ${
+                        isSelected
+                          ? "bg-gradient-to-b from-amber-400 to-amber-500 border-amber-300 text-slate-950 font-black shadow-[0_3px_12px_rgba(245,166,35,0.45)] scale-105"
+                          : "bg-zinc-950 border-zinc-800 text-slate-300 hover:border-zinc-700 hover:bg-zinc-900"
+                      }`}
+                    >
+                      <span
+                        className={`text-[8px] font-black uppercase tracking-wider ${
+                          isSelected ? "text-slate-950" : idx === 0 ? "text-amber-400 font-bold" : "text-slate-400"
+                        }`}
+                      >
+                        {item.dayName}
+                      </span>
+                      <span className="text-sm font-black leading-tight my-0.5 font-mono">
+                        {item.day}
+                      </span>
+                      <span
+                        className={`text-[8px] font-bold uppercase tracking-wider ${
+                          isSelected ? "text-slate-900" : "text-slate-500"
+                        }`}
+                      >
+                        {item.monthShort}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Interactive Month Switcher Calendar Card */}
-            <div className="border border-zinc-800 rounded-xl sm:rounded-2xl p-3 bg-zinc-950 space-y-3">
+            <div className={`${showFullMonthMobile ? "block" : "hidden sm:block"} border border-zinc-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 bg-zinc-950 space-y-2.5`}>
               <div className="flex items-center justify-between text-xs font-extrabold text-white px-1">
                 <button
                   type="button"
                   disabled={isPrevMonthDisabled}
                   onClick={handlePrevMonth}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors disabled:opacity-30 disabled:pointer-events-none text-[11px]"
                 >
-                  <i className="fa-solid fa-chevron-left text-[10px]"></i>
+                  <i className="fa-solid fa-chevron-left text-[9px]"></i>
                   <span>Prev</span>
                 </button>
 
-                <span className="text-sm font-black text-white tracking-wide bg-zinc-900/90 px-3 py-1 rounded-lg border border-zinc-800">
+                <span className="text-xs sm:text-sm font-black text-white tracking-wide bg-zinc-900/90 px-2.5 py-0.5 rounded-lg border border-zinc-800">
                   {MONTH_NAMES[currentMonthIndex]} {currentYear}
                 </span>
 
                 <button
                   type="button"
                   onClick={handleNextMonth}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors"
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-amber-400 flex items-center space-x-1 transition-colors text-[11px]"
                 >
                   <span>Next</span>
-                  <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                  <i className="fa-solid fa-chevron-right text-[9px]"></i>
                 </button>
               </div>
 
@@ -1226,17 +1319,17 @@ export function BookingModal({
             </div>
 
             {/* Time Slot Picker for Selected Date with Real-time Disabling & Past Slot Hiding */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-1.5 pt-0.5">
               <div className="flex items-center justify-between text-xs font-bold text-slate-200">
-                <span>📅 {formattedBookingDate}</span>
-                <span className="text-amber-400 text-[10px] uppercase font-mono">Select Time Slot</span>
+                <span className="text-[11px] sm:text-xs text-slate-300 font-bold">📅 {formattedBookingDate}</span>
+                <span className="text-amber-400 text-[9px] sm:text-[10px] uppercase font-mono tracking-wider">Select Slot</span>
               </div>
 
               {/* Filter out slots that have already passed or dates that are blocked */}
               {(() => {
                 if (bookedSlotsMap["_blockedDate"]) {
                   return (
-                    <div className="p-3.5 text-center rounded-xl bg-red-950/40 border border-red-800/60 space-y-1.5 my-1">
+                    <div className="p-3 text-center rounded-xl bg-red-950/40 border border-red-800/60 space-y-1 my-1">
                       <p className="text-xs text-red-400 font-bold flex items-center justify-center space-x-1.5">
                         <i className="fa-solid fa-ban"></i>
                         <span>This date is marked as booked / unavailable.</span>
@@ -1254,7 +1347,7 @@ export function BookingModal({
 
                 if (activeSlots.length === 0) {
                   return (
-                    <div className="p-3 text-center rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5 my-1">
+                    <div className="p-3 text-center rounded-xl bg-zinc-900 border border-zinc-800 space-y-1 my-1">
                       <p className="text-xs text-amber-400 font-bold flex items-center justify-center space-x-1">
                         <span>⏰</span>
                         <span>All time slots for today have passed.</span>
@@ -1267,7 +1360,7 @@ export function BookingModal({
                 }
 
                 return (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 max-h-56 sm:max-h-64 overflow-y-auto p-0.5 scrollbar-thin scrollbar-thumb-zinc-700">
                     {activeSlots.map((time) => {
                       const slotKey = sanitizeSlotKey(time);
                       const isBooked = bookedSlotsMap[slotKey] === true;
@@ -1277,14 +1370,14 @@ export function BookingModal({
                           key={time}
                           disabled={isBooked}
                           onClick={() => handleSelectSlot(time)}
-                          className={`w-full p-2.5 rounded-xl text-xs font-bold transition-all shadow ${
+                          className={`w-full py-2 px-1.5 sm:py-2.5 sm:px-2 rounded-xl text-xs font-bold transition-all shadow ${
                             isBooked
-                              ? "bg-zinc-800/80 border border-zinc-700 text-zinc-500 cursor-not-allowed line-through flex items-center justify-center space-x-1 opacity-60"
+                              ? "bg-zinc-900/60 border border-zinc-800/80 text-zinc-600 cursor-not-allowed line-through flex items-center justify-center space-x-1 opacity-50 text-[11px]"
                               : "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black hover:scale-[1.02] active:scale-95 flex items-center justify-center space-x-1"
                           }`}
                         >
-                          <i className="fa-regular fa-clock text-[11px]"></i>
-                          <span>{isBooked ? `${time} (Booked)` : time}</span>
+                          <i className="fa-regular fa-clock text-[10px]"></i>
+                          <span className="truncate">{isBooked ? `${time} (Booked)` : time}</span>
                         </button>
                       );
                     })}

@@ -1272,8 +1272,8 @@ router.post("/reschedule-meeting", async (req, res) => {
               (cleanPhoneNum && lPhone === cleanPhoneNum);
 
             if (isMatch) {
-              const oldMDate = leadObj.meeting?.meetingDate || leadObj.meetingDate;
-              const oldMTime = leadObj.meeting?.meetingTime || leadObj.meetingTime;
+              const oldMDate = leadObj.meeting?.meetingDate || leadObj.meetingDate || req.body.oldDate;
+              const oldMTime = leadObj.meeting?.meetingTime || leadObj.meetingTime || req.body.oldTime;
               const oldMeetingKey = oldMDate && oldMTime ? `${oldMDate}_${oldMTime}` : null;
 
               const leadPath = `campaigns/${cKey}/leads/${dKey}/${lId}`;
@@ -1290,9 +1290,11 @@ router.post("/reschedule-meeting", async (req, res) => {
                 updatedAt: nowIso,
               });
 
-              // Clean up old meeting index if meeting date changed
-              if (oldMDate && oldMDate !== newDate && campaignData.meetings?.[oldMDate]?.[lId]) {
+              // Release old slot and clean up old meeting index if meeting date or time changed
+              if (oldMDate && oldMTime && (oldMDate !== newDate || oldMTime !== newTime)) {
+                const oldSlotKey = String(oldMTime).replace(/[^a-zA-Z0-9]/g, "_");
                 await firebaseDb(`campaigns/${cKey}/meetings/${oldMDate}/${lId}`, "DELETE");
+                await firebaseDb(`slots/${cKey}/${oldMDate}/${oldSlotKey}`, "DELETE");
               }
 
               // Update/create new meeting index record under /meetings/{newDate}/{lId}
@@ -1310,6 +1312,17 @@ router.post("/reschedule-meeting", async (req, res) => {
               };
 
               await firebaseDb(`campaigns/${cKey}/meetings/${newDate}/${lId}`, "PATCH", updatedMeetingPayload);
+
+              // Mark new slot as booked/occupied so nobody else can book it
+              const newSlotKey = String(newTime).replace(/[^a-zA-Z0-9]/g, "_");
+              await firebaseDb(`slots/${cKey}/${newDate}/${newSlotKey}`, "PUT", {
+                booked: true,
+                leadId: lIdStr || lId,
+                fullName: leadObj.fullName || fullName || "Client",
+                phone: leadObj.phone || phone || "",
+                bookedAt: leadObj.meeting?.bookedAt || nowIso,
+                rescheduledAt: nowIso,
+              });
 
               // Trigger Google Cloud Tasks Automation Sync for updated meeting schedule
               try {

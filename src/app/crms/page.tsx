@@ -53,6 +53,8 @@ import {
   unmarkDateOrSlot,
   getAllBlockedSlotsAndDates,
   DEFAULT_DAILY_TIME_SLOTS,
+  getBookedSlotsForDate,
+  sanitizeSlotKey,
 } from "@/lib/firebase";
 import {
   signOut,
@@ -479,9 +481,11 @@ export default function CRMPage() {
 
   // Executive Reschedule Meeting Drawer State
   const [rescheduleDate, setRescheduleDate] = useState<string>(todayStr);
-  const [rescheduleTime, setRescheduleTime] = useState<string>("11:00 AM");
+  const [rescheduleTime, setRescheduleTime] = useState<string>("10:00 AM");
   const [sendRescheduleWhatsapp, setSendRescheduleWhatsapp] = useState<boolean>(true);
   const [isRescheduling, setIsRescheduling] = useState<boolean>(false);
+  const [rescheduleBookedSlotsMap, setRescheduleBookedSlotsMap] = useState<Record<string, boolean>>({});
+  const [isLoadingRescheduleSlots, setIsLoadingRescheduleSlots] = useState<boolean>(false);
 
 
   // Dashboard Leads Tab Date Filter State
@@ -606,6 +610,7 @@ export default function CRMPage() {
   const [showTimingDirectionInfo, setShowTimingDirectionInfo] = useState(false);
   const [showReferenceBaseInfo, setShowReferenceBaseInfo] = useState(false);
 
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleTitle, setRuleTitle] = useState("");
   const [ruleInstanceName, setRuleInstanceName] = useState("");
   const [whatsappInstancesList, setWhatsappInstancesList] = useState<any[]>([]);
@@ -813,7 +818,9 @@ export default function CRMPage() {
   const handleOpenStageAutomationModal = (stage: PipelineStageConfig) => {
     setActiveAutomationStage(stage);
     setIsStageAutomationModalOpen(true);
+    setEditingRuleId(null);
     setRuleTitle("");
+    setRuleInstanceName("");
     const isMeetingStage = stage.id === "meeting_booked";
     setRuleTriggerBase(isMeetingStage ? "meeting" : "created");
     setRuleOffsetType(isMeetingStage ? "before" : "after");
@@ -822,13 +829,38 @@ export default function CRMPage() {
     setRuleTemplate(`Hello {{name}}, reminder for your session in stage "${stage.name}" at {{time}} on {{date}}!`);
   };
 
+  const handleStartEditStageRule = (rule: StageAutomationRule) => {
+    setEditingRuleId(rule.id);
+    setRuleTitle(rule.title || "");
+    setRuleInstanceName(rule.instanceName || "");
+    setRuleTriggerBase(rule.triggerBase || "created");
+    setRuleOffsetType(rule.offsetType || "after");
+    setRuleOffsetValue(rule.offsetValue || 1);
+    setRuleOffsetUnit(rule.offsetUnit || "minutes");
+    setRuleTemplate(rule.template || "");
+  };
+
+  const handleCancelEditStageRule = () => {
+    setEditingRuleId(null);
+    setRuleTitle("");
+    setRuleInstanceName("");
+    if (activeAutomationStage) {
+      const isMeetingStage = activeAutomationStage.id === "meeting_booked";
+      setRuleTriggerBase(isMeetingStage ? "meeting" : "created");
+      setRuleOffsetType(isMeetingStage ? "before" : "after");
+      setRuleOffsetValue(10);
+      setRuleOffsetUnit("minutes");
+      setRuleTemplate(`Hello {{name}}, reminder for your session in stage "${activeAutomationStage.name}" at {{time}} on {{date}}!`);
+    }
+  };
+
   const handleSaveStageRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeAutomationStage || !ruleTitle.trim()) return;
 
     setIsSavingRule(true);
     try {
-      const ruleId = `rule_${Date.now()}`;
+      const ruleId = editingRuleId || `rule_${Date.now()}`;
       const payload = {
         stageId: activeAutomationStage.id,
         rule: {
@@ -852,7 +884,17 @@ export default function CRMPage() {
 
       const data = await res.json();
       if (data.success) {
+        setEditingRuleId(null);
         setRuleTitle("");
+        setRuleInstanceName("");
+        if (activeAutomationStage) {
+          const isMeetingStage = activeAutomationStage.id === "meeting_booked";
+          setRuleTriggerBase(isMeetingStage ? "meeting" : "created");
+          setRuleOffsetType(isMeetingStage ? "before" : "after");
+          setRuleOffsetValue(10);
+          setRuleOffsetUnit("minutes");
+          setRuleTemplate(`Hello {{name}}, reminder for your session in stage "${activeAutomationStage.name}" at {{time}} on {{date}}!`);
+        }
       } else {
         alert(`Error saving automation rule: ${data.error}`);
       }
@@ -869,6 +911,9 @@ export default function CRMPage() {
       await fetch(`${SERVER_URL}/api/whatsapp/stage-automations/${stageId}/${ruleId}`, {
         method: "DELETE",
       });
+      if (editingRuleId === ruleId) {
+        handleCancelEditStageRule();
+      }
     } catch (err) {
       console.error("Delete Rule Error:", err);
     }
@@ -1822,7 +1867,25 @@ export default function CRMPage() {
     }
   }, [selectedLead, todayStr]);
 
-  // Execute Executive Reschedule Meeting & Update Google Meet
+  // Realtime Booked Slots Fetcher whenever Reschedule Date or Selected Lead Changes
+  useEffect(() => {
+    async function fetchRescheduleSlots() {
+      if (!rescheduleDate) return;
+      setIsLoadingRescheduleSlots(true);
+      try {
+        const campaign = selectedLead?.campaign || selectedCampaign || "firstoptionagency";
+        const bookedMap = await getBookedSlotsForDate(rescheduleDate, campaign);
+        setRescheduleBookedSlotsMap(bookedMap);
+      } catch (e) {
+        console.error("fetchRescheduleSlots error:", e);
+      } finally {
+        setIsLoadingRescheduleSlots(false);
+      }
+    }
+    fetchRescheduleSlots();
+  }, [rescheduleDate, selectedLead?.id, selectedLead?.campaign, selectedCampaign]);
+
+  // Execute Executive Reschedule Meeting & Update Google Meet & Slot Booking State
   const handleExecuteReschedule = async () => {
     if (!selectedLead) return;
     if (!rescheduleDate || !rescheduleTime) {
@@ -1830,8 +1893,25 @@ export default function CRMPage() {
       return;
     }
 
+    const chosenSlotKey = sanitizeSlotKey(rescheduleTime);
+    const isCurrentSlot =
+      selectedLead.meeting?.meetingDate === rescheduleDate &&
+      selectedLead.meeting?.meetingTime === rescheduleTime;
+
+    // Prevent double booking if another client already occupies this slot
+    if (rescheduleBookedSlotsMap[chosenSlotKey] && !isCurrentSlot) {
+      alert(
+        `⚠️ The slot "${rescheduleTime}" on ${rescheduleDate} is already booked/occupied by another client.\n\nPlease select another available time slot.`
+      );
+      return;
+    }
+
     setIsRescheduling(true);
     try {
+      const oldMeetingDate = selectedLead.meeting?.meetingDate;
+      const oldMeetingTime = selectedLead.meeting?.meetingTime;
+      const targetCampaign = selectedLead.campaign || selectedCampaign || "firstoptionagency";
+
       const serverUrl = (process.env.NEXT_PUBLIC_WHATSAPP_SERVER_URL || "https://first.infiplus.in").replace(/\/$/, "");
       const res = await fetch(`${serverUrl}/api/whatsapp/reschedule-meeting`, {
         method: "POST",
@@ -1841,11 +1921,12 @@ export default function CRMPage() {
           email: selectedLead.email,
           phone: selectedLead.phone,
           fullName: selectedLead.fullName,
-          oldDate: selectedLead.meeting?.meetingDate,
+          oldDate: oldMeetingDate,
+          oldTime: oldMeetingTime,
           newDate: rescheduleDate,
           newTime: rescheduleTime,
           sendWhatsapp: sendRescheduleWhatsapp,
-          campaignName: selectedLead.campaign || selectedCampaign,
+          campaignName: targetCampaign,
         }),
       });
       const data = await res.json();
@@ -1862,11 +1943,17 @@ export default function CRMPage() {
       };
 
       const targetCreatedDate = selectedLead.createdDate || todayStr;
-      const targetCampaign = selectedLead.campaign || selectedCampaign;
       const targetLeadId = selectedLead.id || (selectedLead.email ? sanitizeEmailToId(selectedLead.email) : "lead_" + Date.now());
 
       await saveOrUpdateLead(
-        { ...selectedLead, id: targetLeadId, meeting: updatedMeeting, status: "completed" },
+        {
+          ...selectedLead,
+          id: targetLeadId,
+          meeting: updatedMeeting,
+          status: "completed",
+          _oldMeetingDate: oldMeetingDate,
+          _oldMeetingTime: oldMeetingTime,
+        } as any,
         targetLeadId,
         targetCreatedDate,
         targetCampaign
@@ -1883,12 +1970,20 @@ export default function CRMPage() {
       setLeadsList((prev) => prev.map((l) => (isSameLead(l, selectedLead) ? updatedLeadRecord : l)));
       setSelectedLead(updatedLeadRecord);
 
+      // Refresh meetings list & slots cache
       const refreshedMeetings = await getAllMeetings(selectedCampaign);
       setAllMeetingsList(refreshedMeetings);
+
+      const refreshedSlots = await getBookedSlotsForDate(rescheduleDate, targetCampaign);
+      setRescheduleBookedSlotsMap(refreshedSlots);
 
       alert(
         `✅ Meeting successfully rescheduled to ${rescheduleDate} @ ${rescheduleTime}!\n\n` +
           `🎥 New Google Meet Link: ${newMeetUrl}\n\n` +
+          (oldMeetingDate && oldMeetingTime && (oldMeetingDate !== rescheduleDate || oldMeetingTime !== rescheduleTime)
+            ? `🔓 Previous slot (${oldMeetingDate} @ ${oldMeetingTime}) is now freed & available for other clients.\n` +
+              `🔒 New slot (${rescheduleDate} @ ${rescheduleTime}) is now marked as occupied.\n\n`
+            : `🔒 Slot (${rescheduleDate} @ ${rescheduleTime}) confirmed.\n\n`) +
           (sendRescheduleWhatsapp
             ? "💬 WhatsApp reschedule notification dispatched to client."
             : "ℹ️ WhatsApp notification was skipped (unticked).")
@@ -6731,33 +6826,38 @@ export default function CRMPage() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-extrabold text-slate-700 uppercase tracking-wider mb-1">
-                      New Meeting Time *
+                    <label className="block text-[10px] font-extrabold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                      <span>New Meeting Time *</span>
+                      {isLoadingRescheduleSlots && (
+                        <span className="text-[10px] text-indigo-600 font-semibold flex items-center space-x-1">
+                          <i className="fa-solid fa-circle-notch fa-spin"></i>
+                          <span>Checking slots...</span>
+                        </span>
+                      )}
                     </label>
                     <select
                       value={rescheduleTime}
                       onChange={(e) => setRescheduleTime(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 transition-colors"
                     >
-                      <option value="11:00 AM">11:00 AM</option>
-                      <option value="11:30 AM">11:30 AM</option>
-                      <option value="12:00 PM">12:00 PM</option>
-                      <option value="12:30 PM">12:30 PM</option>
-                      <option value="02:00 PM">02:00 PM</option>
-                      <option value="02:30 PM">02:30 PM</option>
-                      <option value="03:00 PM">03:00 PM</option>
-                      <option value="03:30 PM">03:30 PM</option>
-                      <option value="04:00 PM">04:00 PM</option>
-                      <option value="04:30 PM">04:30 PM</option>
-                      <option value="06:00 PM">06:00 PM</option>
-                      <option value="06:30 PM">06:30 PM</option>
-                      <option value="07:00 PM">07:00 PM</option>
-                      <option value="07:30 PM">07:30 PM</option>
-                      <option value="09:00 PM">09:00 PM</option>
-                      <option value="09:30 PM">09:30 PM</option>
-                      <option value="10:00 PM">10:00 PM</option>
-                      <option value="10:30 PM">10:30 PM</option>
-                      <option value="11:00 PM">11:00 PM</option>
+                      {DEFAULT_DAILY_TIME_SLOTS.map((slotOption) => {
+                        const sKey = sanitizeSlotKey(slotOption);
+                        const isCurrentSlot =
+                          selectedLead?.meeting?.meetingDate === rescheduleDate &&
+                          selectedLead?.meeting?.meetingTime === slotOption;
+                        const isOccupied = rescheduleBookedSlotsMap[sKey] && !isCurrentSlot;
+
+                        return (
+                          <option
+                            key={slotOption}
+                            value={slotOption}
+                            disabled={isOccupied}
+                            className={isOccupied ? "text-slate-400 bg-slate-100" : "text-slate-900"}
+                          >
+                            {slotOption} {isCurrentSlot ? "— 📌 (Current Slot)" : isOccupied ? "— 🚫 (Booked / Occupied)" : "— ✅ (Available)"}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
@@ -7060,11 +7160,33 @@ export default function CRMPage() {
                                   </span>
                                 </div>
 
-                                {task.textValue && (
-                                  <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono font-bold break-all">
-                                    {task.textValue}
-                                  </div>
-                                )}
+                                 {((Array.isArray(task.notesList) && task.notesList.length > 0) || task.textValue) && (
+                                   <div className="space-y-1.5">
+                                     {Array.isArray(task.notesList) && task.notesList.length > 0 ? (
+                                       task.notesList.map((note) => (
+                                         <div key={note.id} className="bg-white border border-slate-200 rounded-xl p-2 text-xs space-y-1 shadow-2xs">
+                                           <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                                             <span>🕒 {new Date(note.createdAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
+                                             {note.createdBy && <span className="text-indigo-600 font-bold truncate max-w-[80px]">{note.createdBy.split("@")[0]}</span>}
+                                           </div>
+                                           <div className="text-slate-900 font-medium break-all">
+                                             {note.text.startsWith("http") ? (
+                                               <a href={note.text} target="_blank" rel="noreferrer" className="text-indigo-600 underline font-bold">
+                                                 {note.text} ↗
+                                               </a>
+                                             ) : (
+                                               note.text
+                                             )}
+                                           </div>
+                                         </div>
+                                       ))
+                                     ) : (
+                                       <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono font-bold break-all">
+                                         {task.textValue}
+                                       </div>
+                                     )}
+                                   </div>
+                                 )}
 
                                 {task.completedAt ? (
                                   <div className="text-[10px] font-mono text-emerald-800 bg-emerald-100/90 border border-emerald-300 p-1.5 rounded-lg font-extrabold flex items-center justify-between">
@@ -7374,23 +7496,52 @@ export default function CRMPage() {
 
             {/* Scrollable Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
-              {/* Create New Stage Automation Form */}
-              <form onSubmit={handleSaveStageRule} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                  <h4 className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider flex items-center space-x-1.5">
-                    <i className="fa-solid fa-bolt text-xs"></i>
-                    <span>Add Automation Rule for "{activeAutomationStage.name}"</span>
-                  </h4>
+              {/* Create / Edit Stage Automation Form */}
+              <form
+                onSubmit={handleSaveStageRule}
+                className={`bg-slate-50 border ${
+                  editingRuleId ? "border-amber-400 bg-amber-50/20 shadow-md ring-2 ring-amber-200" : "border-slate-200"
+                } rounded-2xl p-5 space-y-4 transition-all`}
+              >
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 flex-wrap gap-2">
+                  <div className="flex items-center space-x-2 flex-wrap">
+                    <h4
+                      className={`text-xs font-extrabold ${
+                        editingRuleId ? "text-amber-700" : "text-indigo-700"
+                      } uppercase tracking-wider flex items-center space-x-1.5`}
+                    >
+                      <i className={`fa-solid ${editingRuleId ? "fa-pen-to-square" : "fa-bolt"} text-xs`}></i>
+                      <span>
+                        {editingRuleId ? `Edit Automation Rule` : `Add Automation Rule for "${activeAutomationStage.name}"`}
+                      </span>
+                    </h4>
+                    {editingRuleId && (
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsAutomationGuideOpen(!isAutomationGuideOpen)}
-                    className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 text-xs font-extrabold px-2.5 py-1 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs"
-                    title="Click to view detailed guide & 3 real-world examples"
-                  >
-                    <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">i</span>
-                    <span>{isAutomationGuideOpen ? "Hide Guide ✕" : "How Automations Work (3 Examples) ℹ️"}</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    {editingRuleId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEditStageRule}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                      >
+                        Cancel Edit ✕
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsAutomationGuideOpen(!isAutomationGuideOpen)}
+                      className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 text-xs font-extrabold px-2.5 py-1 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                      title="Click to view detailed guide & 3 real-world examples"
+                    >
+                      <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">i</span>
+                      <span>{isAutomationGuideOpen ? "Hide Guide ✕" : "How Automations Work (3 Examples) ℹ️"}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {isAutomationGuideOpen && (
@@ -7448,8 +7599,6 @@ export default function CRMPage() {
                           💬 "Hello {"{{name}}"}, you filled out our survey yesterday! Book a call slot today."
                         </div>
                       </div>
-
-
                     </div>
 
                     <div className="bg-rose-950/60 border border-rose-800/80 rounded-xl p-2.5 text-[11px] text-rose-200 flex items-start space-x-2">
@@ -7478,7 +7627,14 @@ export default function CRMPage() {
 
                   {/* Select WhatsApp Instance */}
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-[11px] font-extrabold text-slate-700">Select WhatsApp Sender Instance for Rule:</label>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <label className="font-extrabold text-slate-700">Select WhatsApp Sender Instance for Rule:</label>
+                      {ruleInstanceName && (
+                        <span className="text-indigo-600 font-bold text-[10px]">
+                          Selected: {ruleInstanceName}
+                        </span>
+                      )}
+                    </div>
                     <select
                       value={ruleInstanceName}
                       onChange={(e) => setRuleInstanceName(e.target.value)}
@@ -7486,8 +7642,8 @@ export default function CRMPage() {
                     >
                       <option value="">-- Use Default Active Instance --</option>
                       {whatsappInstancesList.map((inst: any) => (
-                        <option key={inst.instanceId} value={inst.instanceName}>
-                          🚀 {inst.instanceName} ({inst.status})
+                        <option key={inst.instanceId || inst.instanceName} value={inst.instanceName}>
+                          {inst.status === "open" ? "🟢" : "🚀"} {inst.instanceName} ({inst.status || "active"}) {inst.number ? `• ${inst.number}` : ""}
                         </option>
                       ))}
                     </select>
@@ -7607,12 +7763,24 @@ export default function CRMPage() {
 
                   {/* Message Template */}
                   <div className="space-y-1 sm:col-span-2">
-                    <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center justify-between text-[11px] flex-wrap gap-1">
                       <label className="font-extrabold text-slate-700">WhatsApp Message Template:</label>
-                      <span className="font-mono text-slate-500">Tags: {"{{name}}"}, {"{{date}}"}, {"{{time}}"}, {"{{meeting_url}}"}</span>
+                      <div className="flex items-center space-x-1 flex-wrap gap-1">
+                        <span className="text-slate-400 text-[10px] mr-0.5">Insert:</span>
+                        {["{{name}}", "{{date}}", "{{time}}", "{{meeting_url}}"].map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setRuleTemplate((prev) => prev + ` ${tag}`)}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors"
+                          >
+                            + {tag}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <textarea
-                      rows={2}
+                      rows={3}
                       value={ruleTemplate}
                       onChange={(e) => setRuleTemplate(e.target.value)}
                       className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600"
@@ -7622,18 +7790,34 @@ export default function CRMPage() {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSavingRule}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-5 py-2 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
-                >
-                  {isSavingRule ? (
-                    <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
-                  ) : (
-                    <i className="fa-solid fa-bolt text-xs"></i>
+                <div className="flex items-center space-x-3 pt-1">
+                  <button
+                    type="submit"
+                    disabled={isSavingRule}
+                    className={`${
+                      editingRuleId ? "bg-amber-600 hover:bg-amber-700" : "bg-indigo-600 hover:bg-indigo-700"
+                    } text-white text-xs font-extrabold px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer`}
+                  >
+                    {isSavingRule ? (
+                      <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                    ) : editingRuleId ? (
+                      <i className="fa-solid fa-check text-xs"></i>
+                    ) : (
+                      <i className="fa-solid fa-bolt text-xs"></i>
+                    )}
+                    <span>{editingRuleId ? "Update Stage Automation Rule 💾" : "Save Stage Automation Rule ⚡"}</span>
+                  </button>
+
+                  {editingRuleId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditStageRule}
+                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                    >
+                      Cancel Edit
+                    </button>
                   )}
-                  <span>Save Stage Automation Rule ⚡</span>
-                </button>
+                </div>
               </form>
 
               {/* List of Configured Stage Rules */}
@@ -7648,32 +7832,63 @@ export default function CRMPage() {
                     <p className="text-[11px] text-slate-400">Use the form above to add your first WhatsApp automation rule!</p>
                   </div>
                 ) : (
-                  <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 font-sans">
-                    {(stageAutomationsMap[activeAutomationStage.id] || []).map((rule) => (
-                      <div
-                        key={rule.id}
-                        className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                      >
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                            <span className="text-xs font-extrabold text-slate-900">{rule.title}</span>
-                            <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 uppercase">
-                              {rule.offsetValue} {rule.offsetUnit} {rule.triggerBase === "created" ? "after" : rule.offsetType} ({rule.triggerBase})
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-600 italic truncate font-mono">
-                            "{rule.template}"
-                          </p>
-                        </div>
-
-                        <button
-                          onClick={() => handleDeleteStageRule(activeAutomationStage.id, rule.id)}
-                          className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-sans">
+                    {(stageAutomationsMap[activeAutomationStage.id] || []).map((rule) => {
+                      const isEditingThis = editingRuleId === rule.id;
+                      return (
+                        <div
+                          key={rule.id}
+                          className={`bg-white border ${
+                            isEditingThis ? "border-amber-400 bg-amber-50/40 ring-2 ring-amber-300" : "border-slate-200"
+                          } rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs transition-all`}
                         >
-                          Delete 🗑️
-                        </button>
-                      </div>
-                    ))}
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                              <span className="text-xs font-extrabold text-slate-900">{rule.title}</span>
+                              <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 uppercase">
+                                {rule.offsetValue} {rule.offsetUnit} {rule.triggerBase === "created" ? "after" : rule.offsetType} ({rule.triggerBase})
+                              </span>
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                                  rule.instanceName
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-slate-100 text-slate-600 border-slate-200"
+                                }`}
+                              >
+                                📱 {rule.instanceName ? `Instance: ${rule.instanceName}` : "Default Active Instance"}
+                              </span>
+                              {isEditingThis && (
+                                <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
+                                  Editing Now
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-600 italic font-mono bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 whitespace-pre-wrap break-words">
+                              "{rule.template}"
+                            </p>
+                          </div>
+
+                          <div className="flex items-center space-x-2 flex-shrink-0 self-end sm:self-center">
+                            <button
+                              onClick={() => handleStartEditStageRule(rule)}
+                              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center space-x-1"
+                              title="Edit this rule"
+                            >
+                              <span>Edit</span>
+                              <span>✏️</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStageRule(activeAutomationStage.id, rule.id)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center space-x-1"
+                              title="Delete this rule"
+                            >
+                              <span>Delete</span>
+                              <span>🗑️</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

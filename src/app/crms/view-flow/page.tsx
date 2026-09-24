@@ -14,6 +14,9 @@ import {
   updateClientFlowTaskDetails,
   addClientFlowTask,
   deleteClientFlowTask,
+  addClientFlowTaskNote,
+  deleteClientFlowTaskNote,
+  TaskWorkNote,
   UserData,
   RoleData,
   ClientFlowInstance,
@@ -66,6 +69,15 @@ function ViewFlowCanvasContent() {
     task: ClientFlowTask;
     newText: string;
   } | null>(null);
+
+  // View Work Note Details Modal State
+  const [viewNoteModalData, setViewNoteModalData] = useState<{
+    note: TaskWorkNote;
+    taskTitle: string;
+    roleName: string;
+  } | null>(null);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
+  const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
 
   // EDIT TASK CONFIGURATION MODAL STATE
   const [editTaskModalData, setEditTaskModalData] = useState<{
@@ -305,45 +317,165 @@ function ViewFlowCanvasContent() {
     setUncheckWarningModalData(null);
   };
 
-  // Initiate Text Input Save
-  const handleInitiateSaveText = (
-    clientFlowId: string,
-    task: ClientFlowTask,
-    newText: string
-  ) => {
-    if (task.completedAt || (task.textValue && task.textValue !== newText)) {
-      setEditTextWarningModalData({
-        clientFlowId,
-        task,
-        newText,
+  // Helper: Retrieve all notes for a task (including legacy textValue fallback)
+  const getTaskNotesList = (task: ClientFlowTask): TaskWorkNote[] => {
+    if (Array.isArray(task.notesList) && task.notesList.length > 0) {
+      return task.notesList;
+    }
+    if (task.textValue && task.textValue.trim() !== "") {
+      return [
+        {
+          id: "legacy_" + task.id,
+          text: task.textValue,
+          createdAt: task.completedAt || "",
+          createdBy: task.completedBy || "Staff",
+        },
+      ];
+    }
+    return [];
+  };
+
+  // Helper: Format date and time
+  const formatNoteDateTime = (isoString?: string) => {
+    if (!isoString) return "Recently added";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return isoString;
+      return d.toLocaleString([], {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
       });
-    } else {
-      executeSaveTextValue(clientFlowId, task, newText);
+    } catch {
+      return isoString;
     }
   };
 
-  // Execute Save Text
-  const executeSaveTextValue = async (
+  // Helper: Detect and render clickable links in text
+  const renderFormattedTextWithLinks = (text: string) => {
+    if (!text) return null;
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, index) => {
+      if (part.match(urlRegex)) {
+        const href = part.startsWith("http") ? part : `https://${part}`;
+        return (
+          <a
+            key={index}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-indigo-400 hover:text-indigo-300 underline font-semibold break-all inline-flex items-center gap-1 mx-0.5"
+            title={`Open ${href}`}
+          >
+            <span>{part}</span>
+            <i className="fa-solid fa-arrow-up-right-from-square text-[9px] no-underline"></i>
+          </a>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
+  // Copy text to clipboard
+  const handleCopyText = (text: string, id: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedNoteId(id);
+      setTimeout(() => setCopiedNoteId(null), 2000);
+    }
+  };
+
+  // Save new note to task and clear draft input
+  const handleSaveTaskNote = async (
+    clientFlowId: string,
+    task: ClientFlowTask
+  ) => {
+    const currentText = (draftTexts[task.id] || "").trim();
+    if (!currentText) {
+      alert("Please enter a note or link before saving.");
+      return;
+    }
+
+    if (!canUserEditRoleTask(task.roleId, task.roleName)) {
+      alert(
+        `⚠️ Permission Denied: Only staff assigned to the '${task.roleName}' role can add notes for this task.`
+      );
+      return;
+    }
+
+    setSavingTaskId(task.id);
+    const userEmail = currentUser?.email || "Staff";
+
+    const res = await addClientFlowTaskNote(
+      clientFlowId,
+      task.id,
+      currentText,
+      userEmail
+    );
+
+    if (res.success && res.newNote) {
+      const savedNote = res.newNote;
+      setDraftTexts((prev) => ({
+        ...prev,
+        [task.id]: "",
+      }));
+
+      setClientFlows((prev) =>
+        prev.map((cf) => {
+          if (cf.id === clientFlowId) {
+            return {
+              ...cf,
+              tasks: cf.tasks.map((t) => {
+                if (t.id === task.id) {
+                  const existingNotes = getTaskNotesList(t).filter(
+                    (n) => !n.id.startsWith("legacy_")
+                  );
+                  return {
+                    ...t,
+                    textValue: savedNote.text,
+                    notesList: [...existingNotes, savedNote],
+                    completedAt: savedNote.createdAt,
+                    completedBy: userEmail,
+                  };
+                }
+                return t;
+              }),
+            };
+          }
+          return cf;
+        })
+      );
+    } else {
+      alert(res.message || "Failed to save work note.");
+    }
+    setSavingTaskId(null);
+  };
+
+  // Delete a specific note from a task
+  const handleDeleteTaskNote = async (
     clientFlowId: string,
     task: ClientFlowTask,
-    newText: string
+    noteId: string
   ) => {
     if (!canUserEditRoleTask(task.roleId, task.roleName)) {
-      alert(`⚠️ Permission Denied: Only staff assigned to the '${task.roleName}' role can update notes for this task.`);
+      alert(
+        `⚠️ Permission Denied: Only staff assigned to the '${task.roleName}' role or admin can delete notes.`
+      );
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this note/link?")) {
       return;
     }
 
     setIsUpdatingTask(true);
-    const userEmail = currentUser?.email || "Staff";
-    const nowIso = new Date().toISOString();
-
-    const res = await updateClientFlowTaskStatus(
-      clientFlowId,
-      task.id,
-      task.isCompleted,
-      newText,
-      userEmail
-    );
+    const res = await deleteClientFlowTaskNote(clientFlowId, task.id, noteId);
 
     if (res.success) {
       setClientFlows((prev) =>
@@ -351,24 +483,45 @@ function ViewFlowCanvasContent() {
           if (cf.id === clientFlowId) {
             return {
               ...cf,
-              tasks: cf.tasks.map((t) =>
-                t.id === task.id
-                  ? {
-                      ...t,
-                      textValue: newText,
-                      completedAt: nowIso,
-                      completedBy: userEmail,
-                    }
-                  : t
-              ),
+              tasks: cf.tasks.map((t) => {
+                if (t.id === task.id) {
+                  const existingNotes = getTaskNotesList(t);
+                  const filteredNotes = existingNotes.filter((n) => n.id !== noteId);
+                  const lastNote = filteredNotes[filteredNotes.length - 1];
+                  return {
+                    ...t,
+                    textValue: lastNote ? lastNote.text : "",
+                    notesList: filteredNotes,
+                  };
+                }
+                return t;
+              }),
             };
           }
           return cf;
         })
       );
+    } else {
+      alert(res.message || "Failed to delete work note.");
     }
-
     setIsUpdatingTask(false);
+  };
+
+  // Legacy fallback compatibility
+  const handleInitiateSaveText = (
+    clientFlowId: string,
+    task: ClientFlowTask,
+    newText: string
+  ) => {
+    handleSaveTaskNote(clientFlowId, task);
+  };
+
+  const executeSaveTextValue = async (
+    clientFlowId: string,
+    task: ClientFlowTask,
+    newText: string
+  ) => {
+    await handleSaveTaskNote(clientFlowId, task);
     setEditTextWarningModalData(null);
   };
 
@@ -992,7 +1145,8 @@ function ViewFlowCanvasContent() {
                           const isTaskDone = Boolean(task.isCompleted === true);
                           const taskIndex = activeFlow.tasks.findIndex((t) => t.id === task.id) + 1;
                           const currentDraftText =
-                            draftTexts[task.id] !== undefined ? draftTexts[task.id] : (task.textValue || "");
+                            draftTexts[task.id] !== undefined ? draftTexts[task.id] : "";
+                          const taskNotes = getTaskNotesList(task);
 
                           const isEditable = isMyRoleColumn;
 
@@ -1104,8 +1258,8 @@ function ViewFlowCanvasContent() {
 
                               {/* Text Input / Work Notes */}
                               {(task.type === "text" || task.type === "both") && (
-                                <div className="space-y-1">
-                                  {isEditable ? (
+                                <div className="space-y-2">
+                                  {isEditable && (
                                     <div className="flex items-center space-x-1.5">
                                       <input
                                         type="text"
@@ -1117,28 +1271,97 @@ function ViewFlowCanvasContent() {
                                             [task.id]: e.target.value,
                                           }))
                                         }
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter" && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSaveTaskNote(activeFlow.id, task);
+                                          }
+                                        }}
                                         className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium text-white focus:outline-none focus:border-indigo-500"
                                       />
                                       <button
                                         type="button"
-                                        onClick={() =>
-                                          handleInitiateSaveText(
-                                            activeFlow.id,
-                                            task,
-                                            currentDraftText
-                                          )
-                                        }
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-colors shadow-2xs flex-shrink-0 flex items-center space-x-1"
+                                        disabled={savingTaskId === task.id || isUpdatingTask}
+                                        onClick={() => handleSaveTaskNote(activeFlow.id, task)}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-colors shadow-2xs flex-shrink-0 flex items-center space-x-1 disabled:opacity-50 cursor-pointer"
                                       >
-                                        <i className="fa-solid fa-floppy-disk"></i>
-                                        <span>Save</span>
+                                        {savingTaskId === task.id ? (
+                                          <>
+                                            <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                                            <span>Saving...</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <i className="fa-solid fa-floppy-disk"></i>
+                                            <span>Save</span>
+                                          </>
+                                        )}
                                       </button>
                                     </div>
-                                  ) : (
-                                    <div className="bg-slate-800/60 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 font-mono font-medium truncate">
-                                      {task.textValue || "No notes entered"}
-                                    </div>
                                   )}
+
+                                  {/* Saved Notes List */}
+                                  {taskNotes.length > 0 ? (
+                                    <div className="space-y-1.5 pt-0.5">
+                                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 px-0.5">
+                                        <span className="flex items-center gap-1">
+                                          <i className="fa-solid fa-layer-group text-indigo-400 text-[10px]"></i>
+                                          Notes & Links ({taskNotes.length})
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 font-normal">Click to expand</span>
+                                      </div>
+                                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                                        {taskNotes.map((note, noteIdx) => (
+                                          <div
+                                            key={note.id || noteIdx}
+                                            onClick={() =>
+                                              setViewNoteModalData({
+                                                note,
+                                                taskTitle: task.title,
+                                                roleName: task.roleName,
+                                              })
+                                            }
+                                            title={note.text}
+                                            className="group relative bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-indigo-500/50 rounded-xl p-2.5 text-xs transition-all cursor-pointer shadow-sm"
+                                          >
+                                            <div className="flex items-center justify-between gap-1.5 mb-1 text-[10px]">
+                                              <div className="flex items-center gap-1 text-slate-400 font-medium font-mono">
+                                                <i className="fa-regular fa-clock text-indigo-400 text-[10px]"></i>
+                                                <span>{formatNoteDateTime(note.createdAt)}</span>
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                {note.createdBy && (
+                                                  <span className="font-bold px-1.5 py-0.5 rounded-md bg-indigo-950/60 text-indigo-300 border border-indigo-800/60 truncate max-w-[90px] text-[9px]">
+                                                    {note.createdBy.split("@")[0]}
+                                                  </span>
+                                                )}
+                                                {isEditable && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleDeleteTaskNote(activeFlow.id, task, note.id);
+                                                    }}
+                                                    className="text-slate-400 hover:text-rose-400 hover:bg-rose-950/50 p-1 rounded-md transition-colors cursor-pointer"
+                                                    title="Delete this note/link"
+                                                  >
+                                                    <i className="fa-solid fa-trash-can text-[10px]"></i>
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <div className="text-slate-200 font-medium text-[11px] leading-relaxed break-words line-clamp-2">
+                                              {renderFormattedTextWithLinks(note.text)}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : !isEditable ? (
+                                    <div className="bg-slate-800/60 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-400 font-medium text-center">
+                                      No notes or links entered
+                                    </div>
+                                  ) : null}
                                 </div>
                               )}
 
@@ -1565,6 +1788,87 @@ function ViewFlowCanvasContent() {
                   <i className="fa-solid fa-rotate-left text-xs"></i>
                 )}
                 <span>Reset & Mark In Progress</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW WORK NOTE / LINK DETAILS MODAL */}
+      {viewNoteModalData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0" onClick={() => setViewNoteModalData(null)} />
+          <div className="relative w-full max-w-lg bg-slate-900 rounded-3xl shadow-2xl p-6 space-y-4 border border-slate-700 z-10 font-sans text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-950/80 border border-indigo-700/50 text-indigo-400 flex items-center justify-center text-base font-bold">
+                  <i className="fa-solid fa-file-lines"></i>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Work Note / Link Details
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium truncate max-w-xs">
+                    {viewNoteModalData.taskTitle} • <span className="text-indigo-400 font-semibold">{viewNoteModalData.roleName}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewNoteModalData(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark text-base"></i>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-medium">
+                <i className="fa-regular fa-clock text-indigo-400"></i>
+                <span>{formatNoteDateTime(viewNoteModalData.note.createdAt)}</span>
+              </div>
+              {viewNoteModalData.note.createdBy && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 text-indigo-300 font-medium">
+                  <i className="fa-regular fa-user text-indigo-400"></i>
+                  <span>{viewNoteModalData.note.createdBy}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Saved Note Content
+              </span>
+              <div className="text-xs text-slate-200 font-normal leading-relaxed whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                {renderFormattedTextWithLinks(viewNoteModalData.note.text)}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                onClick={() => handleCopyText(viewNoteModalData.note.text, "view_modal")}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors flex items-center space-x-1.5 cursor-pointer"
+              >
+                {copiedNoteId === "view_modal" ? (
+                  <>
+                    <i className="fa-solid fa-check text-emerald-400"></i>
+                    <span className="text-emerald-400 font-bold">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-copy"></i>
+                    <span>Copy Text</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewNoteModalData(null)}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

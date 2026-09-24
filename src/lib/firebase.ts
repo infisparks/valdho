@@ -217,16 +217,14 @@ export async function getBookedSlotsForDate(
  * Standard daily time slots matching system configuration
  */
 export const DEFAULT_DAILY_TIME_SLOTS = [
+  "10:00 AM",
   "11:00 AM",
   "12:00 PM",
+  "01:00 PM",
   "02:00 PM",
   "03:00 PM",
   "04:00 PM",
-  "06:00 PM",
-  "07:00 PM",
-  "09:00 PM",
-  "10:00 PM",
-  "11:00 PM",
+  "05:00 PM",
 ];
 
 /**
@@ -919,16 +917,24 @@ export async function saveOrUpdateLead(
     const updates: Record<string, any> = {};
 
     // Check if meeting was changed to a different date or time, so we can clean up old slot & old meeting index
+    const oldMDate =
+      (lead as any)._oldMeetingDate ||
+      (lead as any).oldMeetingDate ||
+      existingLead?.meeting?.meetingDate;
+    const oldMTime =
+      (lead as any)._oldMeetingTime ||
+      (lead as any).oldMeetingTime ||
+      existingLead?.meeting?.meetingTime;
+    const newMDate = lead.meeting?.meetingDate;
+    const newMTime = lead.meeting?.meetingTime;
+
     if (
-      existingLead?.meeting?.meetingDate &&
-      existingLead?.meeting?.meetingTime &&
-      lead.meeting?.meetingDate &&
-      lead.meeting?.meetingTime &&
-      (existingLead.meeting.meetingDate !== lead.meeting.meetingDate ||
-        existingLead.meeting.meetingTime !== lead.meeting.meetingTime)
+      oldMDate &&
+      oldMTime &&
+      newMDate &&
+      newMTime &&
+      (oldMDate !== newMDate || oldMTime !== newMTime)
     ) {
-      const oldMDate = existingLead.meeting.meetingDate;
-      const oldMTime = existingLead.meeting.meetingTime;
       const oldSlotKey = sanitizeSlotKey(oldMTime);
       updates[`campaigns/${campaignName}/meetings/${oldMDate}/${leadId}`] = null;
       updates[`slots/${campaignName}/${oldMDate}/${oldSlotKey}`] = null;
@@ -1032,11 +1038,25 @@ export async function deleteLead(
     // Delete lead node
     updates[`campaigns/${campaignName}/leads/${targetCreatedDate}/${leadId}`] = null;
 
-    // Delete meeting and slot if present
-    if (meetingDate && meetingTime) {
-      const slotKey = sanitizeSlotKey(meetingTime);
-      updates[`campaigns/${campaignName}/meetings/${meetingDate}/${leadId}`] = null;
-      updates[`slots/${campaignName}/${meetingDate}/${slotKey}`] = null;
+    // Delete meeting and slot if present (or retrieve from lead record)
+    let mDateToDelete = meetingDate;
+    let mTimeToDelete = meetingTime;
+    if (!mDateToDelete || !mTimeToDelete) {
+      try {
+        const leadRefPath = `campaigns/${campaignName}/leads/${targetCreatedDate}/${leadId}`;
+        const leadSnap = await get(ref(db, leadRefPath));
+        if (leadSnap.exists()) {
+          const lData = leadSnap.val();
+          if (lData?.meeting?.meetingDate) mDateToDelete = lData.meeting.meetingDate;
+          if (lData?.meeting?.meetingTime) mTimeToDelete = lData.meeting.meetingTime;
+        }
+      } catch (e) {}
+    }
+
+    if (mDateToDelete && mTimeToDelete) {
+      const slotKey = sanitizeSlotKey(mTimeToDelete);
+      updates[`campaigns/${campaignName}/meetings/${mDateToDelete}/${leadId}`] = null;
+      updates[`slots/${campaignName}/${mDateToDelete}/${slotKey}`] = null;
     }
 
     // Permanently purge associated assigned Client Flow Instance(s) from /clientFlows node
@@ -1677,6 +1697,13 @@ export interface FlowTemplate {
   createdBy: string;
 }
 
+export interface TaskWorkNote {
+  id: string;
+  text: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
 export interface ClientFlowTask {
   id: string;
   roleId: string;
@@ -1685,6 +1712,7 @@ export interface ClientFlowTask {
   type: "checkbox" | "text" | "both";
   isCompleted: boolean;
   textValue: string;
+  notesList?: TaskWorkNote[];
   completedAt?: string;
   completedBy?: string;
 }
@@ -1903,7 +1931,8 @@ export async function updateClientFlowTaskStatus(
   taskId: string,
   isCompleted: boolean,
   textValue: string,
-  userEmail: string
+  userEmail: string,
+  notesList?: TaskWorkNote[]
 ): Promise<{ success: boolean }> {
   try {
     const snap = await get(ref(db, `clientFlows/${clientFlowId}`));
@@ -1918,6 +1947,7 @@ export async function updateClientFlowTaskStatus(
           ...t,
           isCompleted,
           textValue,
+          notesList: notesList !== undefined ? notesList : (t.notesList || []),
           completedAt: isCompleted ? timestamp : null,
           completedBy: isCompleted ? userEmail : null,
         };
@@ -1933,6 +1963,107 @@ export async function updateClientFlowTaskStatus(
   } catch (err) {
     console.error("Firebase updateClientFlowTaskStatus Error:", err);
     return { success: false };
+  }
+}
+
+/**
+ * Add a work note / link submission to a Client Flow Task.
+ * Preserves existing notes, timestamps new entry with full ISO date/time,
+ * and sets latest activity on the task.
+ */
+export async function addClientFlowTaskNote(
+  clientFlowId: string,
+  taskId: string,
+  noteText: string,
+  userEmail: string
+): Promise<{ success: boolean; newNote?: TaskWorkNote; message?: string }> {
+  try {
+    const snap = await get(ref(db, `clientFlows/${clientFlowId}`));
+    if (!snap.exists()) return { success: false, message: "Client workflow not found." };
+
+    const flow = snap.val() as ClientFlowInstance;
+    const nowIso = new Date().toISOString();
+    const newNote: TaskWorkNote = {
+      id: "note_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6),
+      text: noteText.trim(),
+      createdAt: nowIso,
+      createdBy: userEmail,
+    };
+
+    let updatedNoteResult: TaskWorkNote = newNote;
+
+    const updatedTasks = (flow.tasks || []).map((t) => {
+      if (t.id === taskId) {
+        let existingNotes: TaskWorkNote[] = Array.isArray(t.notesList) ? [...t.notesList] : [];
+        // If there was a legacy textValue and no notesList yet, migrate it first
+        if (existingNotes.length === 0 && t.textValue && t.textValue.trim() !== "") {
+          existingNotes.push({
+            id: "note_legacy_" + Date.now(),
+            text: t.textValue,
+            createdAt: t.completedAt || nowIso,
+            createdBy: t.completedBy || userEmail,
+          });
+        }
+        existingNotes.push(newNote);
+
+        return {
+          ...t,
+          textValue: newNote.text,
+          notesList: existingNotes,
+          completedAt: nowIso,
+          completedBy: userEmail,
+        };
+      }
+      return t;
+    });
+
+    await update(ref(db, `clientFlows/${clientFlowId}`), {
+      tasks: updatedTasks,
+    });
+
+    return { success: true, newNote: updatedNoteResult };
+  } catch (err: any) {
+    console.error("Firebase addClientFlowTaskNote Error:", err);
+    return { success: false, message: err?.message || "Failed to add work note." };
+  }
+}
+
+/**
+ * Delete a specific work note / link from a Client Flow Task.
+ */
+export async function deleteClientFlowTaskNote(
+  clientFlowId: string,
+  taskId: string,
+  noteId: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const snap = await get(ref(db, `clientFlows/${clientFlowId}`));
+    if (!snap.exists()) return { success: false, message: "Client workflow not found." };
+
+    const flow = snap.val() as ClientFlowInstance;
+
+    const updatedTasks = (flow.tasks || []).map((t) => {
+      if (t.id === taskId) {
+        const existingNotes: TaskWorkNote[] = Array.isArray(t.notesList) ? t.notesList : [];
+        const filteredNotes = existingNotes.filter((n) => n.id !== noteId);
+        const lastNote = filteredNotes[filteredNotes.length - 1];
+        return {
+          ...t,
+          textValue: lastNote ? lastNote.text : "",
+          notesList: filteredNotes,
+        };
+      }
+      return t;
+    });
+
+    await update(ref(db, `clientFlows/${clientFlowId}`), {
+      tasks: updatedTasks,
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Firebase deleteClientFlowTaskNote Error:", err);
+    return { success: false, message: err?.message || "Failed to delete work note." };
   }
 }
 
@@ -2078,6 +2209,7 @@ export async function addClientFlowTask(
       type: taskData.type,
       isCompleted: false,
       textValue: "",
+      notesList: [],
     };
 
     const updatedTasks = [...(flow.tasks || []), newTask];

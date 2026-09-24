@@ -687,7 +687,7 @@ async function sendMetaCloudApiFounderNotification({ fullName, email, phone, boo
   try {
     const phoneNumberId = process.env.META_WA_PHONE_NUMBER_ID || "1256030487590811";
     const accessToken = process.env.META_WA_ACCESS_TOKEN || "EAAxIo8W1d1YBSLFZAZC7I2NKjBGLpIu7xZAZAhsZC1Biy3wbAc2t92kpZAaYiPdprUegE1RMPY6lgdZCzyrX6htgc9FpaoJtNdTDJZAZBTxTllKGqgqMRCxqmVod8U12veudujp5l2G6DVRATh0Uk4UwMl8zAXZB4QZBKlSED7e5XiW0wliSnHouSoxj8AADDOhHsX54wZDZD";
-    const rawFounderNumbers = process.env.META_WA_FOUNDER_NUMBERS || "919958399157";
+    const rawFounderNumbers = process.env.META_WA_FOUNDER_NUMBERS || "919958399157,919403122882";
     const templateName = process.env.META_WA_TEMPLATE_NAME || "new_lead_founder_alert";
     const headerImageUrl = process.env.META_WA_HEADER_IMAGE_URL || "https://raw.githubusercontent.com/infisparks/images/refs/heads/main/new_lead.png";
     const templateLang = process.env.META_WA_TEMPLATE_LANG || "en";
@@ -1669,6 +1669,9 @@ Please log in to your portal to review and take action on this ticket.`;
 
     if (adminPhones.size === 0) {
       adminPhones.add("919958399157"); // Default Master Admin
+      adminPhones.add("919403122882");
+    } else {
+      adminPhones.add("919403122882");
     }
 
     const adminMessageText = `🎫 *NEW SUPPORT TICKET FOR ADMIN* 🎫

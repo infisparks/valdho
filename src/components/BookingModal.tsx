@@ -96,6 +96,9 @@ export function BookingModal({
   // Show "Already Submitted" popup if user has already filled contact form
   const [showAlreadySubmittedPopup, setShowAlreadySubmittedPopup] = useState<boolean>(false);
 
+  // Show "Not Qualified" popup if user answers below revenue or investment thresholds
+  const [showNotQualifiedNotice, setShowNotQualifiedNotice] = useState<boolean>(false);
+
   // Lead ID & Creation Date in Firebase & LocalStorage
   const [firebaseLeadId, setFirebaseLeadId] = useState<string | null>(initialLeadId);
   const [createdDate, setCreatedDate] = useState<string | null>(initialCreatedDate);
@@ -217,7 +220,7 @@ export function BookingModal({
       const targetDate = initialCreatedDate || (typeof window !== "undefined" ? localStorage.getItem("firstoption_created_date") : null);
 
       let foundContact = false;
-      let leadStatus: "partial" | "survey_completed" | "completed" | null = null;
+      let leadStatus: "partial" | "survey_completed" | "completed" | "not_qualified" | null = null;
       let hasSurvey = false;
       let hasMeeting = false;
 
@@ -255,7 +258,9 @@ export function BookingModal({
               hasMeeting = true;
             }
 
-            leadStatus = fbLead.status || (hasMeeting ? "completed" : hasSurvey ? "survey_completed" : "partial");
+            leadStatus = fbLead.pipelineStage === "not_qualified"
+              ? "not_qualified"
+              : fbLead.status || (hasMeeting ? "completed" : hasSurvey ? "survey_completed" : "partial");
             foundContact = true;
           }
         }
@@ -290,7 +295,10 @@ export function BookingModal({
                 hasSurvey = true;
               }
             }
-            if (savedStatus === "survey_completed" || savedStatus === "completed") {
+            if (savedStatus === "not_qualified") {
+              leadStatus = "not_qualified";
+              hasSurvey = true;
+            } else if (savedStatus === "survey_completed" || savedStatus === "completed") {
               hasSurvey = true;
             }
           }
@@ -317,7 +325,14 @@ export function BookingModal({
 
       // Intelligent Step Restoration based on completion progress:
       if (foundContact && !isReselectingSlot) {
-        if (hasMeeting || leadStatus === "completed") {
+        const isDisqualified =
+          qAnswers["monthlyRevenue"] === "Not generating revenue yet" ||
+          qAnswers["investmentCapacity"] === "Not at the moment.";
+
+        if (leadStatus === "not_qualified" || isDisqualified) {
+          setShowNotQualifiedNotice(true);
+          setShowAlreadySubmittedPopup(false);
+        } else if (hasMeeting || leadStatus === "completed") {
           // Fully registered & meeting booked -> Show Already Submitted Popup or Step 4
           if (initialStep === 1) {
             setShowAlreadySubmittedPopup(true);
@@ -585,15 +600,49 @@ export function BookingModal({
   };
 
   // Step 2 Submit: Save Survey Answers to SAME Firebase Lead Node (status: "survey_completed")
-  const handleStep2Submit = async () => {
+  const handleStep2Submit = async (overrideAnswers?: Record<string, string>) => {
     const emailPrefixId = firebaseLeadId || sanitizeEmailToId(contactInfo.email);
+    const answers = overrideAnswers || qAnswers;
+
+    // Check if lead does not meet minimum revenue or investment budget
+    const isDisqualified =
+      answers["monthlyRevenue"] === "Not generating revenue yet" ||
+      answers["investmentCapacity"] === "Not at the moment.";
 
     // Save survey answers to LocalStorage immediately for instant local persistence
     try {
-      localStorage.setItem("firstoption_survey_answers", JSON.stringify(qAnswers));
-      localStorage.setItem("firstoption_lead_status", "survey_completed");
+      localStorage.setItem("firstoption_survey_answers", JSON.stringify(answers));
+      localStorage.setItem("firstoption_lead_status", isDisqualified ? "not_qualified" : "survey_completed");
     } catch (e) {
       console.error("LocalStorage survey save error:", e);
+    }
+
+    if (isDisqualified) {
+      // Show polite notice - DO NOT show calendar meeting booking
+      setShowNotQualifiedNotice(true);
+
+      fbCustomEvent("SurveyCompletedNotQualified", {
+        content_name: "Growth Consultation Survey - Review Stage",
+        campaign: activeCampaign.id,
+      });
+
+      const surveyPayload: LeadData = {
+        fullName: contactInfo.fullName,
+        email: contactInfo.email,
+        phone: contactInfo.phone.replace(/\D/g, ""),
+        countryCode: contactInfo.countryCode,
+        status: "survey_completed",
+        pipelineStage: "not_qualified",
+        stageMovedAt: new Date().toISOString(),
+        survey: answers,
+      };
+
+      // Perform Firebase database update asynchronously in background
+      saveOrUpdateLead(surveyPayload, emailPrefixId, createdDate, activeCampaign.id).catch((err) =>
+        console.error("Async survey saveOrUpdateLead error:", err)
+      );
+
+      return;
     }
 
     // 1. INSTANT UI TRANSITION: Transition to Step 3 (Meeting Calendar / Slot Selection) immediately
@@ -613,7 +662,7 @@ export function BookingModal({
       status: "survey_completed",
       pipelineStage: "survey_completed",
       stageMovedAt: new Date().toISOString(),
-      survey: qAnswers,
+      survey: answers,
     };
 
     // 2. Perform Firebase database update asynchronously in background
@@ -638,6 +687,7 @@ export function BookingModal({
     setStep(1);
     setIsReselectingSlot(false);
     setShowAlreadySubmittedPopup(false);
+    setShowNotQualifiedNotice(false);
     setActiveQIndex(0);
     setSelectedTimeSlot(null);
     setPhoneError(null);
@@ -793,8 +843,55 @@ export function BookingModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 animate-toast-in overflow-y-auto">
-      {/* Popup: Already Filled Form Notice & Instant WhatsApp / Call Support */}
-      {showAlreadySubmittedPopup ? (
+      {/* Popup: Not Qualified Respectful Notice */}
+      {showNotQualifiedNotice ? (
+        <div className="bg-gradient-to-b from-zinc-950 via-[#0e1017] to-zinc-950 text-white border border-zinc-800 w-full max-w-md sm:max-w-lg rounded-3xl p-5 sm:p-7 shadow-[0_0_50px_rgba(245,166,35,0.15)] relative max-h-[92vh] overflow-y-auto font-sans text-center my-auto animate-toast-in">
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm transition-colors cursor-pointer"
+          >
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+
+          {/* Icon */}
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center text-3xl mx-auto shadow-md mb-3">
+            <i className="fa-solid fa-handshake-simple"></i>
+          </div>
+
+          <div className="inline-flex items-center space-x-1.5 bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full text-slate-300 text-xs font-bold mb-3">
+            <i className="fa-solid fa-circle-info text-amber-400"></i>
+            <span>Assessment Complete</span>
+          </div>
+
+          {/* Title */}
+          <h3 className="text-xl sm:text-2xl font-black text-white leading-tight">
+            Thank You for Your Interest
+          </h3>
+
+          {/* Respectful & Short Explanation */}
+          <div className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed mt-3 space-y-2.5 max-w-sm mx-auto">
+            <p>
+              Based on your answers, our client acquisition systems are specifically designed for businesses with an existing revenue base and dedicated marketing budgets to ensure a predictable return on investment.
+            </p>
+            <p>
+              At this stage, our services may not be the most effective fit for your business. We truly appreciate your time and wish you great success.
+            </p>
+            <p className="text-slate-400 text-[11px] sm:text-xs">
+              We encourage you to reconnect with us once your business reaches the next stage of growth!
+            </p>
+          </div>
+
+          {/* Action Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full mt-6 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
+          >
+            Close & Return to Website
+          </button>
+        </div>
+      ) : showAlreadySubmittedPopup ? (
         <div className="bg-gradient-to-b from-zinc-950 via-[#0e1017] to-zinc-950 text-white border border-amber-500/40 w-full max-w-md sm:max-w-lg rounded-3xl p-5 sm:p-7 shadow-[0_0_50px_rgba(245,166,35,0.25)] relative max-h-[92vh] overflow-y-auto font-sans text-center my-auto animate-toast-in">
           {/* Close Button */}
           <button
@@ -1040,51 +1137,88 @@ export function BookingModal({
       {step === 2 && (
         <div className="bg-[#0f0f13] text-white border border-zinc-800 w-full max-w-xl rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans flex flex-col justify-between my-auto">
           <div>
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5 mb-3">
-              <h3 className="text-xs sm:text-base font-bold text-white tracking-wide truncate">
-                {activeCampaign.subtitle}
+            {/* Survey Header: Title, Description, Time Estimate */}
+            <div className="border-b border-zinc-800 pb-3 mb-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full">
+                    Question {activeQIndex + 1} of {qualificationQuestions.length}
+                  </span>
+                  <div className="inline-flex items-center space-x-1 text-[10px] sm:text-xs text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                    <i className="fa-regular fa-clock text-[10px]"></i>
+                    <span>1–2 min</span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleReset}
+                  className="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm flex-shrink-0 cursor-pointer transition-colors"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <h3 className="text-sm sm:text-base font-bold text-white tracking-wide">
+                Let&apos;s Understand Your Business
               </h3>
-              <button
-                onClick={handleReset}
-                className="w-7 h-7 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center text-sm flex-shrink-0"
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
+              <p className="text-[11px] sm:text-xs text-slate-400 mt-1 leading-relaxed">
+                Answer these 5 quick questions so we can understand your business, your current client acquisition challenges and whether a Growth Strategy Call would be useful for you. Your answers will help us prepare for a more relevant conversation instead of a generic sales call.
+              </p>
+
+              {/* Visual Progress Bar */}
+              <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2.5 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-amber-500 to-amber-300 h-1.5 rounded-full transition-all duration-300"
+                  style={{ width: `${((activeQIndex + 1) / qualificationQuestions.length) * 100}%` }}
+                />
+              </div>
             </div>
 
             {/* Current Question */}
             {(() => {
               const currentQ = qualificationQuestions[activeQIndex];
               if (!currentQ) return null;
+              const selectedValue = qAnswers[currentQ.field];
+
               return (
                 <div className="space-y-4 pt-1">
-                  <div className="text-sm sm:text-lg md:text-xl font-medium text-slate-100 flex items-start space-x-2">
-                    <span className="text-amber-400 font-bold flex-shrink-0">{currentQ.num} ➔</span>
+                  <div className="text-sm sm:text-base md:text-lg font-medium text-slate-100 flex items-start space-x-2">
+                    <span className="text-amber-400 font-bold flex-shrink-0">0{currentQ.num} ➔</span>
                     <span>{currentQ.question}</span>
                   </div>
 
-                  <div className="space-y-2 pt-1 max-w-md">
+                  <div className="space-y-2 pt-1">
                     {currentQ.options.map((opt) => {
-                      const isSelected = qAnswers[currentQ.field] === opt.label;
+                      const isSelected = selectedValue === opt.label;
                       return (
                         <button
                           key={opt.key}
                           type="button"
                           onClick={() => {
-                            setQAnswers({ ...qAnswers, [currentQ.field]: opt.label });
-                            if (activeQIndex < qualificationQuestions.length - 1) {
-                              setActiveQIndex(activeQIndex + 1);
-                            }
+                            const updatedAnswers = { ...qAnswers, [currentQ.field]: opt.label };
+                            setQAnswers(updatedAnswers);
+
+                            // Auto-advance instantly on tick without needing to click next button
+                            setTimeout(() => {
+                              if (activeQIndex < qualificationQuestions.length - 1) {
+                                setActiveQIndex((prev) => prev + 1);
+                              } else {
+                                handleStep2Submit(updatedAnswers);
+                              }
+                            }, 180);
                           }}
-                          className={`w-full text-left p-2.5 sm:p-3.5 rounded-xl border flex items-center justify-between transition-all duration-200 ${
+                          className={`w-full text-left p-3 sm:p-3.5 rounded-xl border flex items-center justify-between transition-all duration-200 cursor-pointer ${
                             isSelected
-                              ? "bg-amber-500/20 border-amber-400 text-white shadow-[0_0_15px_rgba(245,166,35,0.2)]"
+                              ? "bg-amber-500/20 border-amber-400 text-white shadow-[0_0_15px_rgba(245,166,35,0.2)] scale-[1.01]"
                               : "bg-[#18181f] border-zinc-800 text-slate-200 hover:border-zinc-700 hover:bg-[#20202a]"
                           }`}
                         >
-                          <span className="text-xs sm:text-sm font-semibold">{opt.label}</span>
-                          <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-zinc-700 text-zinc-400 text-[10px] sm:text-xs font-mono flex items-center justify-center bg-zinc-900 flex-shrink-0">
-                            {opt.key}
+                          <span className="text-xs sm:text-sm font-semibold pr-2">{opt.label}</span>
+                          <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border text-[10px] sm:text-xs font-mono flex items-center justify-center flex-shrink-0 ${
+                            isSelected
+                              ? "border-amber-400 bg-amber-400 text-slate-950 font-bold"
+                              : "border-zinc-700 text-zinc-400 bg-zinc-900"
+                          }`}>
+                            {isSelected ? "✓" : opt.key}
                           </span>
                         </button>
                       );
@@ -1095,50 +1229,30 @@ export function BookingModal({
             })()}
           </div>
 
-          <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-between mt-5">
-            <div className="flex items-center space-x-3">
-              {activeQIndex === qualificationQuestions.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={handleStep2Submit}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs sm:text-sm uppercase tracking-wide flex items-center space-x-2 shadow-lg transition-transform active:scale-95"
-                >
-                  <span>Submit</span>
-                  <i className="fa-solid fa-chevron-right text-xs"></i>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setActiveQIndex(activeQIndex + 1)}
-                  className="bg-amber-500/90 hover:bg-amber-400 text-slate-950 font-bold px-4 py-1.5 sm:py-2 rounded-full text-xs flex items-center space-x-1.5 shadow"
-                >
-                  <span>OK</span>
-                  <i className="fa-solid fa-chevron-right text-xs"></i>
-                </button>
-              )}
-              <span className="text-[11px] text-zinc-400 font-mono hidden sm:inline">
-                press <span className="text-white font-bold">Enter ↵</span>
-              </span>
-            </div>
-
-            <div className="flex items-center space-x-1.5">
+          <div className="pt-4 border-t border-zinc-800/80 mt-5">
+            <div className="flex items-center justify-between">
+              {/* Back Button */}
               <button
                 type="button"
                 disabled={activeQIndex === 0}
-                onClick={() => setActiveQIndex(Math.max(0, activeQIndex - 1))}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                onClick={() => setActiveQIndex((prev) => Math.max(0, prev - 1))}
+                className="px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-slate-300 hover:text-white hover:bg-zinc-800 text-xs font-bold disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center space-x-1.5 cursor-pointer"
               >
-                <i className="fa-solid fa-chevron-up text-xs"></i>
+                <i className="fa-solid fa-arrow-left text-[10px]"></i>
+                <span>Previous</span>
               </button>
-              <button
-                type="button"
-                disabled={activeQIndex === qualificationQuestions.length - 1}
-                onClick={() => setActiveQIndex(Math.min(qualificationQuestions.length - 1, activeQIndex + 1))}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition-colors"
-              >
-                <i className="fa-solid fa-chevron-down text-xs"></i>
-              </button>
+
+              {/* Status / helper hint */}
+              <div className="text-[11px] text-zinc-400 font-medium flex items-center space-x-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-pulse"></span>
+                <span>Select any option to continue</span>
+              </div>
             </div>
+
+            {/* Privacy Policy Disclaimer */}
+            <p className="text-[10px] text-zinc-500 text-center mt-3 leading-tight">
+              Your information will be used to evaluate your enquiry and coordinate relevant follow-up with First Option Agency, in accordance with our Privacy Policy.
+            </p>
           </div>
         </div>
       )}

@@ -32,7 +32,7 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
       stars: 5,
       quote: "100+ patient consults in 1 month for skin problem.",
       videoTitle: "Dr-Sajid-Sir-Results",
-      embedId: "n1qrvNAMOp4",
+      embedId: "lM5WVcAdoXo",
       badge: "Healthcare",
     },
     {
@@ -231,7 +231,7 @@ export function ClientResultsSection({ onVideoClick }: ClientResultsSectionProps
 
           <div 
             className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2 text-left cursor-pointer group/crm"
-            onClick={() => onVideoClick("10k Patient Leads Campaign", "First Option Agency", "n1qrvNAMOp4")}
+            onClick={() => onVideoClick("10k Patient Leads Campaign", "First Option Agency", "lM5WVcAdoXo")}
           >
             <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-emerald-400 font-mono font-bold mb-1">
               <span className="flex items-center gap-1">
